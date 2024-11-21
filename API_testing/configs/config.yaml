@@ -1,0 +1,7 @@
+api:
+  base_url: "https://www.alphavantage.co/query"
+  default_interval: "1min"
+  default_symbol: "AAPL"
+
+data:
+  storage_path: "./data/"
