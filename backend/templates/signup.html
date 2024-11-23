@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <img src="{{ url_for('static', filename='images/PA_LOGO_20241023_v4.jpg') }}" alt="Logo" class="logo">
+        <div class="login-box">
+            <h2>Sign Up</h2>
+
+            <form id="signupForm" method="POST" action="{{ url_for('auth.signup') }}">
+                <div class="input-group">
+                    <label for="name">Name:</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+                <div class="input-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="input-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="login-btn">Sign Up</button>
+            </form>
+
+            <p class="form-link">Already have an account? <a href="{{ url_for('auth.login') }}">Log In</a></p>
+        </div>
+    </div>
+</body>
+</html>

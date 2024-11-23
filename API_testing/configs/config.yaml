@@ -5,3 +5,4 @@ api:
 
 data:
   storage_path: "./data/"
+  raw_path: "./data/raw/"
