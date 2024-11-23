@@ -20,22 +20,26 @@ def signup_page():
 
 @auth_blueprint.route('/signup', methods=['POST'])
 def signup():
-    data = request.json
-    # Hash the user's password
+    data = request.form  # Or request.json if using JSON payload
+    print(f"received data: {data}")
     hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
-    user = User(name=data['name'], email=data['email'], password_hash=hashed_password)
+
+    # Create and save user
+    user = User(username=data['username'], email=data['email'], password_hash=hashed_password)
     db.session.add(user)
     db.session.commit()
+
     return jsonify({'message': 'User created successfully!'})
 
 
 @auth_blueprint.route('/login', methods=['POST'])
 def login():
-    data = request.json
-    # Query the database for the user
+    data = request.form  # Or request.json if using JSON payload
     user = User.query.filter_by(email=data['email']).first()
+
     if user and bcrypt.check_password_hash(user.password_hash, data['password']):
-        # Create a JWT token
-        access_token = create_access_token(identity={'name': user.name, 'email': user.email})
+        # Generate JWT token
+        access_token = create_access_token(identity={'id': user.id, 'username': user.username})
         return jsonify({'access_token': access_token})
+
     return jsonify({'message': 'Invalid credentials!'}), 401
