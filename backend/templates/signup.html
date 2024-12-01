@@ -15,6 +15,14 @@
 
             <form id="signupForm" method="POST" action="{{ url_for('auth.signup') }}">
                 <div class="input-group">
+                    <label for="first_name">First Name:</label>
+                    <input type="text" id="first_name" name="first_name" required>
+                </div>
+                <div class="input-group">
+                    <label for="last_name">Last Name:</label>
+                    <input type="text" id="last_name" name="last_name" required>
+                </div>
+                <div class="input-group">
                     <label for="username">Username:</label>
                     <input type="text" id="username" name="username" required>
                 </div>
@@ -32,5 +40,37 @@
             <p class="form-link">Already have an account? <a href="{{ url_for('auth.login') }}">Log In</a></p>
         </div>
     </div>
+
+<script>
+    document.getElementById('signupForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        const formData = new FormData(this);
+
+        fetch("{{ url_for('auth.signup') }}", {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                // Redirect to login on success
+                window.location.href = "{{ url_for('auth.login_page') }}";
+            } else {
+                // Show error message on failure
+                response.json().then(data => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Signup Failed',
+                        text: data.message,
+                        showConfirmButton: true
+                    });
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    });
+</script>
 </body>
 </html>

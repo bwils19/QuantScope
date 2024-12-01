@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+<body class="dashboard-page">
+
+    <div class="navbar">
+        <h1>Welcome, {{ user.first_name }}!</h1>
+        <a href="/auth/logout" class="logout-button">Logout</a>
+    </div>
+
+<!--    <h1>Welcome, {{ user.first_name }}!</h1>-->
+<!--    <p>Your email: {{ user.email }}</p>-->
+
+    <form id="stockForm">
+    <input type="text" id="stockTicker" name="stockTicker" placeholder="Enter stock ticker (e.g., AAPL)">
+        <button type="submit">View Stock</button>
+    </form>
+    <div id="timeFrameButtons">
+        <button data-timeframe="1D">1D</button>
+        <button data-timeframe="1W">1W</button>
+        <button data-timeframe="10D">10D</button>
+        <button data-timeframe="1M">1M</button>
+        <button data-timeframe="3M">3M</button>
+        <button data-timeframe="6M">6M</button>
+        <button data-timeframe="1Y">1Y</button>
+    </div>
+
+    <div id="stockChartContainer">
+        <!-- Interactive chart will render here -->
+    </div>
+
+    <h2>Your Files</h2>
+    <ul>
+        {% for file in files %}
+        <li>{{ file.filename }} - Uploaded at {{ file.uploaded_at }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Upload a New File</h2>
+    <form method="POST" action="/upload" enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <button type="submit">Upload</button>
+    </form>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+
+
+<!--    <h2>Search Stocks</h2>-->
+<!--    <form method="GET" action="/stocks">-->
+<!--        <input type="text" name="symbol" placeholder="Enter Stock Symbol" required>-->
+<!--        <button type="submit">Search</button>-->
+<!--    </form>-->
+</body>
+</html>

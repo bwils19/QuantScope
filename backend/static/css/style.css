@@ -9,6 +9,10 @@ body.login-page {
     height: 100vh;
 }
 
+.dashboard-page {
+    background-color: #f4f4f4;
+}
+
 .login-container {
     text-align: center;
 }
@@ -81,3 +85,95 @@ input[type="password"] {
 .form-link a:hover {
     text-decoration: underline;
 }
+
+.dashboard {
+    text-align: center;
+    margin-top: 20px;
+}
+
+#stockForm {
+    margin: 20px 0;
+}
+
+#stockTicker {
+    padding: 10px;
+    width: 200px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+#stockForm button {
+    padding: 10px 15px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#stockForm button:hover {
+    background-color: #45a049;
+}
+
+#stockChartContainer {
+    border-radius: 18px;
+    margin: 20px auto;
+    overflow: hidden;
+    width: 80%;
+    height: 400px;
+    border: 1px solid #ccc;
+    padding: 15px;
+    background-color: #fff;
+}
+
+#timeFrameButtons {
+    margin: 20px 0;
+    text-align: center;
+}
+
+#timeFrameButtons button {
+    margin: 5px;
+    padding: 10px 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: #f8f8f8;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+#timeFrameButtons button:hover {
+    background-color: #ddd;
+}
+
+#timeFrameButtons button:active {
+    background-color: #bbb;
+}
+
+/* Style for the navigation bar */
+.navbar {
+    display: flex;
+    justify-content: space-between; /* Pushes content to the edges */
+    align-items: center;
+    padding: 10px 20px;
+    background-color: #2c3e50; /* Dark background color */
+    color: #ffffff; /* White text color */
+    border-radius: 8px; /* Optional rounded edges */
+}
+
+/* Style for the logout button */
+.logout-button {
+    text-decoration: none; /* Remove underline */
+    color: #ffffff; /* White text */
+    background-color: #e74c3c; /* Red background */
+    padding: 8px 15px;
+    border-radius: 5px;
+    font-size: 14px;
+    font-weight: bold;
+    transition: background-color 0.3s ease; /* Smooth hover transition */
+}
+
+.logout-button:hover {
+    background-color: #c0392b; /* Darker red on hover */
+}
+
+
