@@ -155,25 +155,34 @@ input[type="password"] {
     justify-content: space-between; /* Pushes content to the edges */
     align-items: center;
     padding: 10px 20px;
-    background-color: #2c3e50; /* Dark background color */
-    color: #ffffff; /* White text color */
+    /*background-color: #2c3e50; !* I like this color, but not for the nav bar *!*/
+    background-color: #f4f4f4;
+    color: #212830; /* text color */
+    font-size: 20px;
     border-radius: 8px; /* Optional rounded edges */
 }
 
 /* Style for the logout button */
 .logout-button {
     text-decoration: none; /* Remove underline */
-    color: #ffffff; /* White text */
-    background-color: #e74c3c; /* Red background */
+    color: #212830; /* text color */
+    /*background-color: #e74c3c; !* Red background *!*/
     padding: 8px 15px;
     border-radius: 5px;
-    font-size: 14px;
-    font-weight: bold;
+    font-size: 20px;
+    /*font-weight: bold;*/
     transition: background-color 0.3s ease; /* Smooth hover transition */
 }
 
 .logout-button:hover {
-    background-color: #c0392b; /* Darker red on hover */
+    /*background-color: #c0392b; !* Darker red on hover *!*/
+    color: #071321;
+}
+
+.dash-logo {
+    height: 50px; /* Adjust size as needed */
+    width: auto; /* Keep aspect ratio */
+    margin-right: 15px;
 }
 
 

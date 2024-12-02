@@ -11,7 +11,8 @@
 <body class="dashboard-page">
 
     <div class="navbar">
-        <h1>Welcome, {{ user.first_name }}!</h1>
+        <img src="{{ url_for('static', filename='images/Vector2.svg') }}" alt="Logo" class="dash-logo">
+        <p>Welcome, {{ user.first_name }}</p>
         <a href="/auth/logout" class="logout-button">Logout</a>
     </div>
 
