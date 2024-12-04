@@ -164,11 +164,90 @@ datalist option {
     background-color: #bbb;
 }
 
-.dashboard-page, .portfolio-overview-container {
-    background-color: #f4f4f4; /* Same as the navbar */
+.dashboard-page {
+    background-color: #f4f4f4; /* same as the navbar */
     margin: 0;
     padding: 0;
-    min-height: 100vh; /* Ensures full-height background */
+    min-height: 100vh;
+}
+
+.portfolio-overview-container {
+    max-width: 1000px;
+    margin: 80px auto 20px auto;
+    padding: 20px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+.portfolio-list-container {
+    max-width: 1000px;
+    margin: 0 auto 20px auto;
+    padding: 20px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.portfolio-watchlist-container {
+    max-width: 1000px;
+    margin: 0 auto 20px auto;
+    padding: 20px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.portfolio-uploaded-files-container {
+    max-width: 1000px;
+    margin: 0 auto 20px auto;
+    padding: 20px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.portfolio-header {
+    display: flex;
+    justify-content: space-between; /* Pushes title and button to opposite sides */
+    align-items: center; /* Aligns title and button vertically */
+    margin-bottom: 20px; /* Adds spacing below the header */
+}
+
+.new-portfolio-btn {
+    padding: 10px 20px;
+    background-color: #212830;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+
+.new-file-btn {
+    padding: 10px 20px;
+    background-color: #212830;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+
+.new-portfolio-btn:hover {
+    background-color: #45a049;
+}
+
+.page-title {
+    margin: 0; /* Remove margin for better alignment */
+    font-family: 'Bodoni Moda', serif; /* or your chosen font */
+    text-transform: uppercase;
+    font-size: 26px; /* Base size for all text */
+    letter-spacing: 1px; /* Slight spacing for elegance */
+    font-weight: 500;
+    text-align: center;
+    color: #2c3e50;
 }
 
 
@@ -243,13 +322,13 @@ body.portfolio-overview-page {
 
 
 .navbar-title {
-    font-family: 'Bodoni Moda', serif; /* or your chosen font */
+    font-family: 'Bodoni Moda', serif;
     text-transform: uppercase;
-    font-size: 42px; /* Base size for all text */
-    letter-spacing: 1px; /* Slight spacing for elegance */
+    font-size: 42px;
+    letter-spacing: 1px;
     font-weight: 500;
     text-align: center;
-    color: #2c3e50; /* Choose your desired color */
+    color: #2c3e50;
     margin: 0;
     flex: 1;
 }
@@ -305,11 +384,11 @@ button:hover {
 
 
 /* General Styling */
-.page-title {
-    font-size: 36px;
-    margin: 20px 0;
-    font-family: 'Bodoni Moda', serif; /* Match font style */
-}
+/*.page-title {*/
+/*    font-size: 36px;*/
+/*    margin: 20px 0;*/
+/*    font-family: 'Bodoni Moda', serif; !* Match font style *!*/
+/*}*/
 
 /* Dashboard Card */
 .dashboard-card {
@@ -380,15 +459,6 @@ button:hover {
 
 .negative {
     color: #e74c3c;
-}
-
-.new-portfolio-btn {
-    padding: 10px 20px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
 }
 
 .new-portfolio-btn:hover {

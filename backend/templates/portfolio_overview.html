@@ -2,18 +2,20 @@
 
 {% block content %}
 <body class="portfolio-overview-page">
-    <h1>Portfolio Overview</h1>
+<!--    <h1>Portfolio Overview</h1>-->
 <div class="portfolio-overview-container">
-    <h2 class="page-title">Portfolio</h2>
+    <div class="portfolio-header">
+    <h3 class="page-title">Portfolio Dashboard</h3>
+    </div>
 
     <!-- Portfolio Stats -->
     <div class="dashboard-card">
         <div class="dashboard-stat">
-            <h3>Total Value</h3>
+            <h3>TOTAL VALUE OF ALL PORTFOLIOS</h3>
             <div class="stat-value">11,270.50</div>
         </div>
         <div class="dashboard-stat">
-            <h3>Value Change (Today)</h3>
+            <h3>VALUE CHANGE (TODAY)</h3>
             <div class="stat-value negative">-2.18 / -0.02%</div>
         </div>
         <div class="dashboard-stat">
@@ -21,12 +23,22 @@
             <div class="stat-value positive">+7,193.72 / +176.36%</div>
         </div>
     </div>
+</div>
 
-    <!-- Portfolio List -->
+<div class="portfolio-list-container">
     <div class="portfolio-header">
-        <h3>Portfolios</h3>
+        <!-- Both the title and button are in this flex container -->
+        <h3 class="page-title">Portfolios</h3>
         <button class="new-portfolio-btn">New Portfolio</button>
     </div>
+    <!-- Portfolio Cards -->
+    <div class="dashboard-card">
+        <div class="dashboard-stat">
+            <h3>There will be a card here for each portfolio the user has created</h3>
+        </div>
+    </div>
+
+    <!-- Portfolio List  THIS IS GOING TO NEED TO BE CHANGED TO WATCHLIST-->
     <div class="portfolio-list">
         {% for portfolio in portfolios %}
         <div class="portfolio-item">
@@ -39,5 +51,62 @@
         {% endfor %}
     </div>
 </div>
+
+<div class="portfolio-watchlist-container">
+    <div class="portfolio-header">
+        <!-- Both the title and button are in this flex container -->
+        <h3 class="page-title">Watchlist</h3>
+    </div>
+    <!-- Portfolio Cards -->
+    <div class="dashboard-card">
+        <div class="dashboard-stat">
+            <h3>You have no watchlists</h3>
+        </div>
+    </div>
+
+    <!-- Portfolio List -->
+    <div class="portfolio-list">
+        {% for portfolio in portfolios %}
+        <div class="portfolio-item">
+            <h4>{{ portfolio.name }}</h4>
+            <div>
+                <span>Last: {{ portfolio.last }}</span>
+                <span>Change: {{ portfolio.change }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+
+<div class="portfolio-uploaded-files-container">
+    <div class="portfolio-header">
+        <!-- Both the title and button are in this flex container -->
+        <h3 class="page-title">Uploaded Files</h3>
+        <button class="new-file-btn">Upload File</button>
+    </div>
+    <!-- Portfolio Cards -->
+    <div class="dashboard-card">
+        <div class="dashboard-stat">
+            <h3>You have not uploaded any files yet.</h3>
+        </div>
+    </div>
+
+    <!-- Portfolio List  THIS IS GOING TO NEED TO BE CHANGED TO WATCHLIST-->
+    <div class="portfolio-list">
+        {% for portfolio in portfolios %}
+        <div class="portfolio-item">
+            <h4>{{ portfolio.name }}</h4>
+            <div>
+                <span>Last: {{ portfolio.last }}</span>
+                <span>Change: {{ portfolio.change }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+
+
 </body>
 {% endblock %}
