@@ -268,16 +268,19 @@ datalist option {
     color: #6C7D93;
 }
 
-.logout-button {
-    text-decoration: none;
-    color: #212830;
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-size: 14px;
-    transition: background-color 0.3s ease;
-}
+/*.logout-button {*/
+/*    text-decoration: none;*/
+/*    color: #212830;*/
+/*    padding: 5px 10px;*/
+/*    border-radius: 5px;*/
+/*    font-size: 14px;*/
+/*    transition: background-color 0.3s ease;*/
+/*}*/
 
 /*Portfolio styling*/
+body.portfolio-overview-page {
+    background-color: #f4f4f4;
+}
 
 .portfolio-card {
     border: 1px solid #ccc;
@@ -322,7 +325,7 @@ button:hover {
 .dashboard-card {
     display: flex;
     justify-content: space-around;
-    background-color: #f8f8f8;
+    background-color: #f4f4f4;
     border-radius: 8px;
     padding: 20px;
     margin-bottom: 30px;

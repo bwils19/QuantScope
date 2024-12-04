@@ -1,6 +1,7 @@
 {% extends "base.html" %}
-<body class="dashboard-page">
+
 {% block content %}
+<body class="dashboard-page">
 <form id="stockForm">
     <input type="text" id="stockTicker" name="stockTicker" placeholder="Enter stock ticker (e.g., AAPL)" list="stockSuggestions">
     <datalist id="stockSuggestions"></datalist>
@@ -36,5 +37,5 @@
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-{% endblock %}
 </body>
+{% endblock %}
