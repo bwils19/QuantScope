@@ -136,11 +136,6 @@ datalist option {
     background-color: #fff;
 }
 
-/*#timeFrameButtons {*/
-/*    margin: 20px 0;*/
-/*    text-align: center;*/
-/*}*/
-
 #timeFrameButtons {
     display: flex;
     gap: 1px; /* Reduced space between buttons */
@@ -165,20 +160,6 @@ datalist option {
     background-color: #4CAF50;
 }
 
-/*#timeFrameButtons button {*/
-/*    margin: 5px;*/
-/*    padding: 10px 15px;*/
-/*    border: 1px solid #ccc;*/
-/*    border-radius: 5px;*/
-/*    background-color: #f8f8f8;*/
-/*    cursor: pointer;*/
-/*    font-size: 14px;*/
-/*}*/
-
-/*#timeFrameButtons button:hover {*/
-/*    background-color: #ddd;*/
-/*}*/
-
 #timeFrameButtons button:active {
     background-color: #bbb;
 }
@@ -196,7 +177,7 @@ datalist option {
     display: flex;
     justify-content: space-between; /* Pushes content to the edges */
     align-items: center;
-    padding: 0px 20px;
+    padding: 0 20px;
     /*background-color: #2c3e50; !* I like this color, but not for the nav bar *!*/
     background-color: #f4f4f4;
     color: #212830; /* text color */
@@ -205,9 +186,26 @@ datalist option {
     position: relative;
 }
 
+/* Navbar Sections --> initialized in base.html */
+.navbar-left,
+.navbar-right {
+    flex: 1; /* Ensures even spacing */
+    display: flex;
+    align-items: center;
+}
+
+.navbar-left {
+    justify-content: flex-start;
+}
+
+.navbar-right {
+    justify-content: flex-end;
+}
+
+
 /* Style for the logout button */
 .logout-button {
-    text-decoration: none; /* Remove underline */
+    text-decoration: none;
     color: #212830; /* text color */
     /*background-color: #e74c3c; !* Red background *!*/
     padding: 8px 15px;
@@ -226,24 +224,23 @@ datalist option {
     height: 50px; /* Adjust size as needed */
     width: auto; /* Keep aspect ratio */
     margin-right: 15px;
+    margin-top: 15px;
 }
 
-.navbar-left,
-.navbar-center,
-.navbar-right {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+body.dashboard-page {
+    background-color: #f4f4f4; /* Adjust to your desired color */
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
 }
 
-.navbar-left {
-    justify-content: flex-start;
+body.portfolio-overview-page {
+    background-color: #eaeaea; /* Example for portfolio page */
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
 }
 
-.navbar-right {
-    justify-content: flex-end;
-}
 
 .navbar-title {
     font-family: 'Bodoni Moda', serif; /* or your chosen font */
@@ -254,6 +251,7 @@ datalist option {
     text-align: center;
     color: #2c3e50; /* Choose your desired color */
     margin: 0;
+    flex: 1;
 }
 .navbar-title .large-letter {
     font-size: 52px; /* Slightly larger size for Q and S */
@@ -263,19 +261,11 @@ datalist option {
 .user-info {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 5px;
     font-size: 14px;
     color: #6C7D93;
 }
 
-/*.logout-button {*/
-/*    text-decoration: none;*/
-/*    color: #212830;*/
-/*    padding: 5px 10px;*/
-/*    border-radius: 5px;*/
-/*    font-size: 14px;*/
-/*    transition: background-color 0.3s ease;*/
-/*}*/
 
 /*Portfolio styling*/
 body.portfolio-overview-page {

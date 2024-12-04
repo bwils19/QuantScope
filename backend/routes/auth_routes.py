@@ -95,7 +95,8 @@ def logout():
 def dashboard():
     try:
         jwt_data = get_jwt()
-        return render_template('dashboard.html', user=jwt_data)
+        print("JWT Data:", jwt_data)
+        return render_template('dashboard.html', body_class='dashboard-page', user=jwt_data)
     except Exception as e:
         print(f"Error in dashboard: {e}")
         return redirect(url_for('auth.login_page'))
@@ -114,7 +115,7 @@ def portfolio_overview():
     last_updated = max([p.updated_at for p in portfolios], default="N/A")
 
     return render_template(
-        'portfolio_overview.html',
+        'portfolio_overview.html', body_class='portfolio-overview-page',
         user={"first_name": user.first_name, "email": user.email},
         portfolios=portfolios,
         total_value=total_value,

@@ -1,41 +1,37 @@
 {% extends "base.html" %}
 
 {% block content %}
-<body class="dashboard-page">
-<form id="stockForm">
-    <input type="text" id="stockTicker" name="stockTicker" placeholder="Enter stock ticker (e.g., AAPL)" list="stockSuggestions">
-    <datalist id="stockSuggestions"></datalist>
-    <button type="submit">View Stock</button>
-</form>
+<div class="dashboard-container">
+    <form id="stockForm">
+        <input type="text" id="stockTicker" name="stockTicker" placeholder="Enter stock ticker (e.g., AAPL)" list="stockSuggestions">
+        <datalist id="stockSuggestions"></datalist>
+        <button type="submit">View Stock</button>
+    </form>
 
-<div id="timeFrameButtons">
-    <button data-timeframe="1D">1D</button>
-    <button data-timeframe="1W">1W</button>
-    <button data-timeframe="10D">10D</button>
-    <button data-timeframe="1M">1M</button>
-    <button data-timeframe="3M">3M</button>
-    <button data-timeframe="6M">6M</button>
-    <button data-timeframe="1Y">1Y</button>
+    <div id="timeFrameButtons">
+        <button data-timeframe="1D">1D</button>
+        <button data-timeframe="1W">1W</button>
+        <button data-timeframe="10D">10D</button>
+        <button data-timeframe="1M">1M</button>
+        <button data-timeframe="3M">3M</button>
+        <button data-timeframe="6M">6M</button>
+        <button data-timeframe="1Y">1Y</button>
+    </div>
+
+    <div id="stockChartContainer"></div>
+
+    <h2>Your Files</h2>
+    <ul>
+        {% for file in files %}
+        <li>{{ file.filename }} - Uploaded at {{ file.uploaded_at }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Upload a New File</h2>
+    <form method="POST" action="/upload" enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <button type="submit">Upload</button>
+    </form>
 </div>
-
-<div id="stockChartContainer">
-    <!-- Interactive chart will render here -->
-</div>
-
-<h2>Your Files</h2>
-<ul>
-    {% for file in files %}
-    <li>{{ file.filename }} - Uploaded at {{ file.uploaded_at }}</li>
-    {% endfor %}
-</ul>
-
-<h2>Upload a New File</h2>
-<form method="POST" action="/upload" enctype="multipart/form-data">
-    <input type="file" name="file" required>
-    <button type="submit">Upload</button>
-</form>
-{% endblock %}
-{% block scripts %}
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-</body>
 {% endblock %}
