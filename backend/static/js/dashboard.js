@@ -1,3 +1,26 @@
+document.addEventListener('DOMContentLoaded', () => {
+    const timeFrameButtons = document.getElementById('timeFrameButtons');
+    const chartContainer = document.getElementById('stockChartContainer');
+
+    if (timeFrameButtons && chartContainer) {
+        // Set the timeframe buttons to be absolutely positioned
+        timeFrameButtons.style.position = 'absolute';
+
+        // Dynamically adjust position based on the chart container
+        const updateButtonPosition = () => {
+            const rect = chartContainer.getBoundingClientRect();
+            timeFrameButtons.style.top = `${rect.top + window.scrollY + 10}px`; // 10px padding inside container
+            timeFrameButtons.style.left = `${rect.right - timeFrameButtons.offsetWidth - 10}px`; // 10px padding from the right edge
+        };
+
+        // Update position initially and on window resize
+        updateButtonPosition();
+        window.addEventListener('resize', updateButtonPosition);
+    }
+});
+
+
+
 document.getElementById('stockForm').addEventListener('submit', async (event) => {
     event.preventDefault();
 
@@ -15,6 +38,12 @@ document.getElementById('stockForm').addEventListener('submit', async (event) =>
             },
             body: JSON.stringify({ symbol: stockTicker }),
         });
+
+        if (response.status === 401) {
+            alert("Session expired. Please log in again.");
+            window.location.href = '/auth/login'; // Redirect to login page
+            return;
+        }
 
         const data = await response.json();
         console.log('Data received for rendering chart:', data);
@@ -269,6 +298,31 @@ function filterDataByTimeFrame(stockData, timeFrame) {
         prices: filteredPrices,
     };
 }
+
+
+document.getElementById('stockTicker').addEventListener('input', async (event) => {
+    const query = event.target.value.trim();
+    const suggestionBox = document.getElementById('stockSuggestions');
+
+    if (query.length < 2) {
+        suggestionBox.innerHTML = ''; // Clear suggestions if input is too short
+        return;
+    }
+
+    try {
+        const response = await fetch(`/stocks/suggestions?query=${encodeURIComponent(query)}`);
+        const suggestions = await response.json();
+
+        suggestionBox.innerHTML = ''; // Clear previous suggestions
+        suggestions.forEach(stock => {
+            const option = document.createElement('option');
+            option.value = `${stock.symbol} - ${stock.name}`;
+            suggestionBox.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error fetching stock suggestions:', error);
+    }
+});
 
 
 

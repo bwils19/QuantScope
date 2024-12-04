@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navbar -->
+    <div class="navbar">
+        <div class="navbar-left">
+            <img src="{{ url_for('static', filename='images/Vector2.svg') }}" alt="Logo" class="dash-logo">
+        </div>
+        <div class="navbar-center">
+            <h1 class="navbar-title">
+                <span class="large-letter">Q</span>uant<span class="large-letter">S</span>cope
+            </h1>
+        </div>
+        <div class="navbar-right">
+            <span>Welcome, {{ user.first_name }}</span>
+            <a href="/auth/logout" class="logout-button">Logout</a>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+        {% block content %}
+        {% endblock %}
+        {% block scripts %}{% endblock %}
+    </div>
+</body>
+</html>

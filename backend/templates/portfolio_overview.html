@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="portfolio-overview-container">
+    <h2 class="page-title">Portfolio</h2>
+
+    <!-- Portfolio Stats -->
+    <div class="dashboard-card">
+        <div class="dashboard-stat">
+            <h3>Total Value</h3>
+            <div class="stat-value">11,270.50</div>
+        </div>
+        <div class="dashboard-stat">
+            <h3>Value Change (Today)</h3>
+            <div class="stat-value negative">-2.18 / -0.02%</div>
+        </div>
+        <div class="dashboard-stat">
+            <h3>Total Gain/Loss (1 Year)</h3>
+            <div class="stat-value positive">+7,193.72 / +176.36%</div>
+        </div>
+    </div>
+
+    <!-- Portfolio List -->
+    <div class="portfolio-header">
+        <h3>Portfolios</h3>
+        <button class="new-portfolio-btn">New Portfolio</button>
+    </div>
+    <div class="portfolio-list">
+        {% for portfolio in portfolios %}
+        <div class="portfolio-item">
+            <h4>{{ portfolio.name }}</h4>
+            <div>
+                <span>Last: {{ portfolio.last }}</span>
+                <span>Change: {{ portfolio.change }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

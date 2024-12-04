@@ -45,4 +45,27 @@ def fetch_stock_data():
     }), 200
 
 
+@stock_blueprint.route('/stocks/suggestions', methods=['GET'])
+def stock_suggestions():
+    query = request.args.get('query')
+    if not query:
+        return jsonify([])  # Return an empty list if no query is provided
+
+    # API call to search by keywords (both ticker and company name)
+    url = f"https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords={query}&apikey={ALPHA_VANTAGE_API_KEY}"
+    response = requests.get(url)
+    data = response.json()
+
+    if "bestMatches" not in data:
+        return jsonify([])  # Return an empty list if API fails or no results
+
+    # Extract relevant information from the API response
+    suggestions = [
+        {
+            "symbol": match["1. symbol"],
+            "name": match["2. name"]
+        }
+        for match in data["bestMatches"]
+    ]
+    return jsonify(suggestions)
 

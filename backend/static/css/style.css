@@ -102,6 +102,16 @@ input[type="password"] {
     border-radius: 4px;
 }
 
+input[type="text"] {
+    padding: 10px;
+    width: 300px;
+    font-size: 14px;
+}
+
+datalist option {
+    font-size: 14px;
+}
+
 #stockForm button {
     padding: 10px 15px;
     background-color: #4CAF50;
@@ -126,40 +136,73 @@ input[type="password"] {
     background-color: #fff;
 }
 
+/*#timeFrameButtons {*/
+/*    margin: 20px 0;*/
+/*    text-align: center;*/
+/*}*/
+
 #timeFrameButtons {
-    margin: 20px 0;
-    text-align: center;
+    display: flex;
+    gap: 1px; /* Reduced space between buttons */
+    position: absolute;
+    top: 10px;
+    right: 10px;
 }
 
+
 #timeFrameButtons button {
-    margin: 5px;
-    padding: 10px 15px;
+    margin: 0;
+    padding: 5px 10px;
     border: 1px solid #ccc;
-    border-radius: 5px;
-    background-color: #f8f8f8;
+    border-radius: 3px;
+    background-color: #6C7D93;
+    color: #fff;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 12px;
 }
 
 #timeFrameButtons button:hover {
-    background-color: #ddd;
+    background-color: #4CAF50;
 }
+
+/*#timeFrameButtons button {*/
+/*    margin: 5px;*/
+/*    padding: 10px 15px;*/
+/*    border: 1px solid #ccc;*/
+/*    border-radius: 5px;*/
+/*    background-color: #f8f8f8;*/
+/*    cursor: pointer;*/
+/*    font-size: 14px;*/
+/*}*/
+
+/*#timeFrameButtons button:hover {*/
+/*    background-color: #ddd;*/
+/*}*/
 
 #timeFrameButtons button:active {
     background-color: #bbb;
 }
+
+.dashboard-page, .portfolio-overview-container {
+    background-color: #f4f4f4; /* Same as the navbar */
+    margin: 0;
+    padding: 0;
+    min-height: 100vh; /* Ensures full-height background */
+}
+
 
 /* Style for the navigation bar */
 .navbar {
     display: flex;
     justify-content: space-between; /* Pushes content to the edges */
     align-items: center;
-    padding: 10px 20px;
+    padding: 0px 20px;
     /*background-color: #2c3e50; !* I like this color, but not for the nav bar *!*/
     background-color: #f4f4f4;
     color: #212830; /* text color */
     font-size: 20px;
     border-radius: 8px; /* Optional rounded edges */
+    position: relative;
 }
 
 /* Style for the logout button */
@@ -185,4 +228,209 @@ input[type="password"] {
     margin-right: 15px;
 }
 
+.navbar-left,
+.navbar-center,
+.navbar-right {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
+.navbar-left {
+    justify-content: flex-start;
+}
+
+.navbar-right {
+    justify-content: flex-end;
+}
+
+.navbar-title {
+    font-family: 'Bodoni Moda', serif; /* or your chosen font */
+    text-transform: uppercase;
+    font-size: 42px; /* Base size for all text */
+    letter-spacing: 1px; /* Slight spacing for elegance */
+    font-weight: 500;
+    text-align: center;
+    color: #2c3e50; /* Choose your desired color */
+    margin: 0;
+}
+.navbar-title .large-letter {
+    font-size: 52px; /* Slightly larger size for Q and S */
+    font-weight: 500;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: #6C7D93;
+}
+
+.logout-button {
+    text-decoration: none;
+    color: #212830;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+
+/*Portfolio styling*/
+
+.portfolio-card {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+    text-align: left;
+}
+
+.portfolio-card h3 {
+    margin: 0;
+}
+
+#portfolio-list p {
+    font-size: 18px;
+    color: #555;
+}
+
+button {
+    margin: 5px;
+    padding: 10px 20px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+
+/* General Styling */
+.page-title {
+    font-size: 36px;
+    margin: 20px 0;
+    font-family: 'Bodoni Moda', serif; /* Match font style */
+}
+
+/* Dashboard Card */
+.dashboard-card {
+    display: flex;
+    justify-content: space-around;
+    background-color: #f8f8f8;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-stat {
+    text-align: center;
+}
+
+.dashboard-stat h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: #555;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.stat-change.negative {
+    color: #e74c3c; /* Red for negative change */
+}
+
+.stat-change.positive {
+    color: #27ae60; /* Green for positive change */
+}
+
+/* Portfolio List */
+.portfolio-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.portfolio-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.portfolio-item {
+    display: flex;
+    justify-content: space-between;
+    background-color: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.portfolio-item h4 {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.positive {
+    color: #27ae60;
+}
+
+.negative {
+    color: #e74c3c;
+}
+
+.new-portfolio-btn {
+    padding: 10px 20px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.new-portfolio-btn:hover {
+    background-color: #45a049;
+}
+
+/* Portfolio Movers */
+.portfolio-movers {
+    margin-top: 30px;
+}
+
+.movers-header {
+    display: flex;
+    justify-content: flex-start;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.movers-btn {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 5px;
+    background-color: #f4f4f4;
+    cursor: pointer;
+}
+
+.movers-btn.active {
+    background-color: #6C7D93;
+    color: white;
+}
+
+.mover-item {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: white;
+    margin-bottom: 10px;
+}

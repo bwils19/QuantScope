@@ -1,31 +1,44 @@
-from backend import app, db
-from backend.routes.auth_routes import auth_blueprint
-from backend.routes.stock_routes import stock_blueprint
-from flask import render_template
+from flask import Flask, render_template
+from backend import db, bcrypt, jwt
+from flask_sqlalchemy import SQLAlchemy
+from flask_jwt_extended import JWTManager
+from datetime import timedelta
 import os
 
-# Register blueprints
-app.register_blueprint(auth_blueprint, url_prefix="/auth")
-app.register_blueprint(stock_blueprint)  # , url_prefix="/stocks")
 
-app.config['SQLALCHEMY_ECHO'] = True
+def create_app():
+    app = Flask(__name__)
 
-print("Debug Mode:", app.debug)
-print("Testing Mode:", app.testing)
+    # Set app configurations
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')
+
+    # Initialize extensions
+    db.init_app(app)
+    bcrypt.init_app(app)
+    jwt.init_app(app)
+
+    # Register blueprints
+    from backend.routes.auth_routes import auth_blueprint
+    from backend.routes.stock_routes import stock_blueprint
+    app.register_blueprint(auth_blueprint, url_prefix="/auth")
+    app.register_blueprint(stock_blueprint)
+
+    # Add a root route
+    @app.route("/")
+    def home():
+        return render_template("home.html")
+
+    return app
 
 
-if not os.getenv('FLASK_ENV'):
-    os.environ['FLASK_ENV'] = 'development'
-
-
-# Add a root route
-@app.route("/")
-def home():
-    return render_template("home.html")
-
-
-# Run the application
 if __name__ == "__main__":
-    # with app.app_context():
-    #     db.create_all()  # Ensure database tables are created
+    app = create_app()
+
+    # Create tables if not already created
+    with app.app_context():
+        db.create_all()
+
     app.run(debug=True)
