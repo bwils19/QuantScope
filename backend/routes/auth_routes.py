@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, render_template, redirect, url_fo
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity, verify_jwt_in_request
 from flask_jwt_extended.exceptions import NoAuthorizationError
 from flask_jwt_extended import decode_token
+from flask_jwt_extended import get_csrf_token
 from backend import bcrypt, db
 from backend.models import User, Portfolio
 from backend.models import PortfolioFiles
@@ -93,7 +94,6 @@ def login():
     user = User.query.filter_by(email=data['email']).first()
 
     if user and bcrypt.check_password_hash(user.password_hash, data['password']):
-        # Generate JWT token
         additional_claims = {
             "email": user.email,
             "first_name": user.first_name,
@@ -101,19 +101,14 @@ def login():
         }
         access_token = create_access_token(identity=user.email, additional_claims=additional_claims)
 
-        # Set token as a secure cookie
+        # Provide CSRF token as a separate cookie
+        csrf_token = get_csrf_token(access_token)
+
         response = make_response(redirect(url_for('auth.portfolio_overview')))
-        response.set_cookie(
-            'access_token_cookie',
-            access_token,
-            httponly=True,
-            secure=False,  # Use True in production
-            samesite='Lax'
-        )
-        print(f"JWT set for user {user.email}: {access_token}")  # Debugging
+        response.set_cookie('access_token_cookie', access_token, httponly=True, samesite='Lax', secure=False)
+        response.set_cookie('csrf_access_token', csrf_token)  # Add this line
         return response
 
-    print("Invalid login credentials.")  # Debugging
     return jsonify({"message": "Invalid credentials"}), 401
 
 
@@ -187,31 +182,45 @@ def delete_portfolio(portfolio_id):
 @auth_blueprint.route('/upload', methods=['POST'])
 @jwt_required(locations=["cookies"])
 def upload_file():
-    current_user_email = get_jwt_identity()
-    user = User.query.filter_by(email=current_user_email).first()
-    if not user:
-        return jsonify({"message": "User not found"}), 404
+    try:
+        current_user_email = get_jwt_identity()
+        print(f"User attempting upload: {current_user_email}")  # Debugging
 
-    if 'file' not in request.files:
-        return jsonify({"message": "No file part"}), 400
+        if not current_user_email:
+            print("No user authenticated.")
+            return jsonify({"message": "Authentication required"}), 401
 
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"message": "No selected file"}), 400
+        user = User.query.filter_by(email=current_user_email).first()
+        if not user:
+            print("User not found.")
+            return jsonify({"message": "User not found"}), 404
 
-    filename = secure_filename(file.filename)
-    filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-    file.save(filepath)
+        if 'file' not in request.files:
+            print("No file part in request.")
+            return jsonify({"message": "No file part"}), 400
 
-    new_file = PortfolioFiles(
-        user_id=user.id,
-        filename=filename,
-        uploaded_by=user.email,
-    )
-    db.session.add(new_file)
-    db.session.commit()
+        file = request.files['file']
+        if file.filename == '':
+            print("No file selected.")
+            return jsonify({"message": "No selected file"}), 400
 
-    return jsonify({"message": f"File {filename} uploaded successfully!"}), 200
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+
+        new_file = PortfolioFiles(
+            user_id=user.id,
+            filename=filename,
+            uploaded_by=user.email,
+        )
+        db.session.add(new_file)
+        db.session.commit()
+
+        print(f"File {filename} uploaded successfully for user {user.email}.")
+        return jsonify({"message": f"File {filename} uploaded successfully!"}), 200
+    except Exception as e:
+        print(f"Error in upload_file: {e}")
+        return jsonify({"message": "An unexpected error occurred."}), 500
 
 
 @auth_blueprint.route('/uploaded-files', methods=['GET'])

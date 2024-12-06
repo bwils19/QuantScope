@@ -104,11 +104,25 @@ document.getElementById("fileInput").addEventListener("change", async (event) =>
     const formData = new FormData();
     formData.append("file", file);
 
+    const csrfToken = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("csrf_access_token="))
+        ?.split("=")[1];
+
+    if (!csrfToken) {
+        console.error("CSRF token not found in cookies");
+        alert("An error occurred. Please log in again.");
+        return;
+}
+
     try {
         const response = await fetch("/auth/upload", {
             method: "POST",
             body: formData,
             credentials: "include", // Ensure the JWT cookie is sent
+            headers: {
+                "X-CSRF-TOKEN": csrfToken, // Add CSRF token to the header
+            },
         });
 
         if (response.ok) {
@@ -125,3 +139,4 @@ document.getElementById("fileInput").addEventListener("change", async (event) =>
         alert("An unexpected error occurred. Please try again.");
     }
 });
+
