@@ -27,7 +27,7 @@
 
 <div class="portfolio-list-container">
     <div class="portfolio-header">
-        <!-- Both the title and button are in this flex container -->
+
         <h3 class="page-title">Portfolios</h3>
         <button class="new-portfolio-btn">New Portfolio</button>
     </div>
@@ -51,6 +51,47 @@
         {% endfor %}
     </div>
 </div>
+
+<div id="newPortfolioModal" class="modal hidden">
+    <div class="modal-content">
+        <span class="close" id="closeModal">&times;</span>
+        <h3>Create New Portfolio</h3>
+        <div class="options">
+            <button class="manual-portfolio-btn">Create Manually</button>
+            <button class="upload-portfolio-btn">Upload Dataset</button>
+        </div>
+
+        <!-- Manual Portfolio Section -->
+        <div id="manualPortfolioSection" class="hidden">
+            <h4>Add Securities Manually</h4>
+            <input type="text" id="searchStockInput" placeholder="Search for a stock...">
+            <button id="addStockBtn">Add</button>
+            <table id="manualPortfolioTable">
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Name</th>
+                        <th>Industry</th>
+                        <th>Amount Owned</th>
+                        <th>Value Change (Day)</th>
+                        <th>Total Gain/Loss (1Y)</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <button id="finishManualPortfolioBtn">Finish Portfolio</button>
+        </div>
+
+        <!-- Upload Portfolio Section -->
+        <div id="uploadPortfolioSection" class="hidden">
+            <h4>Upload Dataset</h4>
+            <input type="file" id="portfolioUploadInput">
+            <button id="uploadPortfolioBtn">Upload</button>
+        </div>
+    </div>
+</div>
+
 
 <div class="portfolio-watchlist-container">
     <div class="portfolio-header">

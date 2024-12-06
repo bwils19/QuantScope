@@ -140,3 +140,125 @@ document.getElementById("fileInput").addEventListener("change", async (event) =>
     }
 });
 
+document.addEventListener("DOMContentLoaded", () => {
+    const newPortfolioModal = document.getElementById("newPortfolioModal");
+    const closeModal = document.getElementById("closeModal");
+    const manualPortfolioSection = document.getElementById("manualPortfolioSection");
+    const uploadPortfolioSection = document.getElementById("uploadPortfolioSection");
+    const manualPortfolioTable = document.getElementById("manualPortfolioTable").querySelector("tbody");
+    const searchStockInput = document.getElementById("searchStockInput");
+
+    const manualPortfolio = [];
+
+    // Open modal
+    document.querySelector(".new-portfolio-btn").addEventListener("click", () => {
+        newPortfolioModal.style.display = "block";
+    });
+
+    // Close modal
+    closeModal.addEventListener("click", () => {
+        newPortfolioModal.style.display = "none";
+        resetModal();
+    });
+
+    // Show manual section
+    document.querySelector(".manual-portfolio-btn").addEventListener("click", () => {
+        manualPortfolioSection.classList.remove("hidden");
+        uploadPortfolioSection.classList.add("hidden");
+    });
+
+    // Show upload section
+    document.querySelector(".upload-portfolio-btn").addEventListener("click", () => {
+        uploadPortfolioSection.classList.remove("hidden");
+        manualPortfolioSection.classList.add("hidden");
+    });
+
+    // Search and add stock
+    document.getElementById("addStockBtn").addEventListener("click", async () => {
+        const ticker = searchStockInput.value.trim();
+        if (!ticker) return alert("Please enter a stock ticker.");
+
+        try {
+            const response = await fetch(`/auth/stock-data?ticker=${ticker}`);
+            if (response.ok) {
+                const stockData = await response.json();
+                addStockToTable(stockData);
+            } else {
+                alert("Stock not found. Please try again.");
+            }
+        } catch (error) {
+            console.error("Error fetching stock data:", error);
+            alert("An error occurred. Please try again.");
+        }
+    });
+
+    // Add stock to table
+    function addStockToTable(stock) {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${stock.ticker}</td>
+            <td>${stock.name}</td>
+            <td>${stock.industry}</td>
+            <td><input type="number" class="amount-owned" placeholder="0"></td>
+            <td>${stock.valueChangeDay}</td>
+            <td>${stock.totalGainLoss1Y}</td>
+            <td><button class="remove-stock-btn">Remove</button></td>
+        `;
+        manualPortfolioTable.appendChild(row);
+
+        row.querySelector(".remove-stock-btn").addEventListener("click", () => {
+            row.remove();
+        });
+
+        // Add stock to portfolio array
+        manualPortfolio.push(stock);
+    }
+
+    // Finish manual portfolio creation
+    document.getElementById("finishManualPortfolioBtn").addEventListener("click", async () => {
+        try {
+            const portfolioName = prompt("Enter a name for your portfolio:");
+            if (!portfolioName) return alert("Portfolio name is required.");
+
+            const data = {
+                name: portfolioName,
+                stocks: manualPortfolio.map((stock, index) => ({
+                    ticker: stock.ticker,
+                    name: stock.name,
+                    industry: stock.industry,
+                    amount: parseFloat(
+                        manualPortfolioTable.rows[index].querySelector(".amount-owned").value
+                    ) || 0,
+                })),
+            };
+
+            const response = await fetch("/auth/create-portfolio", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (response.ok) {
+                alert("Portfolio created successfully!");
+                location.reload(); // Refresh to show new portfolio
+            } else {
+                const error = await response.json();
+                alert(`Error creating portfolio: ${error.message}`);
+            }
+        } catch (error) {
+            console.error("Error creating portfolio:", error);
+            alert("An unexpected error occurred.");
+        }
+    });
+
+    // Reset modal
+    function resetModal() {
+        manualPortfolioTable.innerHTML = ""; // Clear manual portfolio table
+        searchStockInput.value = ""; // Clear search input
+        manualPortfolio.length = 0; // Clear portfolio array
+    }
+});
+
+

@@ -240,3 +240,48 @@ def get_uploaded_files():
         "uploaded_by": user.email
     } for file in files])
 
+
+@auth_blueprint.route('/stock-data', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def get_stock_data():
+    ticker = request.args.get("ticker")
+    if not ticker:
+        return jsonify({"message": "Ticker is required"}), 400
+
+    # Mocked response - replace with a real API call
+    stock_data = {
+        "ticker": ticker.upper(),
+        "name": f"Mocked Name for {ticker.upper()}",
+        "industry": "Mocked Industry",
+        "valueChangeDay": "+1.25%",
+        "totalGainLoss1Y": "+20.50%",
+    }
+    return jsonify(stock_data)
+
+
+@auth_blueprint.route('/create-portfolio', methods=['POST'])
+@jwt_required(locations=["cookies"])
+def create_portfolio():
+    data = request.json
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    portfolio = Portfolio(
+        user_id=user.id,
+        name=data["name"],
+    )
+    db.session.add(portfolio)
+    db.session.flush()  # Get the portfolio ID before committing
+
+    for stock in data["stocks"]:
+        db.session.add(PortfolioFiles(
+            user_id=user.id,
+            filename=stock["ticker"],  # Mocking for now
+            uploaded_by=user.email,
+        ))
+
+    db.session.commit()
+    return jsonify({"message": "Portfolio created successfully!"}), 200
