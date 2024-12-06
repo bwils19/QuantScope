@@ -91,9 +91,35 @@ input[type="password"] {
     margin-top: 20px;
 }
 
+
+/*updated here*/
+
 #stockForm {
-    margin: 20px 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
 }
+
+#stockForm input {
+    width: 250px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+#stockForm button {
+    padding: 10px 15px;
+    background-color: #6C7D93;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/*#stockForm {*/
+/*    margin: 20px 0;*/
+/*}*/
 
 #stockTicker {
     padding: 10px;
@@ -112,17 +138,17 @@ datalist option {
     font-size: 14px;
 }
 
-#stockForm button {
-    padding: 10px 15px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
+/*#stockForm button {*/
+/*    padding: 10px 15px;*/
+/*    background-color: #6C7D93;*/
+/*    color: white;*/
+/*    border: none;*/
+/*    border-radius: 4px;*/
+/*    cursor: pointer;*/
+/*}*/
 
 #stockForm button:hover {
-    background-color: #45a049;
+    background-color: #2c3e50;
 }
 
 #stockChartContainer {
@@ -157,7 +183,7 @@ datalist option {
 }
 
 #timeFrameButtons button:hover {
-    background-color: #4CAF50;
+    background-color: #2c3e50;
 }
 
 #timeFrameButtons button:active {
@@ -236,7 +262,7 @@ datalist option {
 }
 
 .new-portfolio-btn:hover {
-    background-color: #45a049;
+    background-color: #6C7D93;
 }
 
 .page-title {
@@ -250,9 +276,96 @@ datalist option {
     color: #2c3e50;
 }
 
+.uploaded-files-section {
+    margin-top: 20px;
+}
+
+.uploaded-files-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.uploaded-files-table th, .uploaded-files-table td {
+    padding: 12px;
+    text-align: left;
+    border: 1px solid #ddd;
+}
+
+.uploaded-files-table th {
+    background-color: #f4f4f4;
+    color: #333;
+    font-weight: bold;
+}
+
+.uploaded-files-table td {
+    font-size: 14px;
+    color: #555;
+}
+
+.no-files-message {
+    padding: 20px;
+    text-align: center;
+    font-size: 16px;
+    color: #777;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.edit-file-btn, .delete-file-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.edit-file-btn {
+    background-color: #6C7D93;
+    color: white;
+}
+
+.edit-file-btn:hover {
+    background-color: #556070;
+}
+
+.delete-file-btn {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.delete-file-btn:hover {
+    background-color: #c0392b;
+}
+
+.new-file-btn {
+    padding: 10px 20px;
+    background-color: #212830;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+
+.new-file-btn:hover {
+    background-color: #6C7D93;
+}
+
+
 
 /* Style for the navigation bar */
 .navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 98%;
+    z-index: 1000;
     display: flex;
     justify-content: space-between; /* Pushes content to the edges */
     align-items: center;
@@ -262,7 +375,7 @@ datalist option {
     color: #212830; /* text color */
     font-size: 20px;
     border-radius: 8px; /* Optional rounded edges */
-    position: relative;
+    /*position: relative;*/
 }
 
 /* Navbar Sections --> initialized in base.html */
@@ -371,7 +484,7 @@ body.portfolio-overview-page {
 button {
     margin: 5px;
     padding: 10px 20px;
-    background-color: #4CAF50;
+    background-color: #6C7D93;
     color: white;
     border: none;
     border-radius: 5px;
@@ -379,7 +492,7 @@ button {
 }
 
 button:hover {
-    background-color: #45a049;
+    background-color: #2c3e50;
 }
 
 
@@ -409,6 +522,12 @@ button:hover {
     font-size: 16px;
     margin-bottom: 10px;
     color: #555;
+}
+
+.dashboard-container {
+    margin-top: 200px; /* Adjust this value to match the navbar height */
+    padding: 60px; /* Optional padding for better spacing */
+    background-color: #f4f4f4; /* Ensure it matches your design */
 }
 
 .stat-value {
@@ -462,7 +581,7 @@ button:hover {
 }
 
 .new-portfolio-btn:hover {
-    background-color: #45a049;
+    background-color: #6C7D93;
 }
 
 /* Portfolio Movers */

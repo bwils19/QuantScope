@@ -1,7 +1,10 @@
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, make_response, current_app
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity, verify_jwt_in_request
+from flask_jwt_extended.exceptions import NoAuthorizationError
+from flask_jwt_extended import decode_token
 from backend import bcrypt, db
 from backend.models import User, Portfolio
+from backend.models import PortfolioFiles
 import os
 from werkzeug.utils import secure_filename
 
@@ -27,6 +30,35 @@ def login_page():
 @auth_blueprint.route('/signup', methods=['GET'])
 def signup_page():
     return render_template("signup.html")
+
+
+# Handle JWT exceptions globally within this blueprint
+@auth_blueprint.before_app_request
+def check_jwt():
+    if request.endpoint and "auth." in request.endpoint:
+        if request.endpoint in ["auth.login_page", "auth.signup_page", "auth.signup", "auth.login", "auth.logout"]:
+            print(f"Skipping JWT check for endpoint: {request.endpoint}")
+            return
+        try:
+            # Debugging: Log the cookie
+            jwt_cookie = request.cookies.get('access_token_cookie')
+            print(f"JWT Cookie: {jwt_cookie}")
+
+            # Debugging: Decode the token
+            if jwt_cookie:
+                from flask_jwt_extended import decode_token
+                decoded_jwt = decode_token(jwt_cookie)
+                print(f"Decoded JWT: {decoded_jwt}")
+
+            # Verify the JWT
+            verify_jwt_in_request(locations=["cookies"])
+            print("JWT verification succeeded.")
+        except NoAuthorizationError:
+            print("NoAuthorizationError: Redirecting to login.")
+            return redirect(url_for("auth.login_page"))
+        except Exception as e:
+            print(f"Unexpected JWT error: {e}")
+            return redirect(url_for("auth.login_page"))
 
 
 @auth_blueprint.route('/signup', methods=['POST'])
@@ -78,8 +110,10 @@ def login():
             secure=False,  # Use True in production
             samesite='Lax'
         )
+        print(f"JWT set for user {user.email}: {access_token}")  # Debugging
         return response
 
+    print("Invalid login credentials.")  # Debugging
     return jsonify({"message": "Invalid credentials"}), 401
 
 
@@ -105,22 +139,31 @@ def dashboard():
 @auth_blueprint.route('/portfolio-overview', methods=['GET'])
 @jwt_required(locations=["cookies"])
 def portfolio_overview():
-    current_user_email = get_jwt_identity()
-    user = User.query.filter_by(email=current_user_email).first()
+    try:
+        current_user_email = get_jwt_identity()
+        if not current_user_email:
+            print("No JWT identity found. Redirecting to login.")
+            return redirect(url_for("auth.login_page"))
 
-    portfolios = Portfolio.query.filter_by(user_id=user.id).all()
+        user = User.query.filter_by(email=current_user_email).first()
+        if not user:
+            print("User not found in database.")
+            return redirect(url_for("auth.login_page"))
 
-    # Example stats for the dashboard
-    total_value = sum([p.total_value for p in portfolios])
-    last_updated = max([p.updated_at for p in portfolios], default="N/A")
+        portfolios = Portfolio.query.filter_by(user_id=user.id).all()
+        uploaded_files = PortfolioFiles.query.filter_by(user_id=user.id).all()
 
-    return render_template(
-        'portfolio_overview.html', body_class='portfolio-overview-page',
-        user={"first_name": user.first_name, "email": user.email},
-        portfolios=portfolios,
-        total_value=total_value,
-        last_updated=last_updated.strftime("%Y-%m-%d") if last_updated != "N/A" else "N/A"
-    )
+        print(f"User {current_user_email} accessed portfolio overview.")  # Debugging
+        return render_template(
+            'portfolio_overview.html',
+            body_class='portfolio-overview-page',
+            user={"first_name": user.first_name, "email": user.email},
+            portfolios=portfolios,
+            uploaded_files=uploaded_files,
+        )
+    except Exception as e:
+        print(f"Error in portfolio-overview: {e}")
+        return redirect(url_for("auth.login_page"))
 
 
 @auth_blueprint.route('/portfolio/<int:portfolio_id>', methods=['DELETE'])
@@ -142,8 +185,13 @@ def delete_portfolio(portfolio_id):
 
 
 @auth_blueprint.route('/upload', methods=['POST'])
-@jwt_required()
+@jwt_required(locations=["cookies"])
 def upload_file():
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
     if 'file' not in request.files:
         return jsonify({"message": "No file part"}), 400
 
@@ -152,5 +200,34 @@ def upload_file():
         return jsonify({"message": "No selected file"}), 400
 
     filename = secure_filename(file.filename)
-    file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+    filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
+
+    new_file = PortfolioFiles(
+        user_id=user.id,
+        filename=filename,
+        uploaded_by=user.email,
+    )
+    db.session.add(new_file)
+    db.session.commit()
+
     return jsonify({"message": f"File {filename} uploaded successfully!"}), 200
+
+
+@auth_blueprint.route('/uploaded-files', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def get_uploaded_files():
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    files = PortfolioFiles.query.filter_by(user_id=user.id).all()
+    return jsonify([{
+        "id": file.id,
+        "filename": file.filename,
+        "uploaded_at": file.uploaded_at.strftime('%Y-%m-%d %H:%M:%S'),
+        "updated_at": file.updated_at.strftime('%Y-%m-%d %H:%M:%S') if file.updated_at else None,
+        "uploaded_by": user.email
+    } for file in files])
+

@@ -42,3 +42,16 @@ class StockCache(db.Model):
     date = db.Column(db.Date, nullable=False)
     data = db.Column(db.JSON, nullable=False)  # Store the full JSON response here
     updated_at = db.Column(db.DateTime, default=db.func.now())
+
+
+class PortfolioFiles(db.Model):
+    __tablename__ = 'portfolio_files'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    uploaded_by = db.Column(db.String(255), nullable=False)
+
+    user = db.relationship('User', backref=db.backref('portfolio_files', lazy=True))
