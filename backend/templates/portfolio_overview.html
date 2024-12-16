@@ -2,10 +2,9 @@
 
 {% block content %}
 <body class="portfolio-overview-page">
-<!--    <h1>Portfolio Overview</h1>-->
 <div class="portfolio-overview-container">
     <div class="portfolio-header">
-    <h3 class="page-title">Portfolio Dashboard</h3>
+        <h3 class="page-title">Portfolio Dashboard</h3>
     </div>
 
     <!-- Portfolio Stats -->
@@ -27,26 +26,16 @@
 
 <div class="portfolio-list-container">
     <div class="portfolio-header">
-
         <h3 class="page-title">Portfolios</h3>
         <button class="new-portfolio-btn">New Portfolio</button>
     </div>
     <!-- Portfolio Cards -->
-    <div class="dashboard-card">
-        <div class="dashboard-stat">
-            <h3>There will be a card here for each portfolio the user has created</h3>
-        </div>
-    </div>
-
-    <!-- Portfolio List-->
     <div id="portfolio-list">
         {% for portfolio in portfolios %}
         <div class="portfolio-item">
             <h4>{{ portfolio.name }}</h4>
-            <div>
-                <span>Last: {{ portfolio.last }}</span>
-                <span>Change: {{ portfolio.change }}</span>
-            </div>
+            <p>Holdings: {{ portfolio.total_holdings }}</p>
+            <p>Created: {{ portfolio.created_at }}</p>
         </div>
         {% endfor %}
     </div>
@@ -64,17 +53,22 @@
         <!-- Manual Portfolio Section -->
         <div id="manualPortfolioSection" class="hidden">
             <h4>Add Securities Manually</h4>
-            <input type="text" id="searchStockInput" placeholder="Search for a stock...">
+            <div class="dropdown-container">
+                <input type="text" id="searchStockInput" placeholder="Search for a stock..." />
+                <ul id="searchSuggestions" class="hidden"></ul>
+            </div>
+            <input type="number" id="amountOwnedInput" placeholder="Enter amount owned" />
             <button id="addStockBtn">Add</button>
             <table id="manualPortfolioTable">
                 <thead>
                     <tr>
                         <th>Ticker</th>
                         <th>Name</th>
-                        <th>Industry</th>
+                        <th>Exchange</th>
+                        <th>Asset Type</th>
                         <th>Amount Owned</th>
                         <th>Value Change (Day)</th>
-                        <th>Total Gain/Loss (1Y)</th>
+                        <th>Total Value</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -82,6 +76,7 @@
             </table>
             <button id="finishManualPortfolioBtn">Finish Portfolio</button>
         </div>
+
 
         <!-- Upload Portfolio Section -->
         <div id="uploadPortfolioSection" class="hidden">
@@ -92,20 +87,16 @@
     </div>
 </div>
 
-
 <div class="portfolio-watchlist-container">
     <div class="portfolio-header">
-        <!-- Both the title and button are in this flex container -->
         <h3 class="page-title">Watchlist</h3>
     </div>
-    <!-- Portfolio Cards -->
     <div class="dashboard-card">
         <div class="dashboard-stat">
             <h3>You have no watchlists</h3>
         </div>
     </div>
 </div>
-
 
 <div class="portfolio-uploaded-files-container">
     <div class="portfolio-header">

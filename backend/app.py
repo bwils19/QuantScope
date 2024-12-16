@@ -1,6 +1,6 @@
 from flask import Flask, redirect, url_for
-from flask_jwt_extended import get_jwt_identity
-
+from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
+from flask_migrate import Migrate
 from backend import db, bcrypt, jwt
 from datetime import timedelta
 import os
@@ -8,49 +8,66 @@ from dotenv import load_dotenv
 
 
 def create_app():
-    # Load environment variables
-    load_dotenv()
+    try:
+        # Load environment variables
+        load_dotenv()
 
-    # Initialize Flask app
-    app = Flask(__name__)
+        # Initialize Flask app
+        app = Flask(__name__)
 
-    # Set app configurations
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')
+        # Set app configurations
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+        app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
+        app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')
 
-    # Initialize extensions
-    db.init_app(app)
-    bcrypt.init_app(app)
-    jwt.init_app(app)
+        # Initialize extensions
+        db.init_app(app)
+        bcrypt.init_app(app)
+        jwt.init_app(app)
 
-    # Register blueprints
-    from backend.routes.auth_routes import auth_blueprint
-    from backend.routes.stock_routes import stock_blueprint
-    app.register_blueprint(auth_blueprint, url_prefix="/auth")
-    app.register_blueprint(stock_blueprint)
+        migrate = Migrate(app, db)
 
-    # Root route
-    @app.route("/")
-    def home():
-        # Redirect based on authentication status
-        jwt_identity = get_jwt_identity()
-        return (
-            redirect(url_for("auth.portfolio_overview"))
-            if jwt_identity
-            else redirect(url_for("auth.login_page"))
-        )
+        # Register blueprints
+        from backend.routes.auth_routes import auth_blueprint
+        from backend.routes.stock_routes import stock_blueprint
+        app.register_blueprint(auth_blueprint, url_prefix="/auth")
+        app.register_blueprint(stock_blueprint)
 
-    return app
+        # Root route
+        @app.route("/")
+        def home():
+            try:
+                # Check if the user has a valid JWT token
+                verify_jwt_in_request(optional=True)  # Optional check allows for unauthenticated access
+                jwt_identity = get_jwt_identity()
+                if jwt_identity:
+                    # Redirect to the portfolio overview page if logged in
+                    return redirect(url_for('auth.portfolio_overview'))
+                else:
+                    # Redirect to the login page if not logged in
+                    return redirect(url_for('auth.login_page'))
+            except Exception as e:
+                print(f"Error in home route: {e}")  # Debugging
+                # In case of any issues (e.g., invalid or missing token), route to login
+                return redirect(url_for('auth.login_page'))
+
+        return app
+
+    except Exception as e:
+        print(f"Error in create_app: {e}")  # Debugging
+        return None
 
 
 if __name__ == "__main__":
     app = create_app()
 
-    # Create database tables if not already created
-    with app.app_context():
-        db.create_all()
+    if app is None:
+        print("Failed to create the Flask app. Exiting.")
+    else:
+        # Create database tables if not already created
+        with app.app_context():
+            db.create_all()
 
-    # Run the app
-    app.run(debug=True)
+        # Run the app
+        app.run(debug=True)

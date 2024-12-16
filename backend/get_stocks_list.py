@@ -39,7 +39,7 @@ def fetch_listing_status():
         })
 
     # Save to JSON
-    output_file = "symbols.json"
+    output_file = "static/data/symbols.json"
     with open(output_file, "w") as json_file:
         json.dump(symbols, json_file, indent=4)
 

@@ -673,3 +673,51 @@ button:hover {
         opacity: 1;
     }
 }
+
+/* Style the dropdown container */
+.dropdown-container {
+    position: relative;
+    width: 300px;
+}
+
+#searchStockInput {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+/* General dropdown styling */
+.search-suggestions {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    max-height: 200px; /* Limit height to prevent overflow */
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #fff;
+    position: absolute;
+    z-index: 1000;
+    width: calc(100% - 10px); /* Match the input width */
+}
+
+/* Each suggestion item */
+.search-suggestions li {
+    padding: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+}
+
+/* Highlight on hover */
+.search-suggestions li:hover {
+    background-color: #007bff;
+    color: #fff;
+}
+
+
+/* Hide the suggestions dropdown initially */
+.hidden {
+    display: none;
+}
