@@ -5,17 +5,36 @@ document.addEventListener("DOMContentLoaded", async () => {
     const searchStockInput = document.getElementById("searchStockInput");
     const amountInput = document.getElementById("amountInput");
     const addStockBtn = document.getElementById("addStockBtn");
-
     const searchSuggestions = document.createElement("ul");
     searchSuggestions.className = "search-suggestions hidden";
     searchStockInput.parentNode.appendChild(searchSuggestions);
 
     const manualPortfolio = [];
     let securitiesData = [];
+    let apiKey = "";
 
     const symbolsJsonPath = "/static/data/symbols.json";
 
-    // Load securities data
+    // Fetch API key securely
+    async function fetchApiKey() {
+        try {
+            const response = await fetch("/auth/get-api-key", {
+                method: "GET",
+                credentials: "include",
+            });
+            if (response.ok) {
+                const data = await response.json();
+                apiKey = data.apiKey;
+                console.log("API key retrieved successfully:", apiKey);
+            } else {
+                console.error("Failed to fetch API key.");
+            }
+        } catch (error) {
+            console.error("Error fetching API key:", error);
+        }
+    }
+
+    // Load securities from JSON
     async function loadSecurities() {
         try {
             const response = await fetch(symbolsJsonPath);
@@ -30,10 +49,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // Populate suggestions dropdown and sort alphabetically
+    // Populate suggestions dropdown based on user input
     searchStockInput.addEventListener("input", () => {
         const query = searchStockInput.value.trim().toLowerCase();
-        searchSuggestions.innerHTML = ""; // Clear previous suggestions
+        searchSuggestions.innerHTML = "";
 
         if (query.length === 0) {
             searchSuggestions.classList.add("hidden");
@@ -41,18 +60,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const filteredSecurities = securitiesData
-            .filter((sec) =>
-                sec.symbol.toLowerCase().includes(query) ||
-                sec.name.toLowerCase().includes(query)
+            .filter((security) =>
+                security.symbol.toLowerCase().includes(query) ||
+                security.name.toLowerCase().includes(query)
             )
             .sort((a, b) => {
                 const aStartsWith = a.symbol.toLowerCase().startsWith(query);
                 const bStartsWith = b.symbol.toLowerCase().startsWith(query);
-
-                if (aStartsWith && !bStartsWith) return -1; // Prioritize startsWith matches
+                if (aStartsWith && !bStartsWith) return -1;
                 if (!aStartsWith && bStartsWith) return 1;
-
-                return a.symbol.localeCompare(b.symbol); // Alphabetical order
+                return a.symbol.localeCompare(b.symbol);
             });
 
         if (filteredSecurities.length === 0) {
@@ -70,21 +87,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         searchSuggestions.classList.remove("hidden");
     });
 
-    // Select a security and enable "Add" functionality
+    // Select a security and set the add functionality
     function selectSecurity(security) {
         searchStockInput.value = `${security.symbol} - ${security.name}`;
         searchSuggestions.classList.add("hidden");
 
-        addStockBtn.onclick = () => {
+        addStockBtn.onclick = async () => {
             const amount = parseFloat(amountInput.value.trim());
             if (!amount || amount <= 0) return alert("Please enter a valid amount.");
 
+            const stockData = await fetchStockData(security.symbol);
             addStockRow({
-                ticker: security.symbol,
-                name: security.name,
-                exchange: security.exchange,
-                assetType: security.assetType,
+                equityName: security.name,
+                equityDetails: `${security.symbol}:${security.exchange}`,
                 amount: amount,
+                price: stockData.price,
+                valueChange: stockData.valueChange,
+                totalValue: (stockData.price * amount).toFixed(2),
             });
 
             searchStockInput.value = "";
@@ -92,15 +111,35 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
     }
 
+    // Fetch stock data from Alpha Vantage
+    async function fetchStockData(symbol) {
+        try {
+            const response = await fetch(
+                `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`
+            );
+            const data = await response.json();
+            const quote = data["Global Quote"];
+            return {
+                price: parseFloat(quote["05. price"]) || 0,
+                valueChange: parseFloat(quote["09. change"]) || 0,
+            };
+        } catch (error) {
+            console.error("Error fetching stock data:", error);
+            return { price: 0, valueChange: 0 };
+        }
+    }
+
     // Add stock to the manual portfolio table
     function addStockRow(stock) {
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td>${stock.ticker}</td>
-            <td>${stock.name}</td>
-            <td>${stock.exchange}</td>
-            <td>${stock.assetType}</td>
+            <td>
+                <strong style="color: red;">${stock.equityName}</strong><br>
+                <span>${stock.equityDetails}</span>
+            </td>
             <td>${stock.amount}</td>
+            <td>${stock.valueChange}</td>
+            <td>${stock.totalValue}</td>
             <td>
                 <button class="edit-stock-btn">Edit</button>
                 <button class="remove-stock-btn">Delete</button>
@@ -118,31 +157,29 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         // Edit functionality
         row.querySelector(".edit-stock-btn").addEventListener("click", () => {
-            searchStockInput.value = `${stock.ticker} - ${stock.name}`;
+            searchStockInput.value = `${stock.equityName}`;
             amountInput.value = stock.amount;
 
             addStockBtn.onclick = () => {
                 const newAmount = parseFloat(amountInput.value.trim());
                 if (!newAmount || newAmount <= 0) return alert("Please enter a valid amount.");
-
                 stock.amount = newAmount;
-                row.children[4].textContent = newAmount;
+                stock.totalValue = (newAmount * stock.price).toFixed(2);
+                row.children[1].textContent = newAmount;
+                row.children[3].textContent = stock.totalValue;
                 amountInput.value = "";
             };
         });
     }
 
-    // Modal Controls
-    document.querySelector(".new-portfolio-btn").addEventListener("click", () => {
-        newPortfolioModal.style.display = "block";
+    // Initialize modal functionality
+    document.querySelector(".manual-portfolio-btn").addEventListener("click", () => {
+        document.getElementById("manualPortfolioSection").classList.remove("hidden");
+        document.getElementById("uploadPortfolioSection").classList.add("hidden");
     });
 
-    document.querySelector(".manual-portfolio-btn").addEventListener("click", () => {
-        const manualPortfolioSection = document.getElementById("manualPortfolioSection");
-        const uploadPortfolioSection = document.getElementById("uploadPortfolioSection");
-
-        manualPortfolioSection.classList.remove("hidden");
-        uploadPortfolioSection.classList.add("hidden");
+    document.querySelector(".new-portfolio-btn").addEventListener("click", () => {
+        newPortfolioModal.style.display = "block";
     });
 
     document.getElementById("closeModal").addEventListener("click", () => {
@@ -157,6 +194,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         manualPortfolio.length = 0;
     }
 
-    // Initial Load
+    // Initial load
+    await fetchApiKey();
     await loadSecurities();
 });
