@@ -53,12 +53,12 @@
         <!-- Manual Portfolio Section -->
         <div id="manualPortfolioSection" class="hidden">
             <h4>Add Securities Manually</h4>
-            <div class="dropdown-container">
-                <input type="text" id="searchStockInput" placeholder="Search for a stock..." />
-                <ul id="searchSuggestions" class="hidden"></ul>
+            <div class="dropdown-container" style="position: relative;">
+                <input type="text" id="searchStockInput" class="input-box" placeholder="Search for a stock..." />
+                <ul id="searchSuggestions" class="search-suggestions hidden"></ul>
             </div>
-            <input type="number" id="amountOwnedInput" placeholder="Enter amount owned" />
-            <button id="addStockBtn">Add</button>
+            <input type="number" id="amountInput" class="input-box" placeholder="Enter amount owned" />
+            <button id="addStockBtn" class="btn-primary">Add</button>
             <table id="manualPortfolioTable">
                 <thead>
                     <tr>
@@ -74,15 +74,14 @@
                 </thead>
                 <tbody></tbody>
             </table>
-            <button id="finishManualPortfolioBtn">Finish Portfolio</button>
+            <button id="finishManualPortfolioBtn" class="btn-primary">Finish Portfolio</button>
         </div>
-
 
         <!-- Upload Portfolio Section -->
         <div id="uploadPortfolioSection" class="hidden">
             <h4>Upload Dataset</h4>
-            <input type="file" id="portfolioUploadInput">
-            <button id="uploadPortfolioBtn">Upload</button>
+            <input type="file" id="portfolioUploadInput" />
+            <button id="uploadPortfolioBtn" class="btn-primary">Upload</button>
         </div>
     </div>
 </div>
@@ -127,17 +126,15 @@
                     <td>{{ file.updated_at }}</td>
                     <td>{{ file.uploaded_by }}</td>
                     <td>
-                        <button class="edit-file-btn" data-file-id="{{ file.id }}">Edit</button>
-                        <button class="delete-file-btn" data-file-id="{{ file.id }}">Delete</button>
+                        <button class="edit-file-btn btn-small" data-file-id="{{ file.id }}">Edit</button>
+                        <button class="delete-file-btn btn-small" data-file-id="{{ file.id }}">Delete</button>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
         {% else %}
-        <div class="no-files-message">
-            You have not uploaded any files.
-        </div>
+        <div class="no-files-message">You have not uploaded any files.</div>
         {% endif %}
     </div>
 </div>
