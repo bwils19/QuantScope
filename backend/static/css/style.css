@@ -723,7 +723,7 @@ button:hover {
 
 /* Highlight on hover */
 .search-suggestions li:hover {
-    background-color: #007bff;
+    background-color: #6C7D93;
     color: #fff;
 }
 
@@ -737,6 +737,195 @@ button:hover {
     margin-top: 8px;
     box-sizing: border-box;
 }
+
+/* Chevron Icon */
+.chevron-icon {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    vertical-align: middle;
+    margin-right: 5px;
+}
+
+/* Dropdown Menu */
+/* Manual Portfolio Table Styling */
+#manualPortfolioTable {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+/* Header Styling */
+#manualPortfolioTable th {
+    font-weight: bold;
+    font-size: 14px;
+    background-color: #f5f5f5;
+    padding: 10px 15px; /* More padding for header readability */
+}
+
+/* General Cell Styling */
+#manualPortfolioTable td {
+    padding: 8px 12px;
+    text-align: left; /* Align text to the left for better readability */
+    vertical-align: middle;
+}
+
+/* Alternating Row Colors */
+#manualPortfolioTable tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+/* Equity Name Styling */
+#manualPortfolioTable td span {
+    color: grey;
+    font-size: 0.9em;
+}
+
+#manualPortfolioTable td strong {
+    color: red;
+    font-size: 1.2em;
+}
+
+/* Chevron Column (Smaller Width) */
+#manualPortfolioTable th:nth-child(1),
+#manualPortfolioTable td:nth-child(1) {
+    width: 2%; /* Reduce width for chevron */
+    text-align: center; /* Center the chevron */
+}
+
+/* Equity Details Column */
+#manualPortfolioTable th:nth-child(2),
+#manualPortfolioTable td:nth-child(2) {
+    width: 40%;
+    padding-left: 10px; /* Move closer to the chevron */
+}
+
+/* Amount Owned */
+#manualPortfolioTable th:nth-child(3),
+#manualPortfolioTable td:nth-child(3) {
+    width: 20%;
+}
+
+/* Value Change */
+#manualPortfolioTable th:nth-child(4),
+#manualPortfolioTable td:nth-child(4) {
+    width: 15%;
+}
+
+/* Total Value */
+#manualPortfolioTable th:nth-child(5),
+#manualPortfolioTable td:nth-child(5) {
+    width: 20%;
+}
+
+/* Hover Effect for Rows */
+#manualPortfolioTable tbody tr:hover {
+    background-color: #f0f8ff; /* Light blue on hover */
+}
+
+/* Chevron Icon Styling */
+.chevron-icon {
+    width: 16px; /* Smaller size */
+    height: 16px;
+    margin-right: 5px;
+    vertical-align: middle;
+    cursor: pointer; /* Ensure it looks clickable */
+}
+
+/* Dropdown Menu Styling */
+.dropdown-menu {
+    position: absolute;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+    padding: 5px 0;
+    border-radius: 4px;
+}
+
+/* Dropdown Buttons */
+.dropdown-menu button {
+    display: block;
+    width: 100%;
+    padding: 5px 10px;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    color: #333;
+}
+
+/* Hover Effect for Dropdown Buttons */
+.dropdown-menu button:hover {
+    background-color: #6C7D93;
+    color: #fff;
+}
+
+/* Search Suggestions Styling */
+.search-suggestions {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #fff;
+    position: absolute;
+    z-index: 1000;
+    width: calc(100% - 10px);
+}
+
+/* Individual Suggestion Items */
+.search-suggestions li {
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+}
+
+/* Highlight on Hover */
+.search-suggestions li:hover {
+    background-color: #6C7D93;
+    color: #fff;
+}
+
+/* Input Fields */
+.input-box {
+    width: 100%;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+/* Amount Input Field */
+#amountInput {
+    width: 25%;
+    height: 40px;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+/* Finish Portfolio Button */
+#finishManualPortfolioBtn {
+    margin-top: 10px;
+    padding: 10px 20px;
+    background-color: #6C7D93;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#finishManualPortfolioBtn:hover {
+    background-color: #2c3e50;
+}
+
+
+
+
 
 
 /* Hide the suggestions dropdown initially */

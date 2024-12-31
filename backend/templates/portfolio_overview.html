@@ -53,6 +53,18 @@
         <!-- Manual Portfolio Section -->
         <div id="manualPortfolioSection" class="hidden">
             <h4>Add Securities Manually</h4>
+
+            <!-- Search Type Toggle -->
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <label>
+                    <input type="radio" name="searchType" value="ticker" checked /> Ticker
+                </label>
+                <label>
+                    <input type="radio" name="searchType" value="name" /> Name
+                </label>
+            </div>
+
+            <!-- Dropdown Container -->
             <div class="dropdown-container" style="position: relative;">
                 <input type="text" id="searchStockInput" class="input-box" placeholder="Search for a stock..." />
                 <ul id="searchSuggestions" class="search-suggestions hidden"></ul>
@@ -63,13 +75,14 @@
                 <thead>
                     <tr>
 <!--                        <th>Ticker</th>-->
+                        <th></th>
                         <th>Equity</th>
 <!--                        <th>Exchange</th>-->
 <!--                        <th>Asset Type</th>-->
                         <th>Amount Owned</th>
                         <th>Value Change (Day)</th>
                         <th>Total Value</th>
-                        <th>Actions</th>
+<!--                        <th>Actions</th>-->
                     </tr>
                 </thead>
                 <tbody></tbody>

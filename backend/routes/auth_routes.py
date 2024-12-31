@@ -6,7 +6,7 @@ from flask_jwt_extended.exceptions import NoAuthorizationError
 from flask_jwt_extended import decode_token
 from flask_jwt_extended import get_csrf_token
 from backend import bcrypt, db
-from backend.models import User, Portfolio, PortfolioSecurity
+from backend.models import User, Portfolio, PortfolioSecurity, Security
 from backend.models import PortfolioFiles
 import os
 from werkzeug.utils import secure_filename
@@ -292,56 +292,101 @@ def get_stock_data():
     return jsonify(stock_data)
 
 
+# @auth_blueprint.route('/create-portfolio', methods=['POST'])
+# @jwt_required(locations=["cookies"])
+# def create_portfolio():
+#     try:
+#         data = request.json
+#         # ensure user's identity
+#         current_user_email = get_jwt_identity()
+#         user = User.query.filter_by(email=current_user_email).first()
+#
+#         print(f"Creating portfolio for user: {current_user_email}")
+#         print(f"Portfolio details: {data}")
+#
+#         if not user:
+#             return jsonify({"message": "User not found"}), 404
+#
+#         # Create Portfolio
+#         portfolio = Portfolio(
+#             user_id=user.id,
+#             name=data["name"],
+#             created_at=datetime.utcnow(),
+#             updated_at=datetime.utcnow(),
+#             total_holdings=len(data["stocks"]),  # this is number of stocks owned, not a dollar value
+#         )
+#         db.session.add(portfolio)
+#         db.session.flush()  # flush to get the portfolio ID
+#
+#         # Add Securities
+#         for stock in data["stocks"]:
+#             portfolio_security = PortfolioSecurity(
+#                 portfolio_id=portfolio.id,
+#                 ticker=stock["ticker"],
+#                 name=stock["name"],
+#                 industry=stock["industry"],
+#                 shares=stock["amount"],  # Amount entered in the manual creation
+#
+#             )
+#             db.session.add(portfolio_security)
+#
+#         db.session.commit()
+#
+#         return jsonify({
+#             "message": "Portfolio created successfully!",
+#             "portfolio": {
+#                 "id": portfolio.id,
+#                 "name": portfolio.name,
+#                 "created_at": portfolio.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+#                 "total_holdings": portfolio.total_holdings
+#             }
+#         }), 200
+#     except Exception as e:
+#         print(f"Error creating portfolio: {e}")
+#         return jsonify({"message": "An error occurred while creating the portfolio."}), 500
+
+
 @auth_blueprint.route('/create-portfolio', methods=['POST'])
 @jwt_required(locations=["cookies"])
 def create_portfolio():
     try:
-        data = request.json
-        # ensure user's identity
+        # Get user info from JWT
         current_user_email = get_jwt_identity()
         user = User.query.filter_by(email=current_user_email).first()
-
-        print(f"Creating portfolio for user: {current_user_email}")
-        print(f"Portfolio details: {data}")
-
         if not user:
             return jsonify({"message": "User not found"}), 404
 
+        # Get data from request
+        data = request.json
+        portfolio_name = data.get("name")
+        stocks = data.get("stocks", [])
+
+        if not portfolio_name or len(stocks) == 0:
+            return jsonify({"message": "Portfolio name and stocks are required"}), 400
+
         # Create Portfolio
-        portfolio = Portfolio(
-            user_id=user.id,
-            name=data["name"],
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-            total_holdings=len(data["stocks"]),  # this is number of stocks owned, not a dollar value
-        )
+        portfolio = Portfolio(name=portfolio_name, user_id=user.id)
         db.session.add(portfolio)
-        db.session.flush()  # flush to get the portfolio ID
+        db.session.flush()  # Get portfolio ID before committing
 
         # Add Securities
-        for stock in data["stocks"]:
-            portfolio_security = PortfolioSecurity(
+        for stock in stocks:
+            security = Security(
                 portfolio_id=portfolio.id,
                 ticker=stock["ticker"],
                 name=stock["name"],
-                industry=stock["industry"],
-                shares=stock["amount"],  # Amount entered in the manual creation
-
+                exchange=stock.get("exchange", ""),
+                asset_type=stock.get("assetType", ""),
+                amount_owned=stock["amount"],
+                value_change=stock.get("valueChange", 0.0),
+                total_value=stock.get("totalValue", 0.0),
             )
-            db.session.add(portfolio_security)
+            db.session.add(security)
 
         db.session.commit()
+        return jsonify({"message": "Portfolio created successfully!"}), 201
 
-        return jsonify({
-            "message": "Portfolio created successfully!",
-            "portfolio": {
-                "id": portfolio.id,
-                "name": portfolio.name,
-                "created_at": portfolio.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                "total_holdings": portfolio.total_holdings
-            }
-        }), 200
     except Exception as e:
-        print(f"Error creating portfolio: {e}")
+        print(f"Error: {e}")
+        db.session.rollback()
         return jsonify({"message": "An error occurred while creating the portfolio."}), 500
-

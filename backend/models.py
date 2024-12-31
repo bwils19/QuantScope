@@ -13,21 +13,21 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
 
-class Portfolio(db.Model):
-    __tablename__ = 'portfolio'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    name = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    total_holdings = db.Column(db.Integer, default=0)
-
-    # Relationship
-    user = db.relationship('User', backref=db.backref('portfolios', lazy=True))
-
-    def __repr__(self):
-        return f'<Portfolio {self.name}>'
+# class Portfolio(db.Model):
+#     __tablename__ = 'portfolio'
+#
+#     id = db.Column(db.Integer, primary_key=True)
+#     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+#     name = db.Column(db.String(255), nullable=False)
+#     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+#     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+#     total_holdings = db.Column(db.Integer, default=0)
+#
+#     # Relationship
+#     user = db.relationship('User', backref=db.backref('portfolios', lazy=True))
+#
+#     def __repr__(self):
+#         return f'<Portfolio {self.name}>'
 
 
 class PortfolioSecurity(db.Model):
@@ -65,3 +65,23 @@ class PortfolioFiles(db.Model):
     uploaded_by = db.Column(db.String(255), nullable=False)
 
     user = db.relationship('User', backref=db.backref('portfolio_files', lazy=True))
+
+
+class Portfolio(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Security(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolio.id'), nullable=False)
+    ticker = db.Column(db.String(10), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    exchange = db.Column(db.String(10))
+    asset_type = db.Column(db.String(20))
+    amount_owned = db.Column(db.Float, nullable=False)
+    value_change = db.Column(db.Float, default=0.0)
+    total_value = db.Column(db.Float, default=0.0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
