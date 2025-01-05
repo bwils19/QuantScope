@@ -729,15 +729,9 @@ button:hover {
     color: #fff;
 }
 
-#amountInput {
-    width: 25%;
-    height: 40px;
-    padding: 8px;
-    font-size: 14px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    margin-top: 8px;
-    box-sizing: border-box;
+.search-suggestions li.highlighted {
+    background-color: #6C7D93; /* Match the hover effect */
+    color: #fff;
 }
 
 /* Chevron Icon */
@@ -866,35 +860,6 @@ button:hover {
     color: #fff;
 }
 
-/* Search Suggestions Styling */
-.search-suggestions {
-    list-style-type: none;
-    margin: 0;
-    padding: 0;
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: #fff;
-    position: absolute;
-    z-index: 1000;
-    width: calc(100% - 10px);
-}
-
-/* Individual Suggestion Items */
-.search-suggestions li {
-    padding: 6px 10px;
-    cursor: pointer;
-    font-size: 14px;
-    color: #333;
-}
-
-/* Highlight on Hover */
-.search-suggestions li:hover {
-    background-color: #6C7D93;
-    color: #fff;
-}
-
 /* Input Fields */
 .input-box {
     width: 100%;
@@ -912,6 +877,22 @@ button:hover {
     font-size: 14px;
     border: 1px solid #ccc;
     border-radius: 4px;
+    margin-top: 8px;
+    box-sizing: border-box;
+    -moz-appearance: textfield;
+}
+
+#amountInput::-webkit-outer-spin-button,
+#amountInput::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Prevent scrolling the number input */
+#amountInput {
+    appearance: textfield; /* Ensures consistent behavior across browsers */
+    -moz-appearance: textfield;
+    -webkit-appearance: textfield; /* Disable native browser styles */
 }
 
 /* Finish Portfolio Button */

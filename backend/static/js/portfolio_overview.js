@@ -1,5 +1,6 @@
 // Declare manualPortfolio globally
 const manualPortfolio = [];
+let selectedSecurity = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
     const portfolioList = document.getElementById("portfolio-list");
@@ -7,7 +8,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     const manualPortfolioTable = document.getElementById("manualPortfolioTable").querySelector("tbody");
     const tableHeader = document.querySelector("#manualPortfolioTable thead");
     const searchStockInput = document.getElementById("searchStockInput");
+    searchStockInput.addEventListener("blur", () => {
+        setTimeout(() => searchSuggestions.classList.add("hidden"), 200); // Delay to allow clicks
+    });
     const amountInput = document.getElementById("amountInput");
+    amountInput.addEventListener("wheel", (event) => {
+        event.preventDefault();
+    });
     const addStockBtn = document.getElementById("addStockBtn");
     const searchSuggestions = document.createElement("ul");
     searchSuggestions.className = "search-suggestions hidden";
@@ -19,6 +26,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.querySelector(".manual-portfolio-btn").addEventListener("click", () => {
         document.getElementById("manualPortfolioSection").classList.remove("hidden");
         document.getElementById("uploadPortfolioSection").classList.add("hidden");
+    });
+
+    document.addEventListener("click", (event) => {
+        if (
+            !searchStockInput.contains(event.target) && // If not clicking inside the input box
+            !searchSuggestions.contains(event.target) // If not clicking inside suggestions
+        ) {
+            searchSuggestions.classList.add("hidden");
+        }
     });
 
 
@@ -47,9 +63,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     });
 
+    let activeIndex = -1;
+
     searchStockInput.addEventListener("input", () => {
         const query = searchStockInput.value.trim().toLowerCase();
         searchSuggestions.innerHTML = "";
+        activeIndex = -1;
 
         if (query.length === 0) {
             searchSuggestions.classList.add("hidden");
@@ -91,55 +110,110 @@ document.addEventListener("DOMContentLoaded", async () => {
             searchSuggestions.classList.add("hidden");
             return;
         }
-
-        filteredSecurities.forEach((security) => {
+        // populate suggested securities
+        filteredSecurities.forEach((security, index) => {
             const li = document.createElement("li");
             li.textContent = `${security.symbol} - ${security.name}`;
-            li.addEventListener("click", () => selectSecurity(security));
+
+            li.addEventListener("click", () => {
+                selectSecurity(security);
+            });
+
+            // Highlight the first item initially
+            if (index === 0) {
+                li.classList.add("highlighted");
+                activeIndex = 0; // Default to the first suggestion
+            }
+
             searchSuggestions.appendChild(li);
         });
 
         searchSuggestions.classList.remove("hidden");
     });
+    searchStockInput.addEventListener("keydown", (e) => {
+        const items = searchSuggestions.querySelectorAll("li");
+        if (items.length === 0) return;
+
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            if (activeIndex < items.length - 1) {
+                if (activeIndex >= 0) items[activeIndex].classList.remove("highlighted");
+                activeIndex++;
+                items[activeIndex].classList.add("highlighted");
+            }
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            if (activeIndex > 0) {
+                items[activeIndex].classList.remove("highlighted");
+                activeIndex--;
+                items[activeIndex].classList.add("highlighted");
+            }
+        } else if (e.key === "Enter") {
+            e.preventDefault();
+            if (activeIndex >= 0) {
+                items[activeIndex].click(); // Simulate a click event
+            }
+        }
+    });
 
 
-    // Select a security
     function selectSecurity(security) {
+        selectedSecurity = security; // Update the selected security
         searchStockInput.value = `${security.symbol} - ${security.name}`;
         searchSuggestions.classList.add("hidden");
-
-        // Shared function to add stock
-        async function addStock() {
-            const amount = parseFloat(amountInput.value.trim());
-            if (!amount || amount <= 0) {
-                alert("Please enter a valid amount.");
-                return;
-            }
-
-            addStockRow({
-                equityName: security.name,
-                equityDetails: `${security.symbol}:${security.exchange}`,
-                amount: amount,
-                valueChange: "0",
-                totalValue: "0.00",
-            });
-
-            searchStockInput.value = "";
-            amountInput.value = "";
-            tableHeader.style.display = "table-header-group";
-        }
-
-        addStockBtn.onclick = addStock;
-        amountInput.addEventListener("keypress", (event) => {
-            if (event.key === "Enter") addStock();
-        });
     }
 
-    // Add stock row to the table
+    // Add stock to the table
+    function addStock() {
+        // Ensure a security is selected
+        if (!selectedSecurity) {
+            alert("Please select a security first.");
+            return;
+        }
+
+        const amount = parseFloat(amountInput.value.trim());
+        if (!amount || amount <= 0) {
+            alert("Please enter a valid amount.");
+            return;
+        }
+
+        // Ensure the user can't add duplicate securities
+        const isDuplicate = manualPortfolio.some(
+            (stock) => stock.equityDetails === `${selectedSecurity.symbol}:${selectedSecurity.exchange}`
+        );
+
+        if (isDuplicate) {
+            alert(`${selectedSecurity.name} (${selectedSecurity.symbol}) is already in your portfolio.`);
+            return; // Stop further processing
+        }
+
+        addStockRow({
+            equityName: selectedSecurity.name,
+            equityDetails: `${selectedSecurity.symbol}:${selectedSecurity.exchange}`,
+            amount: amount,
+            valueChange: "0",
+            totalValue: "0.00",
+        });
+
+        // Reset input fields and selected security
+        searchStockInput.value = "";
+        amountInput.value = "";
+        selectedSecurity = null;
+        tableHeader.style.display = "table-header-group";
+
+        searchStockInput.focus();
+    }
+
+    addStockBtn.addEventListener("click", addStock);
+
+    amountInput.addEventListener("keypress", (event) => {
+        if (event.key === "Enter") addStock();
+    });
+
     function addStockRow(stock) {
         const row = document.createElement("tr");
         row.innerHTML = `
-                <td class="chevron-cell">
+            <td class="chevron-cell">
                 <div class="chevron-wrapper">
                     <img src="/static/images/chevron-down.svg" alt="Chevron" class="chevron-icon" />
                     <div class="dropdown-menu hidden">
@@ -148,7 +222,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     </div>
                 </div>
             </td>
-             <td style="text-align: left; width: 40%;">
+            <td>
                 <strong style="color: red; font-size: 1.2em;">${stock.equityName}</strong><br>
                 <span style="font-size: 0.8em; color: grey;">${stock.equityDetails}</span>
             </td>
@@ -168,23 +242,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    // Reset modal
+    // Reset modal - THIS IS NOW RESTORED
     function resetModal() {
         manualPortfolioTable.innerHTML = "";
         tableHeader.style.display = "none";
         searchStockInput.value = "";
         amountInput.value = "";
-        manualPortfolio.length = 0;
+        selectedSecurity = null; // Clear selected security
+        manualPortfolio.length = 0; // Clear the portfolio array
     }
 
     // Initialize modal
     document.querySelector(".new-portfolio-btn").addEventListener("click", () => {
         newPortfolioModal.style.display = "block";
+        document.body.style.overflow = "hidden";
     });
 
     document.getElementById("closeModal").addEventListener("click", () => {
         newPortfolioModal.style.display = "none";
-        resetModal();
+        document.body.style.overflow = "";
+        resetModal(); // Reset modal when closed
     });
 
     // Load securities
