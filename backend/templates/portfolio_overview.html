@@ -18,7 +18,7 @@
             <div class="stat-value negative">-2.18 / -0.02%</div>
         </div>
         <div class="dashboard-stat">
-            <h3>Total Gain/Loss (1 Year)</h3>
+            <h3>TOTAL GAIN/LOSS (1 YEAR)</h3>
             <div class="stat-value positive">+7,193.72 / +176.36%</div>
         </div>
     </div>
@@ -31,6 +31,13 @@
     </div>
     <!-- Portfolio Cards -->
     <div id="portfolio-list">
+        {% if portfolios|length == 0 %}
+        <div class="dashboard-card">
+            <div class="dashboard-stat">
+                <h3>You have not created any portfolios yet</h3>
+            </div>
+        </div>
+        {% else %}
         {% for portfolio in portfolios %}
         <div class="portfolio-item">
             <h4>{{ portfolio.name }}</h4>
@@ -38,6 +45,7 @@
             <p>Created: {{ portfolio.created_at }}</p>
         </div>
         {% endfor %}
+        {% endif %}
     </div>
 </div>
 
@@ -102,6 +110,7 @@
 <div class="portfolio-watchlist-container">
     <div class="portfolio-header">
         <h3 class="page-title">Watchlist</h3>
+        <button class="new-portfolio-btn">Add Watchlist</button>
     </div>
     <div class="dashboard-card">
         <div class="dashboard-stat">

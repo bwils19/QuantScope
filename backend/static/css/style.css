@@ -250,6 +250,7 @@ datalist option {
     transition: background-color 0.3s ease;
 }
 
+
 .new-file-btn {
     padding: 10px 20px;
     background-color: #212830;
@@ -635,13 +636,14 @@ button:hover {
 .modal-content {
     background-color: #fefefe;
     margin: 10% auto; /* Centered vertically and horizontally */
-    padding: 20px;
+    padding: 20px 30px; /* Added horizontal padding for better alignment */
     border: 1px solid #888;
-    width: 60%; /* Adjust width as needed */
+    width: 70%; /* Adjust width as needed */
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     animation: fadeIn 0.3s ease-in-out;
 }
+
 
 /* Close button */
 .close {
@@ -748,25 +750,31 @@ button:hover {
 }
 
 /* Dropdown Menu */
+
+#manualPortfolioSection {
+    width: 100%; /* Ensure it spans the modal width */
+}
 /* Manual Portfolio Table Styling */
 #manualPortfolioTable {
     width: 100%;
-    border-collapse: collapse;
+    margin-top: 10px; /* Keep some spacing above the table */
+    border-collapse: collapse; /* Ensure borders collapse properly */
 }
 
-/* Header Styling */
+/* Header Row */
 #manualPortfolioTable th {
     font-weight: bold;
     font-size: 14px;
-    background-color: #f5f5f5;
-    padding: 10px 15px; /* More padding for header readability */
+    background-color: #f5f5f5; /* Light gray for header background */
+    padding: 10px 15px; /* Padding for readability */
+    text-align: center; /* Center headers for consistency */
 }
 
-/* General Cell Styling */
+/* Table Cells */
 #manualPortfolioTable td {
     padding: 8px 12px;
-    text-align: left; /* Align text to the left for better readability */
-    vertical-align: middle;
+    text-align: left; /* Align left for readability */
+    vertical-align: middle; /* Vertically center text */
 }
 
 /* Alternating Row Colors */
@@ -788,7 +796,7 @@ button:hover {
 /* Chevron Column (Smaller Width) */
 #manualPortfolioTable th:nth-child(1),
 #manualPortfolioTable td:nth-child(1) {
-    width: 2%; /* Reduce width for chevron */
+    width: 5%; /* Reduce width for chevron */
     text-align: center; /* Center the chevron */
 }
 
