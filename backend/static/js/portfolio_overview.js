@@ -139,8 +139,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     function addStockRow(stock) {
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td>
-                <div class="dropdown-container">
+                <td class="chevron-cell">
+                <div class="chevron-wrapper">
                     <img src="/static/images/chevron-down.svg" alt="Chevron" class="chevron-icon" />
                     <div class="dropdown-menu hidden">
                         <button class="edit-stock-btn">Edit</button>

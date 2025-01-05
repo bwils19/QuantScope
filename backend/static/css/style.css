@@ -742,11 +742,9 @@ button:hover {
 
 /* Chevron Icon */
 .chevron-icon {
-    width: 20px;
-    height: 20px;
+    width: 14px; /* Smaller size */
+    height: 14px;
     cursor: pointer;
-    vertical-align: middle;
-    margin-right: 5px;
 }
 
 /* Dropdown Menu */
@@ -756,6 +754,7 @@ button:hover {
 }
 /* Manual Portfolio Table Styling */
 #manualPortfolioTable {
+    table-layout: fixed;
     width: 100%;
     margin-top: 10px; /* Keep some spacing above the table */
     border-collapse: collapse; /* Ensure borders collapse properly */
@@ -767,7 +766,7 @@ button:hover {
     font-size: 14px;
     background-color: #f5f5f5; /* Light gray for header background */
     padding: 10px 15px; /* Padding for readability */
-    text-align: center; /* Center headers for consistency */
+    text-align: left; /* Center headers for consistency */
 }
 
 /* Table Cells */
@@ -793,11 +792,19 @@ button:hover {
     font-size: 1.2em;
 }
 
-/* Chevron Column (Smaller Width) */
-#manualPortfolioTable th:nth-child(1),
-#manualPortfolioTable td:nth-child(1) {
-    width: 5%; /* Reduce width for chevron */
-    text-align: center; /* Center the chevron */
+#manualPortfolioTable th.chevron-header,
+#manualPortfolioTable td.chevron-cell {
+    width: 40px; /* Fixed width for chevron */
+    text-align: center; /* Align chevron center */
+    padding: 0; /* Remove extra padding */
+}
+
+/* Chevron Wrapper */
+.chevron-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%; /* Ensure it fills the cell width */
 }
 
 /* Equity Details Column */
@@ -828,15 +835,6 @@ button:hover {
 /* Hover Effect for Rows */
 #manualPortfolioTable tbody tr:hover {
     background-color: #f0f8ff; /* Light blue on hover */
-}
-
-/* Chevron Icon Styling */
-.chevron-icon {
-    width: 16px; /* Smaller size */
-    height: 16px;
-    margin-right: 5px;
-    vertical-align: middle;
-    cursor: pointer; /* Ensure it looks clickable */
 }
 
 /* Dropdown Menu Styling */
@@ -930,11 +928,6 @@ button:hover {
 #finishManualPortfolioBtn:hover {
     background-color: #2c3e50;
 }
-
-
-
-
-
 
 /* Hide the suggestions dropdown initially */
 .hidden {
