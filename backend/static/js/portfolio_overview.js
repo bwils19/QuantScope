@@ -233,12 +233,30 @@ document.addEventListener("DOMContentLoaded", async () => {
         manualPortfolioTable.appendChild(row);
         manualPortfolio.push(stock);
 
+        const chevron = row.querySelector(".chevron-icon");
+        const dropdownMenu = row.querySelector(".dropdown-menu");
+
+        chevron.addEventListener("click", (event) => {
+            event.stopPropagation(); // Prevent closing due to body click event
+            const rect = chevron.getBoundingClientRect();
+
+            // Set dropdown position relative to chevron
+            dropdownMenu.style.top = `${rect.bottom + window.scrollY + 8}px`; // Add 8px gap
+            dropdownMenu.style.left = `${rect.left + window.scrollX}px`;
+            dropdownMenu.classList.toggle("hidden"); // Toggle visibility
+
         // Remove stock
         row.querySelector(".remove-stock-btn").addEventListener("click", () => {
             const index = manualPortfolio.indexOf(stock);
             if (index !== -1) manualPortfolio.splice(index, 1);
             row.remove();
             if (manualPortfolio.length === 0) tableHeader.style.display = "none";
+        });
+            document.addEventListener("click", (event) => {
+                if (!dropdownMenu.contains(event.target) && !chevron.contains(event.target)) {
+                    dropdownMenu.classList.add("hidden");
+                }
+            });
         });
     }
 

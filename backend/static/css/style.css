@@ -834,12 +834,26 @@ button:hover {
 /* Dropdown Menu Styling */
 .dropdown-menu {
     position: absolute;
+    top: 100%;
+    left: 0;
     background-color: #fff;
     border: 1px solid #ddd;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
     z-index: 10;
     padding: 5px 0;
-    border-radius: 4px;
+    border-radius: 8px;
+    wodth: 250px;
+}
+
+.dropdown-menu::before {
+    content: "";
+    position: absolute;
+    top: -8px; /* Position triangle above the menu */
+    left: 20px; /* Align triangle with the chevron */
+    border-width: 0 8px 8px 8px;
+    border-style: solid;
+    border-color: transparent transparent #fff transparent; /* White triangle */
+    z-index: 11; /* Ensure it is above the menu */
 }
 
 /* Dropdown Buttons */
@@ -852,6 +866,7 @@ button:hover {
     text-align: left;
     cursor: pointer;
     color: #333;
+    font-size: 14px;
 }
 
 /* Hover Effect for Dropdown Buttons */
