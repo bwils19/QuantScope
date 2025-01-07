@@ -1,6 +1,7 @@
 // Declare manualPortfolio globally
 const manualPortfolio = [];
 let selectedSecurity = null;
+const stockDataCache = {};
 
 async function getApiKey() {
     try {
@@ -14,6 +15,12 @@ async function getApiKey() {
 }
 
 async function fetchStockData(symbol) {
+    // Check cache to see if we've hit the api for that security yet or not
+    if (stockDataCache[symbol]) {
+        console.log(`Cache hit for ${symbol}`); // Debugging
+        return stockDataCache[symbol]; // Return cached data
+    }
+
     const apiKey = await getApiKey();
     if (!apiKey) {
         alert('API key not available.');
@@ -28,11 +35,15 @@ async function fetchStockData(symbol) {
 
         if (data['Global Quote']) {
             const quote = data['Global Quote'];
-            return {
+            // Save the fetched data in the cache
+            const stockInfo = {
                 currentPrice: parseFloat(quote['05. price']),
                 previousClose: parseFloat(quote['08. previous close']),
                 changePercent: parseFloat(quote['10. change percent']),
             };
+
+            stockDataCache[symbol] = stockInfo; // Store in cache
+            return stockInfo; // Return the data
         } else {
             console.error('Invalid response:', data);
             return null;
@@ -63,6 +74,121 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let securitiesData = [];
     const symbolsJsonPath = "/static/data/symbols.json";
+
+    const portfolioNameModal = document.getElementById("portfolioNameModal");
+    const portfolioNameInput = document.getElementById("portfolioNameInput");
+    const portfolioNameSaveBtn = document.getElementById("portfolioNameSaveBtn");
+    const portfolioNameCancelBtn = document.getElementById("portfolioNameCancelBtn");
+    const successModal = document.getElementById("successModal");
+    const successMessage = document.getElementById("successMessage");
+    const successOkBtn = document.getElementById("successOkBtn");
+    const closeSuccessModal = document.getElementById("closeSuccessModal");
+
+    const errorModal = document.getElementById("errorModal");
+    const errorMessage = document.getElementById("errorMessage");
+    const closeErrorModal = document.getElementById("closeErrorModal");
+    // Close modals when clicking outside them
+    window.addEventListener("click", (event) => {
+        if (event.target === portfolioNameModal) {
+            portfolioNameModal.style.display = "none";
+        }
+        if (event.target === successModal) {
+            successModal.style.display = "none";
+        }
+        if (event.target === errorModal) {
+            errorModal.style.display = "none";
+        }
+    });
+
+    // Close success modal
+    closeSuccessModal.addEventListener("click", () => {
+        successModal.style.display = "none";
+        location.reload();
+    });
+
+    // Close error modal
+    closeErrorModal.addEventListener("click", () => {
+        errorModal.style.display = "none";
+    });
+
+    // Open portfolio name modal
+    document.getElementById("finishManualPortfolioBtn").addEventListener("click", () => {
+        portfolioNameInput.value = ""; // Clear input
+        portfolioNameModal.style.display = "block";
+    });
+
+    // Cancel portfolio creation
+    portfolioNameCancelBtn.addEventListener("click", () => {
+        portfolioNameModal.style.display = "none";
+    });
+
+    // Save portfolio name
+    portfolioNameSaveBtn.addEventListener("click", async () => {
+        const portfolioName = portfolioNameInput.value.trim();
+         if (!portfolioName) {
+            errorMessage.textContent = "Portfolio name is required!";
+            errorModal.style.display = "block"; // Show error modal
+            return;
+        }
+
+        const stocks = manualPortfolio.map(stock => ({
+            ticker: stock.equityDetails.split(":")[0],
+            name: stock.equityName,
+            exchange: stock.equityDetails.split(":")[1],
+            amount: stock.amount,
+            valueChange: parseFloat(stock.valueChange),
+            totalValue: parseFloat(stock.totalValue),
+        }));
+
+        if (stocks.length === 0) {
+            errorMessage.textContent = "No securities added!";
+            errorModal.style.display = "block";
+            return;
+        }
+
+        try {
+            const response = await fetch("/auth/create-portfolio", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: portfolioName, stocks }),
+            });
+
+           if (response.ok) {
+                successMessage.textContent = "Portfolio created successfully!";
+                successModal.style.display = "block";
+
+                // Close modal and reload page after saving
+                successModal.addEventListener("click", () => {
+                    successModal.style.display = "none";
+                    location.reload(); // Reload
+                });
+            } else {
+                const error = await response.json();
+                errorMessage.textContent = `Error: ${error.message}`;
+                errorModal.style.display = "block";
+            }
+        } catch (error) {
+            console.error("Error:", error);
+            errorMessage.textContent = "An unexpected error occurred.";
+            errorModal.style.display = "block";
+        }
+    });
+
+    // Close success modal
+    successOkBtn.addEventListener("click", () => {
+        successModal.style.display = "none";
+        location.reload(); // Reload the page
+    });
+
+    // Close modals when clicking outside
+    window.addEventListener("click", (event) => {
+        if (event.target === portfolioNameModal) {
+            portfolioNameModal.style.display = "none";
+        }
+        if (event.target === successModal) {
+            successModal.style.display = "none";
+        }
+    });
 
     document.querySelector(".manual-portfolio-btn").addEventListener("click", () => {
         document.getElementById("manualPortfolioSection").classList.remove("hidden");
@@ -437,8 +563,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             // Finish and save portfolio
             document.getElementById("finishManualPortfolioBtn").addEventListener("click", async () => {
                 try {
-                    const portfolioName = prompt("Enter a name for your portfolio:");
-                    if (!portfolioName) return alert("Portfolio name is required.");
+                    const portfolioName = document.getElementById("portfolioNameInput").value.trim(); // Get input value
+                    if (!portfolioName) {
+                        errorMessage.textContent = "Portfolio name is required.";
+                        errorModal.style.display = "block";
+                        return;
+                    }
 
                     const stocks = manualPortfolio.map(stock => ({
                         ticker: stock.equityDetails.split(":")[0],
@@ -449,7 +579,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                         totalValue: parseFloat(stock.totalValue),
                     }));
 
-                    if (stocks.length === 0) return alert("No securities added!");
+                    if (stocks.length === 0) {
+                        errorMessage.textContent = "No securities added!";
+                        errorModal.style.display = "block";
+                        return;
+                    }
 
                     const response = await fetch("/auth/create-portfolio", {
                         method: "POST",
@@ -458,16 +592,24 @@ document.addEventListener("DOMContentLoaded", async () => {
                     });
 
                     if (response.ok) {
-                        alert("Portfolio created successfully!");
-                        location.reload();
+                        successMessage.textContent = "Portfolio created successfully!";
+                        successModal.style.display = "block";
+
+                        // Reload page after closing modal
+                        successModal.addEventListener("click", () => {
+                            successModal.style.display = "none";
+                            location.reload();
+                        });
                     } else {
                         const error = await response.json();
-                        alert(`Error: ${error.message}`);
+                        errorMessage.textContent = `Error: ${error.message}`;
+                        errorModal.style.display = "block";
                     }
                 } catch (error) {
                     console.error("Error:", error);
-                    alert("An unexpected error occurred.");
-                    }
-                });
+                    errorMessage.textContent = "An unexpected error occurred.";
+                    errorModal.style.display = "block";
+                }
+            });
 
         });
