@@ -2,6 +2,47 @@
 const manualPortfolio = [];
 let selectedSecurity = null;
 
+async function getApiKey() {
+    try {
+        const response = await fetch('/api/key'); // Call the backend route
+        const data = await response.json();
+        return data.apiKey;
+    } catch (error) {
+        console.error('Failed to fetch API key:', error);
+        return null;
+    }
+}
+
+async function fetchStockData(symbol) {
+    const apiKey = await getApiKey();
+    if (!apiKey) {
+        alert('API key not available.');
+        return null;
+    }
+
+    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`;
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        console.log(data);
+
+        if (data['Global Quote']) {
+            const quote = data['Global Quote'];
+            return {
+                currentPrice: parseFloat(quote['05. price']),
+                previousClose: parseFloat(quote['08. previous close']),
+                changePercent: parseFloat(quote['10. change percent']),
+            };
+        } else {
+            console.error('Invalid response:', data);
+            return null;
+        }
+    } catch (error) {
+        console.error(`Error fetching data for ${symbol}:`, error);
+        return null;
+    }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     const portfolioList = document.getElementById("portfolio-list");
     const newPortfolioModal = document.getElementById("newPortfolioModal");
@@ -164,7 +205,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // Add stock to the table
-    function addStock() {
+    async function addStock() {
         // Ensure a security is selected
         if (!selectedSecurity) {
             alert("Please select a security first.");
@@ -187,12 +228,36 @@ document.addEventListener("DOMContentLoaded", async () => {
             return; // Stop further processing
         }
 
+            // Fetch stock data from API
+        const stockData = await fetchStockData(selectedSecurity.symbol);
+        console.log("Stock Data:", stockData);
+        if (!stockData) {
+            alert(`Could not fetch data for ${selectedSecurity.name}.`);
+            return;
+        }
+
+        // Calculate values
+        // const totalValue = amount * stockData.currentPrice;
+        // const dailyChange = amount * (stockData.currentPrice - stockData.previousClose);
+
+        console.log("Raw Values - Total:", amount * stockData.currentPrice);
+        console.log("Raw Values - Change:", amount * (stockData.currentPrice - stockData.previousClose));
+
+
+        let totalValue = amount * (stockData.currentPrice || 0);
+        let dailyChange = amount * ((stockData.currentPrice || 0) - (stockData.previousClose || 0));
+
+        console.log("Raw Total (Before Formatting):", totalValue);
+        console.log("Raw Change (Before Formatting):", dailyChange);
+        console.log("Type of Total Value:", typeof totalValue);
+        console.log("Type of Daily Change:", typeof dailyChange);
+
         addStockRow({
             equityName: selectedSecurity.name,
             equityDetails: `${selectedSecurity.symbol}:${selectedSecurity.exchange}`,
             amount: amount,
-            valueChange: "0",
-            totalValue: "0.00",
+            valueChange: dailyChange,
+            totalValue: totalValue,
         });
 
         // Reset input fields and selected security
@@ -212,7 +277,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function addStockRow(stock) {
         const row = document.createElement("tr");
-        row.innerHTML = `
+        const valueChangeClass = parseFloat(stock.valueChange) >= 0 ? 'positive' : 'negative';
+
+          row.innerHTML = `
             <td class="chevron-cell">
                 <div class="chevron-wrapper">
                     <img src="/static/images/chevron-down.svg" alt="Chevron" class="chevron-icon" />
@@ -226,9 +293,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <strong style="color: red; font-size: 1.2em;">${stock.equityName}</strong><br>
                 <span style="font-size: 0.8em; color: grey;">${stock.equityDetails}</span>
             </td>
-            <td>${stock.amount}</td>
-            <td>${stock.valueChange}</td>
-            <td>${stock.totalValue}</td>
+            <td class="amount-cell">${stock.amount}</td> <!-- Added amount-cell class -->
+            <td class="value-change ${valueChangeClass}">${parseFloat(stock.valueChange).toLocaleString('en-US', {
+                style: 'currency', currency: 'USD'
+            })}</td>
+            <td class="total-value">${parseFloat(stock.totalValue).toLocaleString('en-US', {
+                style: 'currency', currency: 'USD'
+            })}</td>
         `;
         manualPortfolioTable.appendChild(row);
         manualPortfolio.push(stock);
@@ -245,6 +316,15 @@ document.addEventListener("DOMContentLoaded", async () => {
             dropdownMenu.style.left = `${rect.left + window.scrollX}px`;
             dropdownMenu.classList.toggle("hidden"); // Toggle visibility
 
+            document.addEventListener("click", (event) => {
+                if (
+                    !dropdownMenu.contains(event.target) && // Not clicking inside dropdown
+                    !chevron.contains(event.target) // Not clicking the chevron
+                ) {
+                    dropdownMenu.classList.add("hidden"); // Hide dropdown
+                }
+            }, { once: true }); // Ensure the listener is only executed once
+        });
         // Remove stock
         row.querySelector(".remove-stock-btn").addEventListener("click", () => {
             const index = manualPortfolio.indexOf(stock);
@@ -252,72 +332,119 @@ document.addEventListener("DOMContentLoaded", async () => {
             row.remove();
             if (manualPortfolio.length === 0) tableHeader.style.display = "none";
         });
-            document.addEventListener("click", (event) => {
-                if (!dropdownMenu.contains(event.target) && !chevron.contains(event.target)) {
-                    dropdownMenu.classList.add("hidden");
+
+        // edit the stock amount
+        row.querySelector(".edit-stock-btn").addEventListener("click", async () => {
+            const amountCell = row.querySelector(".amount-cell");
+            const valueChangeCell = row.querySelector(".value-change");
+            const totalValueCell = row.querySelector(".total-value");
+
+            // Replace cell content with input and save button
+            const input = document.createElement("input");
+            input.type = "number";
+            input.value = stock.amount;
+            input.classList.add("edit-input");
+            const saveButton = document.createElement("button");
+            saveButton.textContent = "Save";
+            saveButton.classList.add("save-btn");
+
+            amountCell.innerHTML = "";
+            amountCell.appendChild(input);
+            amountCell.appendChild(saveButton);
+
+            saveButton.addEventListener("click", async () => {
+                const newAmount = parseFloat(input.value.trim());
+                if (isNaN(newAmount) || newAmount <= 0) {
+                    alert("Please enter a valid amount.");
+                    return;
                 }
+
+                // Update stock data
+                stock.amount = newAmount;
+
+                // Recalculate total value and daily change
+                const stockData = await fetchStockData(stock.equityDetails.split(":")[0]);
+                const newTotalValue = (newAmount * stockData.currentPrice).toLocaleString('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                });
+
+                const newDailyChange = (newAmount * (stockData.currentPrice - stockData.previousClose)).toLocaleString('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                });
+
+                // Update UI
+                amountCell.textContent = newAmount;
+                valueChangeCell.textContent = newDailyChange;
+                valueChangeCell.classList.remove("positive", "negative");
+                valueChangeCell.classList.add(parseFloat(newDailyChange) >= 0 ? "positive" : "negative");
+                totalValueCell.textContent = newTotalValue;
+
+                // Remove save button
+                saveButton.remove();
             });
         });
     }
+                // Reset modal - THIS IS NOW RESTORED
+                function resetModal() {
+                    manualPortfolioTable.innerHTML = "";
+                    tableHeader.style.display = "none";
+                    searchStockInput.value = "";
+                    amountInput.value = "";
+                    selectedSecurity = null; // Clear selected security
+                    manualPortfolio.length = 0; // Clear the portfolio array
+                }
 
-    // Reset modal - THIS IS NOW RESTORED
-    function resetModal() {
-        manualPortfolioTable.innerHTML = "";
-        tableHeader.style.display = "none";
-        searchStockInput.value = "";
-        amountInput.value = "";
-        selectedSecurity = null; // Clear selected security
-        manualPortfolio.length = 0; // Clear the portfolio array
-    }
+                // Initialize modal
+                document.querySelector(".new-portfolio-btn").addEventListener("click", () => {
+                    newPortfolioModal.style.display = "block";
+                    document.body.style.overflow = "hidden";
+                });
 
-    // Initialize modal
-    document.querySelector(".new-portfolio-btn").addEventListener("click", () => {
-        newPortfolioModal.style.display = "block";
-        document.body.style.overflow = "hidden";
-    });
+                document.getElementById("closeModal").addEventListener("click", () => {
+                    newPortfolioModal.style.display = "none";
+                    document.body.style.overflow = "";
+                    resetModal(); // Reset modal when closed
+                });
 
-    document.getElementById("closeModal").addEventListener("click", () => {
-        newPortfolioModal.style.display = "none";
-        document.body.style.overflow = "";
-        resetModal(); // Reset modal when closed
-    });
+                // Load securities
+                await loadSecurities();
 
-    // Load securities
-    await loadSecurities();
-});
+            // Finish and save portfolio
+            document.getElementById("finishManualPortfolioBtn").addEventListener("click", async () => {
+                try {
+                    const portfolioName = prompt("Enter a name for your portfolio:");
+                    if (!portfolioName) return alert("Portfolio name is required.");
 
-// Finish and save portfolio
-document.getElementById("finishManualPortfolioBtn").addEventListener("click", async () => {
-    try {
-        const portfolioName = prompt("Enter a name for your portfolio:");
-        if (!portfolioName) return alert("Portfolio name is required.");
+                    const stocks = manualPortfolio.map(stock => ({
+                        ticker: stock.equityDetails.split(":")[0],
+                        name: stock.equityName,
+                        exchange: stock.equityDetails.split(":")[1],
+                        amount: stock.amount,
+                        valueChange: parseFloat(stock.valueChange),
+                        totalValue: parseFloat(stock.totalValue),
+                    }));
 
-        const stocks = manualPortfolio.map(stock => ({
-            ticker: stock.equityDetails.split(":")[0],
-            name: stock.equityName,
-            exchange: stock.equityDetails.split(":")[1],
-            amount: stock.amount,
-            valueChange: parseFloat(stock.valueChange),
-            totalValue: parseFloat(stock.totalValue),
-        }));
+                    if (stocks.length === 0) return alert("No securities added!");
 
-        if (stocks.length === 0) return alert("No securities added!");
+                    const response = await fetch("/auth/create-portfolio", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({name: portfolioName, stocks}),
+                    });
 
-        const response = await fetch("/auth/create-portfolio", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: portfolioName, stocks }),
+                    if (response.ok) {
+                        alert("Portfolio created successfully!");
+                        location.reload();
+                    } else {
+                        const error = await response.json();
+                        alert(`Error: ${error.message}`);
+                    }
+                } catch (error) {
+                    console.error("Error:", error);
+                    alert("An unexpected error occurred.");
+                    }
+                });
+
         });
-
-        if (response.ok) {
-            alert("Portfolio created successfully!");
-            location.reload();
-        } else {
-            const error = await response.json();
-            alert(`Error: ${error.message}`);
-        }
-    } catch (error) {
-        console.error("Error:", error);
-        alert("An unexpected error occurred.");
-    }
-});

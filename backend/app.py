@@ -1,4 +1,4 @@
-from flask import Flask, redirect, url_for
+from flask import Flask, redirect, url_for, jsonify
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from flask_migrate import Migrate
 from backend import db, bcrypt, jwt
@@ -51,6 +51,18 @@ def create_app():
                 print(f"Error in home route: {e}")  # Debugging
                 # In case of any issues (e.g., invalid or missing token), route to login
                 return redirect(url_for('auth.login_page'))
+
+            # Route to send API key securely
+        @app.route('/api/key')
+        def get_api_key():
+            try:
+                api_key = os.getenv('ALPHA_VANTAGE_KEY')  # Fetch the API key from the environment variable
+                if not api_key:
+                    return jsonify({'error': 'API key not found'}), 500
+                return jsonify({'apiKey': api_key})  # Send the API key securely to the frontend
+            except Exception as e:
+                print(f"Error fetching API key: {e}")
+                return jsonify({'error': 'Internal server error'}), 500
 
         return app
 
