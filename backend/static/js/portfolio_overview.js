@@ -307,24 +307,47 @@ document.addEventListener("DOMContentLoaded", async () => {
         const chevron = row.querySelector(".chevron-icon");
         const dropdownMenu = row.querySelector(".dropdown-menu");
 
+     // Toggle dropdown visibility
         chevron.addEventListener("click", (event) => {
-            event.stopPropagation(); // Prevent closing due to body click event
+            event.stopPropagation(); // Prevent immediate closing
             const rect = chevron.getBoundingClientRect();
 
-            // Set dropdown position relative to chevron
-            dropdownMenu.style.top = `${rect.bottom + window.scrollY + 8}px`; // Add 8px gap
+            // Position dropdown relative to chevron
+            dropdownMenu.style.top = `${rect.bottom + window.scrollY + 8}px`; // 8px gap below chevron
             dropdownMenu.style.left = `${rect.left + window.scrollX}px`;
-            dropdownMenu.classList.toggle("hidden"); // Toggle visibility
+            dropdownMenu.classList.toggle("hidden"); // Show/hide dropdown
 
-            document.addEventListener("click", (event) => {
-                if (
-                    !dropdownMenu.contains(event.target) && // Not clicking inside dropdown
-                    !chevron.contains(event.target) // Not clicking the chevron
-                ) {
-                    dropdownMenu.classList.add("hidden"); // Hide dropdown
+            // Track mouse leave state
+            let isMouseInside = true; // Flag to track if mouse is inside dropdown or chevron
+
+            const hideDropdown = () => {
+                if (!isMouseInside) { // Hide dropdown only if mouse is outside
+                    dropdownMenu.classList.add("hidden");
+                    removeListeners(); // Clean up event listeners
                 }
-            }, { once: true }); // Ensure the listener is only executed once
+            };
+
+            const removeListeners = () => {
+                dropdownMenu.removeEventListener("mouseleave", onMouseLeave);
+                dropdownMenu.removeEventListener("mouseenter", onMouseEnter);
+                chevron.removeEventListener("mouseleave", onMouseLeave);
+                chevron.removeEventListener("mouseenter", onMouseEnter);
+            };
+
+            const onMouseEnter = () => isMouseInside = true; // Mouse is inside
+            const onMouseLeave = () => {
+                isMouseInside = false; // Mouse left
+                setTimeout(hideDropdown, 200); // Delay hiding to allow movement
+            };
+
+            // Attach listeners to track mouse movement
+            dropdownMenu.addEventListener("mouseenter", onMouseEnter);
+            dropdownMenu.addEventListener("mouseleave", onMouseLeave);
+            chevron.addEventListener("mouseenter", onMouseEnter);
+            chevron.addEventListener("mouseleave", onMouseLeave);
         });
+
+
         // Remove stock
         row.querySelector(".remove-stock-btn").addEventListener("click", () => {
             const index = manualPortfolio.indexOf(stock);
