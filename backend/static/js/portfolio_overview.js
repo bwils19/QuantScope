@@ -1,11 +1,40 @@
-// Declare manualPortfolio globally
+// Global state
 const manualPortfolio = [];
 let selectedSecurity = null;
 const stockDataCache = {};
+let securitiesData = [];
+let searchType = "ticker"; // Default search type
+let activeIndex = -1;
 
+// Cache DOM elements
+const elements = {
+    portfolioList: document.getElementById("portfolio-list"),
+    newPortfolioModal: document.getElementById("newPortfolioModal"),
+    manualPortfolioTable: document.getElementById("manualPortfolioTable").querySelector("tbody"),
+    tableHeader: document.querySelector("#manualPortfolioTable thead"),
+    searchStockInput: document.getElementById("searchStockInput"),
+    amountInput: document.getElementById("amountInput"),
+    addStockBtn: document.getElementById("addStockBtn"),
+    portfolioNameModal: document.getElementById("portfolioNameModal"),
+    portfolioNameInput: document.getElementById("portfolioNameInput"),
+    portfolioNameSaveBtn: document.getElementById("portfolioNameSaveBtn"),
+    portfolioNameCancelBtn: document.getElementById("portfolioNameCancelBtn"),
+    successModal: document.getElementById("successModal"),
+    successMessage: document.getElementById("successMessage"),
+    successOkBtn: document.getElementById("successOkBtn"),
+    errorModal: document.getElementById("errorModal"),
+    errorMessage: document.getElementById("errorMessage")
+};
+
+// Create and append search suggestions element
+const searchSuggestions = document.createElement("ul");
+searchSuggestions.className = "search-suggestions hidden";
+elements.searchStockInput.parentNode.appendChild(searchSuggestions);
+
+// API functions
 async function getApiKey() {
     try {
-        const response = await fetch('/api/key'); // Call the backend route
+        const response = await fetch('/api/key');
         const data = await response.json();
         return data.apiKey;
     } catch (error) {
@@ -15,10 +44,9 @@ async function getApiKey() {
 }
 
 async function fetchStockData(symbol) {
-    // Check cache to see if we've hit the api for that security yet or not
     if (stockDataCache[symbol]) {
-        console.log(`Cache hit for ${symbol}`); // Debugging
-        return stockDataCache[symbol]; // Return cached data
+        console.log(`Cache hit for ${symbol}`);
+        return stockDataCache[symbol];
     }
 
     const apiKey = await getApiKey();
@@ -27,589 +55,461 @@ async function fetchStockData(symbol) {
         return null;
     }
 
-    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`;
     try {
-        const response = await fetch(url);
+        const response = await fetch(
+            `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`
+        );
         const data = await response.json();
         console.log(data);
 
         if (data['Global Quote']) {
             const quote = data['Global Quote'];
-            // Save the fetched data in the cache
             const stockInfo = {
                 currentPrice: parseFloat(quote['05. price']),
                 previousClose: parseFloat(quote['08. previous close']),
-                changePercent: parseFloat(quote['10. change percent']),
+                changePercent: parseFloat(quote['10. change percent'])
             };
-
-            stockDataCache[symbol] = stockInfo; // Store in cache
-            return stockInfo; // Return the data
-        } else {
-            console.error('Invalid response:', data);
-            return null;
+            stockDataCache[symbol] = stockInfo;
+            return stockInfo;
         }
+        console.error('Invalid response:', data);
+        return null;
     } catch (error) {
         console.error(`Error fetching data for ${symbol}:`, error);
         return null;
     }
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-    const portfolioList = document.getElementById("portfolio-list");
-    const newPortfolioModal = document.getElementById("newPortfolioModal");
-    const manualPortfolioTable = document.getElementById("manualPortfolioTable").querySelector("tbody");
-    const tableHeader = document.querySelector("#manualPortfolioTable thead");
-    const searchStockInput = document.getElementById("searchStockInput");
-    searchStockInput.addEventListener("blur", () => {
-        setTimeout(() => searchSuggestions.classList.add("hidden"), 200); // Delay to allow clicks
-    });
-    const amountInput = document.getElementById("amountInput");
-    amountInput.addEventListener("wheel", (event) => {
-        event.preventDefault();
-    });
-    const addStockBtn = document.getElementById("addStockBtn");
-    const searchSuggestions = document.createElement("ul");
-    searchSuggestions.className = "search-suggestions hidden";
-    searchStockInput.parentNode.appendChild(searchSuggestions);
+// Stock handling functions
+function selectSecurity(security) {
+    selectedSecurity = security;
+    elements.searchStockInput.value = `${security.symbol} - ${security.name}`;
+    searchSuggestions.classList.add("hidden");
+}
 
-    let securitiesData = [];
-    const symbolsJsonPath = "/static/data/symbols.json";
+function handleSearchInput() {
+    const query = elements.searchStockInput.value.trim().toLowerCase();
+    searchSuggestions.innerHTML = "";
+    activeIndex = -1;
 
-    const portfolioNameModal = document.getElementById("portfolioNameModal");
-    const portfolioNameInput = document.getElementById("portfolioNameInput");
-    const portfolioNameSaveBtn = document.getElementById("portfolioNameSaveBtn");
-    const portfolioNameCancelBtn = document.getElementById("portfolioNameCancelBtn");
-    const successModal = document.getElementById("successModal");
-    const successMessage = document.getElementById("successMessage");
-    const successOkBtn = document.getElementById("successOkBtn");
-    const closeSuccessModal = document.getElementById("closeSuccessModal");
-
-    const errorModal = document.getElementById("errorModal");
-    const errorMessage = document.getElementById("errorMessage");
-    const closeErrorModal = document.getElementById("closeErrorModal");
-    // Close modals when clicking outside them
-    window.addEventListener("click", (event) => {
-        if (event.target === portfolioNameModal) {
-            portfolioNameModal.style.display = "none";
-        }
-        if (event.target === successModal) {
-            successModal.style.display = "none";
-        }
-        if (event.target === errorModal) {
-            errorModal.style.display = "none";
-        }
-    });
-
-    // Close success modal
-    closeSuccessModal.addEventListener("click", () => {
-        successModal.style.display = "none";
-        location.reload();
-    });
-
-    // Close error modal
-    closeErrorModal.addEventListener("click", () => {
-        errorModal.style.display = "none";
-    });
-
-    // Open portfolio name modal
-    document.getElementById("finishManualPortfolioBtn").addEventListener("click", () => {
-        portfolioNameInput.value = ""; // Clear input
-        portfolioNameModal.style.display = "block";
-    });
-
-    // Cancel portfolio creation
-    portfolioNameCancelBtn.addEventListener("click", () => {
-        portfolioNameModal.style.display = "none";
-    });
-
-    // Save portfolio name
-    portfolioNameSaveBtn.addEventListener("click", async () => {
-        const portfolioName = portfolioNameInput.value.trim();
-         if (!portfolioName) {
-            errorMessage.textContent = "Portfolio name is required!";
-            errorModal.style.display = "block"; // Show error modal
-            return;
-        }
-
-        const stocks = manualPortfolio.map(stock => ({
-            ticker: stock.equityDetails.split(":")[0],
-            name: stock.equityName,
-            exchange: stock.equityDetails.split(":")[1],
-            amount: stock.amount,
-            valueChange: parseFloat(stock.valueChange),
-            totalValue: parseFloat(stock.totalValue),
-        }));
-
-        if (stocks.length === 0) {
-            errorMessage.textContent = "No securities added!";
-            errorModal.style.display = "block";
-            return;
-        }
-
-        try {
-            const response = await fetch("/auth/create-portfolio", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: portfolioName, stocks }),
-            });
-
-           if (response.ok) {
-                successMessage.textContent = "Portfolio created successfully!";
-                successModal.style.display = "block";
-
-                // Close modal and reload page after saving
-                successModal.addEventListener("click", () => {
-                    successModal.style.display = "none";
-                    location.reload(); // Reload
-                });
-            } else {
-                const error = await response.json();
-                errorMessage.textContent = `Error: ${error.message}`;
-                errorModal.style.display = "block";
-            }
-        } catch (error) {
-            console.error("Error:", error);
-            errorMessage.textContent = "An unexpected error occurred.";
-            errorModal.style.display = "block";
-        }
-    });
-
-    // Close success modal
-    successOkBtn.addEventListener("click", () => {
-        successModal.style.display = "none";
-        location.reload(); // Reload the page
-    });
-
-    // Close modals when clicking outside
-    window.addEventListener("click", (event) => {
-        if (event.target === portfolioNameModal) {
-            portfolioNameModal.style.display = "none";
-        }
-        if (event.target === successModal) {
-            successModal.style.display = "none";
-        }
-    });
-
-    document.querySelector(".manual-portfolio-btn").addEventListener("click", () => {
-        document.getElementById("manualPortfolioSection").classList.remove("hidden");
-        document.getElementById("uploadPortfolioSection").classList.add("hidden");
-    });
-
-    document.addEventListener("click", (event) => {
-        if (
-            !searchStockInput.contains(event.target) && // If not clicking inside the input box
-            !searchSuggestions.contains(event.target) // If not clicking inside suggestions
-        ) {
-            searchSuggestions.classList.add("hidden");
-        }
-    });
-
-
-    // Hide table headers initially
-    tableHeader.style.display = "none";
-
-    // Load securities from JSON
-    async function loadSecurities() {
-        try {
-            const response = await fetch(symbolsJsonPath);
-            if (response.ok) {
-                securitiesData = await response.json();
-            } else {
-                console.error("Failed to load securities data.");
-            }
-        } catch (error) {
-            console.error("Error loading securities data:", error);
-        }
+    if (query.length === 0) {
+        searchSuggestions.classList.add("hidden");
+        return;
     }
 
-    // Populate suggestions dropdown based on user input
-    let searchType = "ticker"; // Default search type
-    document.querySelectorAll('input[name="searchType"]').forEach(radio => {
-        radio.addEventListener("change", (e) => {
-            searchType = e.target.value; // Update the search type
-        });
-    });
-
-    let activeIndex = -1;
-
-    searchStockInput.addEventListener("input", () => {
-        const query = searchStockInput.value.trim().toLowerCase();
-        searchSuggestions.innerHTML = "";
-        activeIndex = -1;
-
-        if (query.length === 0) {
-            searchSuggestions.classList.add("hidden");
-            return;
-        }
-
-        const filteredSecurities = securitiesData
-            .filter((security) => {
-                if (searchType === "ticker") {
-                    // Match tickers by prefix
-                    return security.symbol.toLowerCase().startsWith(query);
-                } else {
-                    // Match names containing query
-                    return security.name.toLowerCase().includes(query);
-                }
-            })
-            .sort((a, b) => {
-                const queryLower = query.toLowerCase();
-
-                // 1. Exact match for tickers (highest priority)
-                const aExact = a.symbol.toLowerCase() === queryLower;
-                const bExact = b.symbol.toLowerCase() === queryLower;
-                if (aExact && !bExact) return -1;
-                if (!aExact && bExact) return 1;
-
-                // 2. Prefix matches for names (second priority)
-                const aStarts = a.name.toLowerCase().startsWith(queryLower);
-                const bStarts = b.name.toLowerCase().startsWith(queryLower);
-                if (aStarts && !bStarts) return -1;
-                if (!aStarts && bStarts) return 1;
-
-                // 3. Alphabetical order (fallback)
-                return a.name.localeCompare(b.name);
-            });
-
-
-
-        if (filteredSecurities.length === 0) {
-            searchSuggestions.classList.add("hidden");
-            return;
-        }
-        // populate suggested securities
-        filteredSecurities.forEach((security, index) => {
-            const li = document.createElement("li");
-            li.textContent = `${security.symbol} - ${security.name}`;
-
-            li.addEventListener("click", () => {
-                selectSecurity(security);
-            });
-
-            // Highlight the first item initially
-            if (index === 0) {
-                li.classList.add("highlighted");
-                activeIndex = 0; // Default to the first suggestion
+    const filteredSecurities = securitiesData
+        .filter((security) => {
+            if (searchType === "ticker") {
+                return security.symbol.toLowerCase().startsWith(query);
+            } else {
+                return security.name.toLowerCase().includes(query);
             }
+        })
+        .sort((a, b) => {
+            const queryLower = query.toLowerCase();
 
-            searchSuggestions.appendChild(li);
+            // 1. Exact match for tickers (highest priority)
+            const aExact = a.symbol.toLowerCase() === queryLower;
+            const bExact = b.symbol.toLowerCase() === queryLower;
+            if (aExact && !bExact) return -1;
+            if (!aExact && bExact) return 1;
+
+            // 2. Prefix matches for names (second priority)
+            const aStarts = a.name.toLowerCase().startsWith(queryLower);
+            const bStarts = b.name.toLowerCase().startsWith(queryLower);
+            if (aStarts && !bStarts) return -1;
+            if (!aStarts && bStarts) return 1;
+
+            // 3. Alphabetical order (fallback)
+            return a.name.localeCompare(b.name);
         });
 
-        searchSuggestions.classList.remove("hidden");
-    });
-    searchStockInput.addEventListener("keydown", (e) => {
-        const items = searchSuggestions.querySelectorAll("li");
-        if (items.length === 0) return;
+    if (filteredSecurities.length === 0) {
+        searchSuggestions.classList.add("hidden");
+        return;
+    }
 
-        if (e.key === "ArrowDown") {
+    // Populate suggestions
+    filteredSecurities.forEach((security, index) => {
+        const li = document.createElement("li");
+        li.textContent = `${security.symbol} - ${security.name}`;
+
+        li.addEventListener("click", () => {
+            selectSecurity(security);
+        });
+
+        if (index === 0) {
+            li.classList.add("highlighted");
+            activeIndex = 0;
+        }
+
+        searchSuggestions.appendChild(li);
+    });
+
+    searchSuggestions.classList.remove("hidden");
+}
+
+function handleSearchKeydown(e) {
+    const items = searchSuggestions.querySelectorAll("li");
+    if (items.length === 0) return;
+
+    switch (e.key) {
+        case "ArrowDown":
             e.preventDefault();
             if (activeIndex < items.length - 1) {
                 if (activeIndex >= 0) items[activeIndex].classList.remove("highlighted");
                 activeIndex++;
                 items[activeIndex].classList.add("highlighted");
             }
-        } else if (e.key === "ArrowUp") {
+            break;
+        case "ArrowUp":
             e.preventDefault();
             if (activeIndex > 0) {
                 items[activeIndex].classList.remove("highlighted");
                 activeIndex--;
                 items[activeIndex].classList.add("highlighted");
             }
-        } else if (e.key === "Enter") {
+            break;
+        case "Enter":
             e.preventDefault();
             if (activeIndex >= 0) {
-                items[activeIndex].click(); // Simulate a click event
+                items[activeIndex].click();
             }
-        }
+            break;
+    }
+}
+
+async function addStock() {
+    if (!selectedSecurity) {
+        alert("Please select a security first.");
+        return;
+    }
+
+    const amount = parseFloat(elements.amountInput.value.trim());
+    if (!amount || amount <= 0) {
+        alert("Please enter a valid amount.");
+        return;
+    }
+
+    const isDuplicate = manualPortfolio.some(
+        (stock) => stock.equityDetails === `${selectedSecurity.symbol}:${selectedSecurity.exchange}`
+    );
+
+    if (isDuplicate) {
+        alert(`${selectedSecurity.name} (${selectedSecurity.symbol}) is already in your portfolio.`);
+        return;
+    }
+
+    const stockData = await fetchStockData(selectedSecurity.symbol);
+    if (!stockData) {
+        alert(`Could not fetch data for ${selectedSecurity.name}.`);
+        return;
+    }
+
+    let totalValue = amount * (stockData.currentPrice || 0);
+    let dailyChange = amount * ((stockData.currentPrice || 0) - (stockData.previousClose || 0));
+
+    addStockRow({
+        equityName: selectedSecurity.name,
+        equityDetails: `${selectedSecurity.symbol}:${selectedSecurity.exchange}`,
+        amount: amount,
+        valueChange: dailyChange,
+        totalValue: totalValue,
     });
 
+    elements.searchStockInput.value = "";
+    elements.amountInput.value = "";
+    selectedSecurity = null;
+    elements.tableHeader.style.display = "table-header-group";
+    elements.searchStockInput.focus();
+}
 
-    function selectSecurity(security) {
-        selectedSecurity = security; // Update the selected security
-        searchStockInput.value = `${security.symbol} - ${security.name}`;
-        searchSuggestions.classList.add("hidden");
+function addStockRow(stock) {
+    const row = document.createElement("tr");
+    const valueChangeClass = parseFloat(stock.valueChange) >= 0 ? 'positive' : 'negative';
+
+    row.innerHTML = `
+        <td class="chevron-cell">
+            <div class="chevron-wrapper">
+                <img src="/static/images/chevron-down.svg" alt="Chevron" class="chevron-icon" />
+                <div class="dropdown-menu hidden">
+                    <button class="edit-stock-btn">Edit</button>
+                    <button class="remove-stock-btn">Delete</button>
+                </div>
+            </div>
+        </td>
+        <td>
+            <strong style="color: red; font-size: 1.2em;">${stock.equityName}</strong><br>
+            <span style="font-size: 0.8em; color: grey;">${stock.equityDetails}</span>
+        </td>
+        <td class="amount-cell">${stock.amount}</td>
+        <td class="value-change ${valueChangeClass}">${parseFloat(stock.valueChange).toLocaleString('en-US', {
+            style: 'currency', currency: 'USD'
+        })}</td>
+        <td class="total-value">${parseFloat(stock.totalValue).toLocaleString('en-US', {
+            style: 'currency', currency: 'USD'
+        })}</td>
+    `;
+
+    elements.manualPortfolioTable.appendChild(row);
+    manualPortfolio.push(stock);
+
+    setupRowControls(row, stock);
+}
+
+function setupRowControls(row, stock) {
+    const chevron = row.querySelector(".chevron-icon");
+    const dropdownMenu = row.querySelector(".dropdown-menu");
+    let isMouseInside = true;
+
+    function hideDropdown() {
+        if (!isMouseInside) {
+            dropdownMenu.classList.add("hidden");
+            removeListeners();
+        }
     }
 
-    // Add stock to the table
-    async function addStock() {
-        // Ensure a security is selected
-        if (!selectedSecurity) {
-            alert("Please select a security first.");
-            return;
-        }
+    function removeListeners() {
+        dropdownMenu.removeEventListener("mouseleave", onMouseLeave);
+        dropdownMenu.removeEventListener("mouseenter", onMouseEnter);
+        chevron.removeEventListener("mouseleave", onMouseLeave);
+        chevron.removeEventListener("mouseenter", onMouseEnter);
+    }
 
-        const amount = parseFloat(amountInput.value.trim());
-        if (!amount || amount <= 0) {
-            alert("Please enter a valid amount.");
-            return;
-        }
+    const onMouseEnter = () => isMouseInside = true;
+    const onMouseLeave = () => {
+        isMouseInside = false;
+        setTimeout(hideDropdown, 200);
+    };
 
-        // Ensure the user can't add duplicate securities
-        const isDuplicate = manualPortfolio.some(
-            (stock) => stock.equityDetails === `${selectedSecurity.symbol}:${selectedSecurity.exchange}`
-        );
+    chevron.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const rect = chevron.getBoundingClientRect();
+        dropdownMenu.style.top = `${rect.bottom + window.scrollY + 8}px`;
+        dropdownMenu.style.left = `${rect.left + window.scrollX}px`;
+        dropdownMenu.classList.toggle("hidden");
 
-        if (isDuplicate) {
-            alert(`${selectedSecurity.name} (${selectedSecurity.symbol}) is already in your portfolio.`);
-            return; // Stop further processing
-        }
+        dropdownMenu.addEventListener("mouseenter", onMouseEnter);
+        dropdownMenu.addEventListener("mouseleave", onMouseLeave);
+        chevron.addEventListener("mouseenter", onMouseEnter);
+        chevron.addEventListener("mouseleave", onMouseLeave);
+    });
 
-            // Fetch stock data from API
-        const stockData = await fetchStockData(selectedSecurity.symbol);
-        console.log("Stock Data:", stockData);
-        if (!stockData) {
-            alert(`Could not fetch data for ${selectedSecurity.name}.`);
-            return;
-        }
+    setupRowButtons(row, stock);
+}
 
-        // Calculate values
-        // const totalValue = amount * stockData.currentPrice;
-        // const dailyChange = amount * (stockData.currentPrice - stockData.previousClose);
+function setupRowButtons(row, stock) {
+    // Remove stock button
+    row.querySelector(".remove-stock-btn").addEventListener("click", () => {
+        const index = manualPortfolio.indexOf(stock);
+        if (index !== -1) manualPortfolio.splice(index, 1);
+        row.remove();
+        if (manualPortfolio.length === 0) elements.tableHeader.style.display = "none";
+    });
 
-        console.log("Raw Values - Total:", amount * stockData.currentPrice);
-        console.log("Raw Values - Change:", amount * (stockData.currentPrice - stockData.previousClose));
+    // Edit stock button
+    row.querySelector(".edit-stock-btn").addEventListener("click", async () => {
+        const amountCell = row.querySelector(".amount-cell");
+        const valueChangeCell = row.querySelector(".value-change");
+        const totalValueCell = row.querySelector(".total-value");
 
+        const input = document.createElement("input");
+        input.type = "number";
+        input.value = stock.amount;
+        input.classList.add("edit-input");
 
-        let totalValue = amount * (stockData.currentPrice || 0);
-        let dailyChange = amount * ((stockData.currentPrice || 0) - (stockData.previousClose || 0));
+        const saveButton = document.createElement("button");
+        saveButton.textContent = "Save";
+        saveButton.classList.add("save-btn");
 
-        console.log("Raw Total (Before Formatting):", totalValue);
-        console.log("Raw Change (Before Formatting):", dailyChange);
-        console.log("Type of Total Value:", typeof totalValue);
-        console.log("Type of Daily Change:", typeof dailyChange);
+        amountCell.innerHTML = "";
+        amountCell.appendChild(input);
+        amountCell.appendChild(saveButton);
 
-        addStockRow({
-            equityName: selectedSecurity.name,
-            equityDetails: `${selectedSecurity.symbol}:${selectedSecurity.exchange}`,
-            amount: amount,
-            valueChange: dailyChange,
-            totalValue: totalValue,
+        saveButton.addEventListener("click", async () => {
+            const newAmount = parseFloat(input.value.trim());
+            if (isNaN(newAmount) || newAmount <= 0) {
+                alert("Please enter a valid amount.");
+                return;
+            }
+
+            stock.amount = newAmount;
+            const stockData = await fetchStockData(stock.equityDetails.split(":")[0]);
+
+            const newTotalValue = (newAmount * stockData.currentPrice).toLocaleString('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            });
+
+            const newDailyChange = (newAmount * (stockData.currentPrice - stockData.previousClose))
+                .toLocaleString('en-US', {
+                    style: 'currency',
+                    currency: 'USD'
+                });
+
+            amountCell.textContent = newAmount;
+            valueChangeCell.textContent = newDailyChange;
+            valueChangeCell.classList.remove("positive", "negative");
+            valueChangeCell.classList.add(parseFloat(newDailyChange) >= 0 ? "positive" : "negative");
+            totalValueCell.textContent = newTotalValue;
         });
+    });
+}
 
-        // Reset input fields and selected security
-        searchStockInput.value = "";
-        amountInput.value = "";
-        selectedSecurity = null;
-        tableHeader.style.display = "table-header-group";
-
-        searchStockInput.focus();
+// Portfolio creation and modal handling
+async function createPortfolio(portfolioName) {
+    if (!portfolioName.trim()) {
+        throw new Error("Portfolio name is required!");
     }
 
-    addStockBtn.addEventListener("click", addStock);
+    if (manualPortfolio.length === 0) {
+        throw new Error("No securities added!");
+    }
 
-    amountInput.addEventListener("keypress", (event) => {
+    const stocks = manualPortfolio.map(stock => ({
+        ticker: stock.equityDetails.split(":")[0],
+        name: stock.equityName,
+        exchange: stock.equityDetails.split(":")[1],
+        amount: stock.amount,
+        valueChange: parseFloat(stock.valueChange),
+        totalValue: parseFloat(stock.totalValue)
+    }));
+
+    const response = await fetch("/auth/create-portfolio", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({name: portfolioName, stocks})
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message);
+    }
+
+    return "Portfolio created successfully!";
+}
+
+function resetModal() {
+    elements.manualPortfolioTable.innerHTML = "";
+    elements.tableHeader.style.display = "none";
+    elements.searchStockInput.value = "";
+    elements.amountInput.value = "";
+    selectedSecurity = null;
+    manualPortfolio.length = 0;
+}
+
+function setupEventListeners() {
+    // Search input handlers
+    elements.searchStockInput.addEventListener("input", handleSearchInput);
+    elements.searchStockInput.addEventListener("keydown", handleSearchKeydown);
+    elements.searchStockInput.addEventListener("blur", () => {
+        setTimeout(() => searchSuggestions.classList.add("hidden"), 200);
+    });
+
+    // Search type radio buttons
+    document.querySelectorAll('input[name="searchType"]').forEach(radio => {
+        radio.addEventListener("change", (e) => {
+            searchType = e.target.value;
+        });
+    });
+
+    // Add stock handlers
+    elements.addStockBtn.addEventListener("click", addStock);
+    elements.amountInput.addEventListener("keypress", (event) => {
         if (event.key === "Enter") addStock();
     });
+    elements.amountInput.addEventListener("wheel", (event) => {
+        event.preventDefault();
+    });
 
-    function addStockRow(stock) {
-        const row = document.createElement("tr");
-        const valueChangeClass = parseFloat(stock.valueChange) >= 0 ? 'positive' : 'negative';
+    // Modal handlers
+    document.querySelector(".manual-portfolio-btn").addEventListener("click", () => {
+        document.getElementById("manualPortfolioSection").classList.remove("hidden");
+        document.getElementById("uploadPortfolioSection").classList.add("hidden");
+    });
 
-          row.innerHTML = `
-            <td class="chevron-cell">
-                <div class="chevron-wrapper">
-                    <img src="/static/images/chevron-down.svg" alt="Chevron" class="chevron-icon" />
-                    <div class="dropdown-menu hidden">
-                        <button class="edit-stock-btn">Edit</button>
-                        <button class="remove-stock-btn">Delete</button>
-                    </div>
-                </div>
-            </td>
-            <td>
-                <strong style="color: red; font-size: 1.2em;">${stock.equityName}</strong><br>
-                <span style="font-size: 0.8em; color: grey;">${stock.equityDetails}</span>
-            </td>
-            <td class="amount-cell">${stock.amount}</td> <!-- Added amount-cell class -->
-            <td class="value-change ${valueChangeClass}">${parseFloat(stock.valueChange).toLocaleString('en-US', {
-                style: 'currency', currency: 'USD'
-            })}</td>
-            <td class="total-value">${parseFloat(stock.totalValue).toLocaleString('en-US', {
-                style: 'currency', currency: 'USD'
-            })}</td>
-        `;
-        manualPortfolioTable.appendChild(row);
-        manualPortfolio.push(stock);
+    document.querySelector(".new-portfolio-btn").addEventListener("click", () => {
+        elements.newPortfolioModal.style.display = "block";
+        document.body.style.overflow = "hidden";
+    });
 
-        const chevron = row.querySelector(".chevron-icon");
-        const dropdownMenu = row.querySelector(".dropdown-menu");
+    document.getElementById("closeModal").addEventListener("click", () => {
+        elements.newPortfolioModal.style.display = "none";
+        document.body.style.overflow = "";
+        resetModal();
+    });
 
-     // Toggle dropdown visibility
-        chevron.addEventListener("click", (event) => {
-            event.stopPropagation(); // Prevent immediate closing
-            const rect = chevron.getBoundingClientRect();
+    // Portfolio creation handlers
+    document.getElementById("finishManualPortfolioBtn").addEventListener("click", () => {
+        elements.portfolioNameInput.value = "";
+        elements.portfolioNameModal.style.display = "block";
+    });
 
-            // Position dropdown relative to chevron
-            dropdownMenu.style.top = `${rect.bottom + window.scrollY + 8}px`; // 8px gap below chevron
-            dropdownMenu.style.left = `${rect.left + window.scrollX}px`;
-            dropdownMenu.classList.toggle("hidden"); // Show/hide dropdown
+    elements.portfolioNameSaveBtn.addEventListener("click", async () => {
+        try {
+            const result = await createPortfolio(elements.portfolioNameInput.value);
+            elements.successMessage.textContent = result;
+            elements.successModal.style.display = "block";
+            elements.portfolioNameModal.style.display = "none";
+        } catch (error) {
+            elements.errorMessage.textContent = error.message;
+            elements.errorModal.style.display = "block";
+        }
+    });
 
-            // Track mouse leave state
-            let isMouseInside = true; // Flag to track if mouse is inside dropdown or chevron
+    elements.portfolioNameCancelBtn.addEventListener("click", () => {
+        elements.portfolioNameModal.style.display = "none";
+    });
 
-            const hideDropdown = () => {
-                if (!isMouseInside) { // Hide dropdown only if mouse is outside
-                    dropdownMenu.classList.add("hidden");
-                    removeListeners(); // Clean up event listeners
-                }
-            };
+    // Success/Error modal handlers
+    elements.successOkBtn.addEventListener("click", () => {
+        elements.successModal.style.display = "none";
+        location.reload();
+    });
 
-            const removeListeners = () => {
-                dropdownMenu.removeEventListener("mouseleave", onMouseLeave);
-                dropdownMenu.removeEventListener("mouseenter", onMouseEnter);
-                chevron.removeEventListener("mouseleave", onMouseLeave);
-                chevron.removeEventListener("mouseenter", onMouseEnter);
-            };
+    // Click outside modal handlers
+    window.addEventListener("click", (event) => {
+        if (event.target === elements.portfolioNameModal) {
+            elements.portfolioNameModal.style.display = "none";
+        }
+        if (event.target === elements.successModal) {
+            elements.successModal.style.display = "none";
+            location.reload();
+        }
+        if (event.target === elements.errorModal) {
+            elements.errorModal.style.display = "none";
+        }
+    });
 
-            const onMouseEnter = () => isMouseInside = true; // Mouse is inside
-            const onMouseLeave = () => {
-                isMouseInside = false; // Mouse left
-                setTimeout(hideDropdown, 200); // Delay hiding to allow movement
-            };
+    // Click outside suggestions handler
+    document.addEventListener("click", (event) => {
+        if (!elements.searchStockInput.contains(event.target) &&
+            !searchSuggestions.contains(event.target)) {
+            searchSuggestions.classList.add("hidden");
+        }
+    });
+}
 
-            // Attach listeners to track mouse movement
-            dropdownMenu.addEventListener("mouseenter", onMouseEnter);
-            dropdownMenu.addEventListener("mouseleave", onMouseLeave);
-            chevron.addEventListener("mouseenter", onMouseEnter);
-            chevron.addEventListener("mouseleave", onMouseLeave);
-        });
+// Initialize
+async function init() {
+    try {
+        // Load securities data
+        const response = await fetch("/static/data/symbols.json");
+        if (!response.ok) throw new Error("Failed to load securities data");
+        securitiesData = await response.json();
 
+        // Setup all event handlers
+        setupEventListeners();
 
-        // Remove stock
-        row.querySelector(".remove-stock-btn").addEventListener("click", () => {
-            const index = manualPortfolio.indexOf(stock);
-            if (index !== -1) manualPortfolio.splice(index, 1);
-            row.remove();
-            if (manualPortfolio.length === 0) tableHeader.style.display = "none";
-        });
+        // Initialize view
+        elements.tableHeader.style.display = "none";
 
-        // edit the stock amount
-        row.querySelector(".edit-stock-btn").addEventListener("click", async () => {
-            const amountCell = row.querySelector(".amount-cell");
-            const valueChangeCell = row.querySelector(".value-change");
-            const totalValueCell = row.querySelector(".total-value");
-
-            // Replace cell content with input and save button
-            const input = document.createElement("input");
-            input.type = "number";
-            input.value = stock.amount;
-            input.classList.add("edit-input");
-            const saveButton = document.createElement("button");
-            saveButton.textContent = "Save";
-            saveButton.classList.add("save-btn");
-
-            amountCell.innerHTML = "";
-            amountCell.appendChild(input);
-            amountCell.appendChild(saveButton);
-
-            saveButton.addEventListener("click", async () => {
-                const newAmount = parseFloat(input.value.trim());
-                if (isNaN(newAmount) || newAmount <= 0) {
-                    alert("Please enter a valid amount.");
-                    return;
-                }
-
-                // Update stock data
-                stock.amount = newAmount;
-
-                // Recalculate total value and daily change
-                const stockData = await fetchStockData(stock.equityDetails.split(":")[0]);
-                const newTotalValue = (newAmount * stockData.currentPrice).toLocaleString('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                });
-
-                const newDailyChange = (newAmount * (stockData.currentPrice - stockData.previousClose)).toLocaleString('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                });
-
-                // Update UI
-                amountCell.textContent = newAmount;
-                valueChangeCell.textContent = newDailyChange;
-                valueChangeCell.classList.remove("positive", "negative");
-                valueChangeCell.classList.add(parseFloat(newDailyChange) >= 0 ? "positive" : "negative");
-                totalValueCell.textContent = newTotalValue;
-
-                // Remove save button
-                saveButton.remove();
-            });
-        });
+    } catch (error) {
+        console.error("Initialization error:", error);
+        elements.errorMessage.textContent = "Failed to initialize application";
+        elements.errorModal.style.display = "block";
     }
-                // Reset modal - THIS IS NOW RESTORED
-                function resetModal() {
-                    manualPortfolioTable.innerHTML = "";
-                    tableHeader.style.display = "none";
-                    searchStockInput.value = "";
-                    amountInput.value = "";
-                    selectedSecurity = null; // Clear selected security
-                    manualPortfolio.length = 0; // Clear the portfolio array
-                }
+}
 
-                // Initialize modal
-                document.querySelector(".new-portfolio-btn").addEventListener("click", () => {
-                    newPortfolioModal.style.display = "block";
-                    document.body.style.overflow = "hidden";
-                });
-
-                document.getElementById("closeModal").addEventListener("click", () => {
-                    newPortfolioModal.style.display = "none";
-                    document.body.style.overflow = "";
-                    resetModal(); // Reset modal when closed
-                });
-
-                // Load securities
-                await loadSecurities();
-
-            // Finish and save portfolio
-            document.getElementById("finishManualPortfolioBtn").addEventListener("click", async () => {
-                try {
-                    const portfolioName = document.getElementById("portfolioNameInput").value.trim(); // Get input value
-                    if (!portfolioName) {
-                        errorMessage.textContent = "Portfolio name is required.";
-                        errorModal.style.display = "block";
-                        return;
-                    }
-
-                    const stocks = manualPortfolio.map(stock => ({
-                        ticker: stock.equityDetails.split(":")[0],
-                        name: stock.equityName,
-                        exchange: stock.equityDetails.split(":")[1],
-                        amount: stock.amount,
-                        valueChange: parseFloat(stock.valueChange),
-                        totalValue: parseFloat(stock.totalValue),
-                    }));
-
-                    if (stocks.length === 0) {
-                        errorMessage.textContent = "No securities added!";
-                        errorModal.style.display = "block";
-                        return;
-                    }
-
-                    const response = await fetch("/auth/create-portfolio", {
-                        method: "POST",
-                        headers: {"Content-Type": "application/json"},
-                        body: JSON.stringify({name: portfolioName, stocks}),
-                    });
-
-                    if (response.ok) {
-                        successMessage.textContent = "Portfolio created successfully!";
-                        successModal.style.display = "block";
-
-                        // Reload page after closing modal
-                        successModal.addEventListener("click", () => {
-                            successModal.style.display = "none";
-                            location.reload();
-                        });
-                    } else {
-                        const error = await response.json();
-                        errorMessage.textContent = `Error: ${error.message}`;
-                        errorModal.style.display = "block";
-                    }
-                } catch (error) {
-                    console.error("Error:", error);
-                    errorMessage.textContent = "An unexpected error occurred.";
-                    errorModal.style.display = "block";
-                }
-            });
-
-        });
+// Start the application when DOM is ready
+document.addEventListener("DOMContentLoaded", init);
