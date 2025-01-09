@@ -5,6 +5,7 @@ from backend import db, bcrypt, jwt
 from datetime import timedelta
 import os
 from dotenv import load_dotenv
+from backend.models import User, Portfolio, Security
 
 
 def create_app():
@@ -15,8 +16,14 @@ def create_app():
         # Initialize Flask app
         app = Flask(__name__)
 
+        upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+        os.makedirs(upload_folder, exist_ok=True)
+        app.config['UPLOAD_FOLDER'] = upload_folder
+        print(f"Upload folder configured: {upload_folder}")
+
         # Set app configurations
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+        basedir = os.path.abspath(os.path.dirname(__file__))
+        app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(basedir, 'instance', 'users.db')}"
         app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
         app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
         app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')

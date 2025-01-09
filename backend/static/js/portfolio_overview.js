@@ -5,6 +5,7 @@ const stockDataCache = {};
 let securitiesData = [];
 let searchType = "ticker"; // Default search type
 let activeIndex = -1;
+let currentPortfolioId = null;
 
 // Cache DOM elements
 const elements = {
@@ -23,7 +24,12 @@ const elements = {
     successMessage: document.getElementById("successMessage"),
     successOkBtn: document.getElementById("successOkBtn"),
     errorModal: document.getElementById("errorModal"),
-    errorMessage: document.getElementById("errorMessage")
+    errorMessage: document.getElementById("errorMessage"),
+    deleteConfirmModal: document.getElementById("deleteConfirmModal"),
+    portfolioDetailsModal: document.getElementById("portfolioDetailsModal"),
+    confirmDeleteBtn: document.getElementById("confirmDeleteBtn"),
+    cancelDeleteBtn: document.getElementById("cancelDeleteBtn"),
+    securitiesTableBody: document.getElementById("securitiesTableBody"),
 };
 
 // Create and append search suggestions element
@@ -78,6 +84,125 @@ async function fetchStockData(symbol) {
         console.error(`Error fetching data for ${symbol}:`, error);
         return null;
     }
+}
+
+function setupPortfolioActions() {
+    // Setup delete buttons
+    document.querySelectorAll('.delete-portfolio-btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+            currentPortfolioId = e.target.dataset.id;
+            elements.deleteConfirmModal.style.display = "block";
+        });
+    });
+
+    // Setup view buttons
+    document.querySelectorAll('.view-portfolio-btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const portfolioId = e.target.dataset.id;
+            loadPortfolioDetails(portfolioId);
+        });
+    });
+
+    // Delete confirmation handlers
+    elements.confirmDeleteBtn.addEventListener('click', async () => {
+        try {
+            const response = await fetch(`/auth/portfolio/${currentPortfolioId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                elements.deleteConfirmModal.style.display = "none";
+                // Remove the portfolio card from the UI
+                const portfolioCard = document.querySelector(`[data-id="${currentPortfolioId}"]`).closest('.portfolio-item');
+                portfolioCard.remove();
+
+                // Show success message
+                elements.successMessage.textContent = "Portfolio deleted successfully";
+                elements.successModal.style.display = "block";
+            } else {
+                throw new Error('Failed to delete portfolio');
+            }
+        } catch (error) {
+            console.error('Error deleting portfolio:', error);
+            elements.errorMessage.textContent = "Failed to delete portfolio";
+            elements.errorModal.style.display = "block";
+        }
+    });
+
+    elements.cancelDeleteBtn.addEventListener('click', () => {
+        elements.deleteConfirmModal.style.display = "none";
+    });
+
+    // Close modals when clicking outside
+    window.addEventListener('click', (event) => {
+        if (event.target === elements.deleteConfirmModal) {
+            elements.deleteConfirmModal.style.display = "none";
+        }
+        if (event.target === elements.portfolioDetailsModal) {
+            elements.portfolioDetailsModal.style.display = "none";
+        }
+    });
+}
+
+async function loadPortfolioDetails(portfolioId) {
+    try {
+        const response = await fetch(`/auth/portfolio/${portfolioId}/securities`, {
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load portfolio details');
+        }
+
+        const data = await response.json();
+        elements.securitiesTableBody.innerHTML = '';
+
+        data.securities.forEach(security => {
+            const row = document.createElement('tr');
+
+            // Format percentages with null checks
+            const valueChangePct = security.value_change_pct != null
+                ? `(${security.value_change_pct.toFixed(2)}%)`
+                : '(0.00%)';
+
+            const unrealizedGainPct = security.unrealized_gain_pct != null
+                ? `(${security.unrealized_gain_pct.toFixed(2)}%)`
+                : '(0.00%)';
+
+            row.innerHTML = `
+                <td>${security.name} (${security.ticker})</td>
+                <td>${security.amount_owned}</td>
+                <td>${formatCurrency(security.current_price || 0)}</td>
+                <td>${formatCurrency(security.total_value || 0)}</td>
+                <td class="${(security.value_change || 0) >= 0 ? 'positive' : 'negative'}">
+                    ${formatCurrency(security.value_change || 0)}
+                    ${valueChangePct}
+                </td>
+                <td class="${(security.unrealized_gain || 0) >= 0 ? 'positive' : 'negative'}">
+                    ${formatCurrency(security.unrealized_gain || 0)}
+                    ${unrealizedGainPct}
+                </td>
+            `;
+            elements.securitiesTableBody.appendChild(row);
+        });
+
+        elements.portfolioDetailsModal.style.display = "block";
+    } catch (error) {
+        console.error('Error loading portfolio details:', error);
+        elements.errorMessage.textContent = "Failed to load portfolio details";
+        elements.errorModal.style.display = "block";
+    }
+}
+
+function formatCurrency(value) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    }).format(value);
 }
 
 // Stock handling functions
@@ -375,18 +500,29 @@ async function createPortfolio(portfolioName) {
         totalValue: parseFloat(stock.totalValue)
     }));
 
+    // Get CSRF token from cookie
+    const csrfToken = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('csrf_access_token='))
+        ?.split('=')[1];
+
     const response = await fetch("/auth/create-portfolio", {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({name: portfolioName, stocks})
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-TOKEN": csrfToken
+        },
+        body: JSON.stringify({name: portfolioName, stocks}),
+        credentials: 'include'  // Include cookies in the request
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message);
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create portfolio');
     }
 
-    return "Portfolio created successfully!";
+    const data = await response.json();
+    return data.message;
 }
 
 function resetModal() {
@@ -405,6 +541,7 @@ function setupEventListeners() {
     elements.searchStockInput.addEventListener("blur", () => {
         setTimeout(() => searchSuggestions.classList.add("hidden"), 200);
     });
+    setupPortfolioActions();
 
     // Search type radio buttons
     document.querySelectorAll('input[name="searchType"]').forEach(radio => {
@@ -447,12 +584,30 @@ function setupEventListeners() {
 
     elements.portfolioNameSaveBtn.addEventListener("click", async () => {
         try {
+            const portfolioData = {
+                name: elements.portfolioNameInput.value,
+                stocks: manualPortfolio
+            };
+            console.log("Attempting to save portfolio:", portfolioData);
+
             const result = await createPortfolio(elements.portfolioNameInput.value);
+            console.log("Create portfolio result:", result);  // Debug log
+
             elements.successMessage.textContent = result;
             elements.successModal.style.display = "block";
             elements.portfolioNameModal.style.display = "none";
+
         } catch (error) {
-            elements.errorMessage.textContent = error.message;
+            console.error("Error creating portfolio:", error);
+            if (error.message.includes('<!DOCTYPE')) {
+                // If we got HTML back, it's likely an authentication issue
+                elements.errorMessage.textContent = "Session expired. Please log in again.";
+                setTimeout(() => {
+                    window.location.href = '/auth/login';
+                }, 2000);
+            } else {
+                elements.errorMessage.textContent = error.message;
+            }
             elements.errorModal.style.display = "block";
         }
     });
@@ -488,6 +643,75 @@ function setupEventListeners() {
             searchSuggestions.classList.add("hidden");
         }
     });
+    const fileInput = document.getElementById('fileInput');
+    const newFileBtn = document.querySelector('.new-file-btn');
+
+    if (newFileBtn && fileInput) {
+        newFileBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            console.log('Attempting to upload file:', file.name);
+
+            // Get CSRF token from cookie
+            const csrfToken = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('csrf_access_token='))
+                ?.split('=')[1];
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                console.log('Sending upload request...');
+                const response = await fetch('/auth/upload', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken
+                    },
+                    body: formData,
+                    credentials: 'include'
+                });
+
+                // Check if response is JSON
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    const responseData = await response.json();
+                    console.log('Upload response:', responseData);
+
+                    if (response.ok) {
+                        elements.successMessage.textContent = responseData.message || "File uploaded successfully!";
+                        elements.successModal.style.display = "block";
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        throw new Error(responseData.message || 'Upload failed');
+                    }
+                } else {
+                    // If not JSON, might be redirected to login
+                    console.log('Non-JSON response received');
+                    if (response.status === 401 || response.status === 403) {
+                        elements.errorMessage.textContent = "Session expired. Please log in again.";
+                        elements.errorModal.style.display = "block";
+                        setTimeout(() => {
+                            window.location.href = '/auth/login';
+                        }, 1500);
+                    } else {
+                        throw new Error('Unexpected response type');
+                    }
+                }
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                elements.errorMessage.textContent = "Failed to upload file. Please try logging in again.";
+                elements.errorModal.style.display = "block";
+            }
+        });
+    }
 }
 
 // Initialize

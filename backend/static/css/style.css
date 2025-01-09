@@ -584,20 +584,199 @@ button:hover {
     gap: 15px;
 }
 
+/*.portfolio-item {*/
+/*    display: flex;*/
+/*    justify-content: space-between;*/
+/*    background-color: white;*/
+/*    padding: 15px;*/
+/*    border-radius: 8px;*/
+/*    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);*/
+/*}*/
+
+/*.portfolio-item h4 {*/
+/*    font-size: 18px;*/
+/*    font-weight: bold;*/
+/*    margin-bottom: 10px;*/
+/*}*/
+
+
+/*new stuff -----------------------------------------*/
 .portfolio-item {
-    display: flex;
-    justify-content: space-between;
-    background-color: white;
-    padding: 15px;
+    background: white;
     border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.portfolio-item h4 {
-    font-size: 18px;
-    font-weight: bold;
-    margin-bottom: 10px;
+.portfolio-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
+
+.portfolio-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.portfolio-item-header h4 {
+    font-size: 1.4em;
+    color: #2c3e50;
+    margin: 0;
+}
+
+.portfolio-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.portfolio-actions button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.2s ease;
+}
+
+.view-portfolio-btn {
+    background-color: #6C7D93;
+    color: white;
+}
+
+.view-portfolio-btn:hover {
+    background-color: #556070;
+}
+
+.delete-portfolio-btn {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.delete-portfolio-btn:hover {
+    background-color: #c0392b;
+}
+
+.portfolio-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.metric-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.metric-label {
+    font-size: 0.85em;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.metric-value {
+    font-size: 1.1em;
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+.metric-value.positive {
+    color: #27ae60;
+}
+
+.metric-value.negative {
+    color: #e74c3c;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .portfolio-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .portfolio-item-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .portfolio-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
+@media (max-width: 480px) {
+    .portfolio-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.securities-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.securities-table th,
+.securities-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.securities-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.securities-table tr:hover {
+    background-color: #f8f9fa;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.delete-btn {
+    background-color: #e74c3c;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.delete-btn:hover {
+    background-color: #c0392b;
+}
+
+.cancel-btn {
+    background-color: #95a5a6;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.cancel-btn:hover {
+    background-color: #7f8c8d;
+}
+
+/*new stuff -----------------------------------------*/
+
 
 .positive {
     color: #27ae60;

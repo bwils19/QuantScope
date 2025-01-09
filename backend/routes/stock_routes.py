@@ -9,7 +9,7 @@ print("Environment variables loaded")  # Debugging
 stock_blueprint = Blueprint('stocks', __name__)
 
 ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_KEY')
-print("Alpha Vantage API Key:", ALPHA_VANTAGE_API_KEY)
+# print("Alpha Vantage API Key:", ALPHA_VANTAGE_API_KEY)
 
 
 @stock_blueprint.route('/stocks', methods=['POST'])
