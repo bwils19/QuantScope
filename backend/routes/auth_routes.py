@@ -1,12 +1,13 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time
 
+import requests
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, make_response, current_app
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity, verify_jwt_in_request
 from flask_jwt_extended.exceptions import NoAuthorizationError
 from flask_jwt_extended import decode_token
 from flask_jwt_extended import get_csrf_token
 from backend import bcrypt, db
-from backend.models import User, Portfolio, Security
+from backend.models import User, Portfolio, Security, StockCache
 from backend.models import PortfolioFiles
 import os
 from werkzeug.utils import secure_filename
@@ -138,19 +139,95 @@ def dashboard():
 def portfolio_overview():
     try:
         current_user_email = get_jwt_identity()
-        if not current_user_email:
-            print("No JWT identity found. Redirecting to login.")
-            return redirect(url_for("auth.login_page"))
-
         user = User.query.filter_by(email=current_user_email).first()
         if not user:
-            print("User not found in database.")
             return redirect(url_for("auth.login_page"))
 
+        # Get user's portfolios
         portfolios = Portfolio.query.filter_by(user_id=user.id).all()
+
+        # Update prices if we have portfolios
+        if portfolios:
+            try:
+                # Get unique tickers from user's portfolios
+                unique_tickers = (
+                    db.session.query(Security.ticker)
+                    .join(Portfolio)
+                    .filter(Portfolio.user_id == user.id)
+                    .distinct()
+                    .all()
+                )
+
+                tickers = [t[0] for t in unique_tickers]
+                api_key = os.getenv('ALPHA_VANTAGE_KEY')
+
+                for ticker in tickers:
+                    # Check if cache is stale (older than today)
+                    cache = StockCache.query.filter_by(ticker=ticker).first()
+                    if not cache or cache.date < datetime.utcnow().date():
+                        try:
+                            url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={api_key}"
+                            response = requests.get(url)
+                            data = response.json()
+
+                            if 'Global Quote' in data:
+                                quote = data['Global Quote']
+                                current_price = float(quote['05. price'])
+                                prev_close = float(quote['08. previous close'])
+
+                                # Update or create cache
+                                if not cache:
+                                    cache = StockCache(ticker=ticker)
+
+                                cache.date = datetime.utcnow().date()
+                                cache.data = {
+                                    'currentPrice': current_price,
+                                    'previousClose': prev_close,
+                                    'changePercent': float(quote['10. change percent'].rstrip('%'))
+                                }
+                                db.session.add(cache)
+
+                                # Update securities with this ticker
+                                securities = Security.query.filter_by(ticker=ticker).all()
+                                for security in securities:
+                                    old_value = security.total_value
+                                    security.current_price = current_price
+                                    security.total_value = security.amount_owned * current_price
+                                    security.value_change = security.amount_owned * (current_price - prev_close)
+                                    security.value_change_pct = (security.value_change / (
+                                                old_value - security.value_change)) * 100 if old_value != security.value_change else 0
+                                    security.unrealized_gain = security.total_value - (
+                                                security.amount_owned * security.purchase_price)
+                                    security.unrealized_gain_pct = ((security.total_value / (
+                                                security.amount_owned * security.purchase_price)) - 1) * 100
+
+                            # Respect API rate limits
+                            time.sleep(12)  # Alpha Vantage free tier limit is 5 calls per minute - will buy premium
+
+                        except Exception as e:
+                            print(f"Error updating {ticker}: {str(e)}")
+                            continue
+
+                # Update portfolio totals
+                for portfolio in portfolios:
+                    portfolio.total_value = sum(s.total_value for s in portfolio.securities)
+                    portfolio.day_change = sum(s.value_change for s in portfolio.securities)
+                    portfolio.day_change_pct = (portfolio.day_change / (
+                                portfolio.total_value - portfolio.day_change)) * 100 if portfolio.total_value != portfolio.day_change else 0
+
+                    total_cost = sum(s.amount_owned * s.purchase_price for s in portfolio.securities)
+                    portfolio.unrealized_gain = portfolio.total_value - total_cost
+                    portfolio.unrealized_gain_pct = ((
+                                                                 portfolio.total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
+
+                db.session.commit()
+
+            except Exception as e:
+                print(f"Error updating prices: {str(e)}")
+                db.session.rollback()
+
         uploaded_files = PortfolioFiles.query.filter_by(user_id=user.id).all()
 
-        print(f"User {current_user_email} accessed portfolio overview.")  # Debugging
         return render_template(
             'portfolio_overview.html',
             body_class='portfolio-overview-page',
@@ -158,58 +235,39 @@ def portfolio_overview():
             portfolios=portfolios,
             uploaded_files=uploaded_files,
         )
+
     except Exception as e:
         print(f"Error in portfolio-overview: {e}")
         return redirect(url_for("auth.login_page"))
 
 
-# @auth_blueprint.route('/portfolio-overview', methods=['GET'])
-# @jwt_required(locations=["cookies"])
-# def portfolio_overview():
-#     try:
-#         current_user_email = get_jwt_identity()
-#         user = User.query.filter_by(email=current_user_email).first()
-#
-#         if not user:
-#             return jsonify({"message": "User not found"}), 404
-#
-#         portfolios = Portfolio.query.filter_by(user_id=user.id).all()
-#         portfolio_data = [
-#             {
-#                 "id": portfolio.id,
-#                 "name": portfolio.name,
-#                 "created_at": portfolio.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-#                 "total_holdings": portfolio.total_holdings,
-#                 "last_value": portfolio.last_value,
-#                 "day_change": portfolio.day_change,
-#                 "one_year_gain": portfolio.one_year_gain,
-#                 "one_year_return": portfolio.one_year_return,
-#             }
-#             for portfolio in portfolios
-#         ]
-#
-#         return jsonify(portfolio_data), 200
-#     except Exception as e:
-#         print(f"Error in portfolio-overview: {e}")
-#         return jsonify({"message": "An unexpected error occurred."}), 500
-
-
 @auth_blueprint.route('/portfolio/<int:portfolio_id>', methods=['DELETE'])
 @jwt_required(locations=["cookies"])
 def delete_portfolio(portfolio_id):
-    current_user_email = get_jwt_identity()
-    user = User.query.filter_by(email=current_user_email).first()
+    try:
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
 
-    if not user:
-        return jsonify({"message": "User not found"}), 404
+        if not user:
+            return jsonify({"message": "User not found"}), 404
 
-    portfolio = Portfolio.query.filter_by(id=portfolio_id, user_id=user.id).first()
-    if not portfolio:
-        return jsonify({"message": "Portfolio not found"}), 404
+        portfolio = Portfolio.query.filter_by(id=portfolio_id, user_id=user.id).first()
+        if not portfolio:
+            return jsonify({"message": "Portfolio not found"}), 404
 
-    db.session.delete(portfolio)
-    db.session.commit()
-    return jsonify({"message": "Portfolio deleted successfully"}), 200
+        # Delete related securities first (if cascade isn't set up)
+        Security.query.filter_by(portfolio_id=portfolio_id).delete()
+
+        # Delete the portfolio
+        db.session.delete(portfolio)
+        db.session.commit()
+
+        return jsonify({"message": "Portfolio deleted successfully"}), 200
+
+    except Exception as e:
+        print(f"Error deleting portfolio: {e}")
+        db.session.rollback()
+        return jsonify({"message": "Failed to delete portfolio"}), 500
 
 
 @auth_blueprint.route('/upload', methods=['POST'])
@@ -316,79 +374,95 @@ def get_stock_data():
 @jwt_required(locations=["cookies"])
 def create_portfolio():
     try:
-        # Log the incoming request
-        print("Received portfolio creation request")
-        print("Request JSON:", request.json)
-
-        # Get user info from JWT
         current_user_email = get_jwt_identity()
-        print(f"User email from JWT: {current_user_email}")
-
         user = User.query.filter_by(email=current_user_email).first()
         if not user:
-            print("User not found in database")
             return jsonify({"message": "User not found"}), 404
 
-        print(f"Found user: ID={user.id}, Email={user.email}")
-
-        # Get data from request
         data = request.json
-        portfolio_name = data.get("name")
         stocks = data.get("stocks", [])
 
-        print(f"Portfolio name: {portfolio_name}")
-        print(f"Number of stocks: {len(stocks)}")
-        print("Stocks data:", stocks)
-
-        if not portfolio_name or len(stocks) == 0:
-            print("Validation failed: missing name or stocks")
-            return jsonify({"message": "Portfolio name and stocks are required"}), 400
-
-        # Create Portfolio
         portfolio = Portfolio(
-            name=portfolio_name,
+            name=data["name"],
             user_id=user.id,
-            total_holdings=len(stocks),
-            total_value=sum(float(stock.get('totalValue', 0)) for stock in stocks)
+            total_holdings=len(stocks)
         )
 
-        print(f"Created portfolio object: {portfolio.name}")
         db.session.add(portfolio)
-        db.session.flush()
-        print(f"Portfolio ID after flush: {portfolio.id}")
+        db.session.flush()  # Get portfolio ID
 
-        # Add Securities
+        total_value = 0
+        total_cost = 0  # This will be our basis for unrealized gain/loss
+
         for stock in stocks:
+            ticker = stock["ticker"]
+            cache = StockCache.query.filter_by(ticker=ticker).first()
+
+            if not cache:
+                stock_data = {
+                    'currentPrice': stock['totalValue'] / stock['amount'],
+                    'previousClose': (stock['totalValue'] - stock['valueChange']) / stock['amount'],
+                    'changePercent': (stock['valueChange'] / (stock['totalValue'] - stock['valueChange'])) * 100
+                }
+
+                cache = StockCache(
+                    ticker=ticker,
+                    date=datetime.utcnow().date(),
+                    data=stock_data
+                )
+                db.session.add(cache)
+
+            price_data = cache.data
+            current_price = float(price_data['currentPrice'])
+            amount = float(stock["amount"])
+
+            # Calculate cost basis and current value
+            cost_basis = amount * current_price  # Initial purchase cost
+            current_value = amount * current_price
+
             security = Security(
                 portfolio_id=portfolio.id,
-                ticker=stock["ticker"],
+                ticker=ticker,
                 name=stock["name"],
                 exchange=stock.get("exchange", ""),
-                amount_owned=float(stock["amount"]),
-                value_change=float(stock.get('valueChange', 0)),
-                total_value=float(stock.get('totalValue', 0))
+                amount_owned=amount,
+                purchase_price=current_price,
+                current_price=current_price,
+                total_value=current_value,
+                value_change=float(stock['valueChange']),
+                value_change_pct=float(price_data['changePercent']),
+                unrealized_gain=current_value - cost_basis,  # Add this
+                unrealized_gain_pct=((current_value / cost_basis) - 1) * 100  # Add this
             )
+
+            total_value += current_value
+            total_cost += cost_basis
+
             db.session.add(security)
-            print(f"Added security: {security.ticker}")
+
+        # Update portfolio metrics
+        portfolio.total_value = total_value
+        portfolio.day_change = sum(float(s['valueChange']) for s in stocks)
+        portfolio.day_change_pct = (portfolio.day_change / (total_value - portfolio.day_change)) * 100
+        portfolio.unrealized_gain = total_value - total_cost
+        portfolio.unrealized_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
 
         db.session.commit()
-        print("Successfully committed to database")
 
         return jsonify({
             "message": "Portfolio created successfully!",
             "portfolio": {
                 "id": portfolio.id,
                 "name": portfolio.name,
-                "total_holdings": portfolio.total_holdings
+                "total_holdings": portfolio.total_holdings,
+                "total_value": portfolio.total_value
             }
-        }), 201
+        })
 
     except Exception as e:
-        print(f"Error creating portfolio: {type(e).__name__}: {str(e)}")
-        import traceback
-        print("Traceback:", traceback.format_exc())
+        print(f"Error: {e}")
         db.session.rollback()
-        return jsonify({"message": f"An error occurred: {str(e)}"}), 500
+        return jsonify({"message": str(e)}), 500
 
 
 @auth_blueprint.route('/portfolio/<int:portfolio_id>/securities', methods=['GET'])
@@ -426,3 +500,42 @@ def get_portfolio_securities(portfolio_id):
     except Exception as e:
         print(f"Error fetching portfolio securities: {e}")
         return jsonify({"message": "An error occurred while fetching portfolio securities"}), 500
+
+
+@auth_blueprint.route('/stock-cache/<symbol>', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def get_cached_stock(symbol):
+    cache = StockCache.query.filter_by(ticker=symbol) \
+        .order_by(StockCache.date.desc()) \
+        .first()
+
+    if cache:
+        return jsonify({
+            'data': cache.data,
+            'date': cache.date.isoformat()
+        })
+    return jsonify({'data': None}), 404
+
+
+@auth_blueprint.route('/stock-cache', methods=['POST'])
+@jwt_required(locations=["cookies"])
+def cache_stock_data():
+    data = request.json
+    symbol = data['symbol']
+
+    # Update or create cache entry
+    cache = StockCache.query.filter_by(ticker=symbol).first()
+    if not cache:
+        cache = StockCache(
+            ticker=symbol,
+            date=datetime.utcnow().date(),
+            data=data['data']
+        )
+    else:
+        cache.date = datetime.utcnow().date()
+        cache.data = data['data']
+
+    db.session.add(cache)
+    db.session.commit()
+
+    return jsonify({'message': 'Cache updated'}), 200

@@ -50,40 +50,73 @@ async function getApiKey() {
 }
 
 async function fetchStockData(symbol) {
-    if (stockDataCache[symbol]) {
-        console.log(`Cache hit for ${symbol}`);
-        return stockDataCache[symbol];
-    }
-
-    const apiKey = await getApiKey();
-    if (!apiKey) {
-        alert('API key not available.');
-        return null;
-    }
-
     try {
+        // First check database cache
+        const cacheResponse = await fetch(`/auth/stock-cache/${symbol}`, {
+            credentials: 'include'  // Add this
+        });
+        const cacheData = await cacheResponse.json();
+
+        if (cacheData.data && !isCacheExpired(cacheData.date)) {
+            console.log(`Using cached data for ${symbol}`);
+            return cacheData.data;
+        }
+
+        // If no cache or expired, fetch from API
+        const apiKey = await getApiKey();
+        if (!apiKey) {
+            throw new Error('API key not available');
+        }
+
         const response = await fetch(
             `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`
         );
         const data = await response.json();
-        console.log(data);
 
         if (data['Global Quote']) {
             const quote = data['Global Quote'];
             const stockInfo = {
                 currentPrice: parseFloat(quote['05. price']),
                 previousClose: parseFloat(quote['08. previous close']),
-                changePercent: parseFloat(quote['10. change percent'])
+                changePercent: parseFloat(quote['10. change percent']),
+                latestTradingDay: quote['07. latest trading day']
             };
-            stockDataCache[symbol] = stockInfo;
+
+            // Get CSRF token from cookie
+            const csrfToken = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('csrf_access_token='))
+                ?.split('=')[1];
+
+            // Save to database cache
+            await fetch('/auth/stock-cache', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                },
+                body: JSON.stringify({
+                    symbol: symbol,
+                    data: stockInfo
+                }),
+                credentials: 'include'
+            });
+
             return stockInfo;
         }
-        console.error('Invalid response:', data);
-        return null;
+        throw new Error('Invalid API response');
     } catch (error) {
         console.error(`Error fetching data for ${symbol}:`, error);
-        return null;
+        throw error;
     }
+}
+    function isCacheExpired(cacheDate) {
+    const cache = new Date(cacheDate);
+    const now = new Date();
+    // Expire cache if it's from a previous day
+    return cache.getDate() !== now.getDate() ||
+           cache.getMonth() !== now.getMonth() ||
+           cache.getFullYear() !== now.getFullYear();
 }
 
 function setupPortfolioActions() {
@@ -104,12 +137,19 @@ function setupPortfolioActions() {
     });
 
     // Delete confirmation handlers
-    elements.confirmDeleteBtn.addEventListener('click', async () => {
+        elements.confirmDeleteBtn.addEventListener('click', async () => {
         try {
+            // Get CSRF token
+            const csrfToken = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('csrf_access_token='))
+                ?.split('=')[1];
+
             const response = await fetch(`/auth/portfolio/${currentPortfolioId}`, {
                 method: 'DELETE',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
                 },
                 credentials: 'include'
             });
@@ -117,12 +157,19 @@ function setupPortfolioActions() {
             if (response.ok) {
                 elements.deleteConfirmModal.style.display = "none";
                 // Remove the portfolio card from the UI
-                const portfolioCard = document.querySelector(`[data-id="${currentPortfolioId}"]`).closest('.portfolio-item');
-                portfolioCard.remove();
+                const portfolioCard = document.querySelector(`.portfolio-item[data-id="${currentPortfolioId}"]`);
+                if (portfolioCard) {
+                    portfolioCard.remove();
+                }
 
                 // Show success message
                 elements.successMessage.textContent = "Portfolio deleted successfully";
                 elements.successModal.style.display = "block";
+
+                // Reload the page after a short delay
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
             } else {
                 throw new Error('Failed to delete portfolio');
             }
@@ -491,6 +538,12 @@ async function createPortfolio(portfolioName) {
         throw new Error("No securities added!");
     }
 
+    // Get CSRF token
+    const csrfToken = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('csrf_access_token='))
+        ?.split('=')[1];
+
     const stocks = manualPortfolio.map(stock => ({
         ticker: stock.equityDetails.split(":")[0],
         name: stock.equityName,
@@ -500,12 +553,6 @@ async function createPortfolio(portfolioName) {
         totalValue: parseFloat(stock.totalValue)
     }));
 
-    // Get CSRF token from cookie
-    const csrfToken = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('csrf_access_token='))
-        ?.split('=')[1];
-
     const response = await fetch("/auth/create-portfolio", {
         method: "POST",
         headers: {
@@ -513,12 +560,12 @@ async function createPortfolio(portfolioName) {
             "X-CSRF-TOKEN": csrfToken
         },
         body: JSON.stringify({name: portfolioName, stocks}),
-        credentials: 'include'  // Include cookies in the request
+        credentials: 'include'
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create portfolio');
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create portfolio');
     }
 
     const data = await response.json();

@@ -5,6 +5,8 @@ from backend import db, bcrypt, jwt
 from datetime import timedelta
 import os
 from dotenv import load_dotenv
+from backend.tasks import init_scheduler
+
 from backend.models import User, Portfolio, Security
 
 
@@ -70,6 +72,9 @@ def create_app():
             except Exception as e:
                 print(f"Error fetching API key: {e}")
                 return jsonify({'error': 'Internal server error'}), 500
+
+        if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+            scheduler = init_scheduler(app)
 
         return app
 

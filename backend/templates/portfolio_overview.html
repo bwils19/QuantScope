@@ -39,7 +39,7 @@
         </div>
         {% else %}
         {% for portfolio in portfolios %}
-        <div class="portfolio-item">
+        <div class="portfolio-item" data-id="{{ portfolio.id }}">
             <div class="portfolio-item-header">
                 <h4>{{ portfolio.name }}</h4>
                 <div class="portfolio-actions">
