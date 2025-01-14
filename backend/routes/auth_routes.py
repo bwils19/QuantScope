@@ -605,14 +605,11 @@ def preview_portfolio_file():
         if file.filename == '':
             return jsonify({"message": "No file selected"}), 400
 
-        # Create upload folder if it doesn't exist
-        upload_folder = current_app.config['UPLOAD_FOLDER']
-        os.makedirs(upload_folder, exist_ok=True)
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
 
         filename = secure_filename(file.filename)
-        filepath = os.path.join(upload_folder, filename)
-
-        print(f"Saving file to: {filepath}")
+        filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
 
         # Save file temporarily
         file.save(filepath)
@@ -622,26 +619,27 @@ def preview_portfolio_file():
             df, validation_summary = parse_portfolio_file(filepath)
             preview_data = format_preview_data(df)
 
-            print("File processed successfully")
-            print(f"Preview data size: {len(preview_data)}")
-            print(f"Validation summary: {validation_summary}")
+            # Create a record in PortfolioFiles
+            portfolio_file = PortfolioFiles(
+                user_id=user.id,
+                filename=filename,
+                uploaded_by=user.email
+            )
+            db.session.add(portfolio_file)
+            db.session.commit()
 
             return jsonify({
                 'preview_data': preview_data,
                 'summary': validation_summary,
-                'message': 'File processed successfully'
+                'message': 'File processed successfully',
+                'file_id': portfolio_file.id  # Add file ID to response
             })
 
-        except Exception as e:
-            print(f"Error processing file: {str(e)}")  # Debug log
-            return jsonify({'message': str(e)}), 400
         finally:
-            # Clean up temporary file
-            if os.path.exists(filepath):
-                os.remove(filepath)
+            pass
 
     except Exception as e:
-        print(f"Outer error: {str(e)}")  # Debug log
+        print(f"Error in preview: {str(e)}")
         return jsonify({
             'message': f"Error processing file: {str(e)}"
         }), 400

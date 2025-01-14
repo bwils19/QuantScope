@@ -659,6 +659,10 @@ async function handleFileUpload(event) {
         }
 
         const result = await response.json();
+
+        // Store file ID in a data attribute
+        document.getElementById('createPortfolioBtn').dataset.fileId = result.file_id;
+
         displayFilePreview(result);
 
     } catch (error) {
@@ -731,8 +735,15 @@ function handleFileDrop(e) {
     elements.portfolioFileInput.dispatchEvent(new Event('change'));
 }
 
-async function handlePortfolioCreation(fileId) {
+async function handlePortfolioCreation() {
     try {
+        const createBtn = document.getElementById('createPortfolioBtn');
+        const fileId = createBtn.dataset.fileId;
+
+        if (!fileId) {
+            throw new Error('No file ID found');
+        }
+
         const csrfToken = document.cookie
             .split('; ')
             .find(row => row.startsWith('csrf_access_token='))
@@ -758,6 +769,7 @@ async function handlePortfolioCreation(fileId) {
         }, 1500);
 
     } catch (error) {
+        console.error('Error creating portfolio:', error);
         showError(error.message || "Failed to create portfolio");
     }
 }

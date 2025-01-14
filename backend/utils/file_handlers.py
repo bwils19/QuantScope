@@ -5,56 +5,46 @@ import numpy as np
 
 def standardize_columns(df):
     """
-    Map common column names to standard names
+    Map common column names to standard names and rename columns
     """
-    column_mappings = {
-        # will probably need to add to these or write some ML algo to determine?
-        # Ticker mappings
-        'ticker': ['ticker', 'symbol', 'stock', 'security'],
-
-        # Amount/Shares mappings
-        'amount': ['amount', 'shares', 'quantity', 'position', 'units', 'share quantity'],
-
-        # Optional columns
-        'name': ['name', 'security name', 'company', 'company name'],
-        'exchange': ['exchange', 'market'],
-        'purchase_price': ['purchase price', 'purchase price ($)', 'cost basis', 'entry price', 'buying price',
-                           'buy price'],
-        'current_price': ['current price', 'current price ($)', 'market price', 'last price'],
-        'sector': ['sector', 'industry'],
-        'purchase_date': ['date purchased', 'purchase date', 'entry date', 'acquisition date']
-    }
-
-    # Convert all column names to lowercase and remove special characters
+    # First, standardize the column names
     df.columns = [col.lower().strip().replace('($)', '').strip() for col in df.columns]
 
-    # Create reverse mapping for easier lookup
+    # Define mapping of alternative names to standard names
+    column_mappings = {
+        'ticker': ['ticker', 'symbol', 'stock', 'security'],
+        'amount': ['amount', 'shares', 'quantity', 'position', 'units', 'share quantity'],
+        'purchase_date': ['date purchased', 'purchase date', 'entry date', 'acquisition date', 'date'],
+        'purchase_price': ['purchase price', 'purchase price', 'cost basis', 'entry price', 'buying price'],
+        'current_price': ['current price', 'current price', 'market price', 'last price'],
+        'sector': ['sector', 'industry'],
+        'notes': ['notes', 'comments', 'description']
+    }
+
+    # Create reverse mapping
     reverse_mapping = {}
     for standard, alternatives in column_mappings.items():
         for alt in alternatives:
-            reverse_mapping[alt] = standard
+            reverse_mapping[alt.lower().strip()] = standard
 
-    # Rename columns based on mappings
+    # Create new column mapping
     new_columns = {}
     for col in df.columns:
         if col in reverse_mapping:
             new_columns[col] = reverse_mapping[col]
 
-    return df.rename(columns=new_columns)
+    # Rename columns
+    df = df.rename(columns=new_columns)
+
+    print("After standardization, columns are:", df.columns.tolist())
+    return df
 
 
 def parse_portfolio_file(file_path):
-    """
-    Parse uploaded portfolio file with detailed row validation
-    Returns DataFrame with validation status for each row
-    """
-    print(f"Processing file: {file_path}")
-
+    """Parse and validate portfolio file"""
     try:
+        # Read the file
         file_ext = os.path.splitext(file_path)[1].lower()
-        print(f"File extension: {file_ext}")
-
-        # Read file based on extension
         if file_ext == '.csv':
             df = pd.read_csv(file_path)
         elif file_ext in ['.xls', '.xlsx']:
@@ -64,48 +54,41 @@ def parse_portfolio_file(file_path):
         else:
             raise ValueError(f"Unsupported file type: {file_ext}")
 
-        print(f"Initial columns: {df.columns.tolist()}")
+        print("Original columns:", df.columns.tolist())
 
         # Standardize column names
         df = standardize_columns(df)
-        print(f"Standardized columns: {df.columns.tolist()}")
+        print("Standardized columns:", df.columns.tolist())
 
-        # Initialize validation columns
+        # Initialize validation
         df['validation_status'] = 'valid'
         df['validation_message'] = ''
 
-        # Validate required columns exist
-        required_columns = ['ticker', 'amount']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        if missing_columns:
-            raise ValueError(
-                f"Missing required columns: {', '.join(missing_columns)}. Please ensure your file contains ticker and amount/shares information.")
+        # Validate required columns
+        if 'ticker' not in df.columns:
+            raise ValueError("Missing 'ticker' column. Please ensure your file has a ticker/symbol column.")
+        if 'amount' not in df.columns:
+            raise ValueError("Missing 'amount' column. Please ensure your file has a shares/quantity column.")
 
-        # Validate ticker format
+        # Clean and validate data
         df['ticker'] = df['ticker'].str.strip().str.upper()
+        df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
+
+        # Mark invalid rows
         invalid_tickers = df['ticker'].str.contains(r'[^A-Z\.]').fillna(True)
+        invalid_amounts = df['amount'].isna() | (df['amount'] <= 0)
+
         df.loc[invalid_tickers, 'validation_status'] = 'invalid'
         df.loc[invalid_tickers, 'validation_message'] += 'Invalid ticker format; '
-
-        # Validate amounts
-        df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
-        invalid_amounts = df['amount'].isna() | (df['amount'] <= 0)
         df.loc[invalid_amounts, 'validation_status'] = 'invalid'
         df.loc[invalid_amounts, 'validation_message'] += 'Invalid amount; '
 
-        # Handle optional columns
-        optional_columns = ['purchase_date', 'purchase_price', 'current_price', 'sector', 'notes']
-        for col in optional_columns:
-            if col not in df.columns:
-                df[col] = ''
+        # Handle optional numeric columns
+        for col in ['purchase_price', 'current_price']:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
 
-        # Convert price columns if present
-        if 'purchase_price' in df.columns:
-            df['purchase_price'] = pd.to_numeric(df['purchase_price'], errors='coerce')
-        if 'current_price' in df.columns:
-            df['current_price'] = pd.to_numeric(df['current_price'], errors='coerce')
-
-        # Generate validation summary
+        # Generate summary
         validation_summary = {
             'total_rows': len(df),
             'valid_rows': len(df[df['validation_status'] == 'valid']),
@@ -114,12 +97,11 @@ def parse_portfolio_file(file_path):
             'unique_securities': len(df.loc[df['validation_status'] == 'valid', 'ticker'].unique())
         }
 
-        print("Validation summary:", validation_summary)
         return df, validation_summary
 
     except Exception as e:
         print(f"Error in parse_portfolio_file: {str(e)}")
-        raise Exception(f"Error processing file: {str(e)}")
+        raise
 
 
 def format_preview_data(df):
