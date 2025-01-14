@@ -643,3 +643,102 @@ def preview_portfolio_file():
         return jsonify({
             'message': f"Error processing file: {str(e)}"
         }), 400
+
+
+@auth_blueprint.route('/create-portfolio-from-file/<int:file_id>', methods=['POST'])
+@jwt_required(locations=["cookies"])
+def create_portfolio_from_file(file_id):
+    """Create a portfolio from an uploaded file from the user"""
+    try:
+        print(f"Creating portfolio from file ID: {file_id}")
+
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+        if not user:
+            print("User not found")  # Debug log
+            return jsonify({"message": "User not found"}), 404
+
+        # Get the uploaded file record
+        file_record = PortfolioFiles.query.get(file_id)
+        if not file_record or file_record.user_id != user.id:
+            print(f"File not found or unauthorized. File ID: {file_id}")
+            return jsonify({"message": "File not found"}), 404
+
+        # Get the full file path
+        file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], file_record.filename)
+        print(f"File path: {file_path}")  # Debug log
+
+        if not os.path.exists(file_path):
+            print(f"File does not exist at path: {file_path}")
+            return jsonify({"message": "File not found on server"}), 404
+
+        try:
+            # Parse file and create portfolio
+            df, _ = parse_portfolio_file(file_path)
+            print(f"File parsed successfully. Columns: {df.columns.tolist()}")
+
+            # Create portfolio
+            portfolio = Portfolio(
+                name=f"Portfolio from {file_record.filename}",
+                user_id=user.id,
+                total_holdings=len(df)
+            )
+            db.session.add(portfolio)
+            db.session.flush()  # Get portfolio ID
+            print(f"Portfolio created with ID: {portfolio.id}")
+
+            total_value = 0
+            total_cost = 0
+
+            # Add securities
+            for _, row in df.iterrows():
+                if row['validation_status'] == 'valid':  # Only add valid securities
+                    print(f"Processing row: {row['ticker']}")
+
+                    security = Security(
+                        portfolio_id=portfolio.id,
+                        ticker=row['ticker'],
+                        name=row.get('name', row['ticker']),  # Use ticker as name if not provided
+                        amount_owned=float(row['amount']),
+                        purchase_price=float(row.get('purchase_price', 0)) if 'purchase_price' in row else 0,
+                        current_price=float(row.get('current_price', 0)) if 'current_price' in row else 0
+                    )
+
+                    security.total_value = security.amount_owned * (security.current_price or security.purchase_price)
+                    total_value += security.total_value
+                    total_cost += security.amount_owned * security.purchase_price
+
+                    db.session.add(security)
+                    print(f"Added security: {security.ticker}")  # Debug log
+
+            # Update portfolio totals
+            portfolio.total_value = total_value
+            portfolio.unrealized_gain = total_value - total_cost
+            portfolio.unrealized_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
+
+            db.session.commit()
+            print("Portfolio creation completed successfully")  # Debug log
+
+            # Clean up the temporary file
+            try:
+                os.remove(file_path)
+                print(f"Temporary file removed: {file_path}")  # Debug log
+            except Exception as e:
+                print(f"Error removing temporary file: {e}")  # Debug log
+
+            return jsonify({
+                "message": "Portfolio created successfully",
+                "portfolio_id": portfolio.id
+            }), 200
+
+        except Exception as e:
+            print(f"Error processing portfolio creation: {e}")  # Debug log
+            if 'db' in locals():
+                db.session.rollback()
+            return jsonify({"message": f"Error creating portfolio: {str(e)}"}), 500
+
+    except Exception as e:
+        print(f"Outer error in create_portfolio_from_file: {e}")  # Debug log
+        if 'db' in locals():
+            db.session.rollback()
+        return jsonify({"message": f"Error creating portfolio: {str(e)}"}), 500
