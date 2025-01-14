@@ -682,10 +682,13 @@ function displayFilePreview(data) {
         tr.className = row.validation_status;
 
         tr.innerHTML = `
-            <td>${row.ticker}</td>
+           <td>${row.ticker}</td>
             <td>${row.amount}</td>
-            <td>${row.name}</td>
-            <td>${row.exchange}</td>
+            <td>${row.purchase_date}</td>
+            <td>${row.purchase_price ? `$${row.purchase_price.toLocaleString()}` : ''}</td>
+            <td>${row.current_price ? `$${row.current_price.toLocaleString()}` : ''}</td>
+            <td>${row.sector}</td>
+            <td>${row.notes}</td>
             <td>${row.validation_status}</td>
             <td>${row.validation_message}</td>
         `;

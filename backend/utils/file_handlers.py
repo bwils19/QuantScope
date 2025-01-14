@@ -93,7 +93,13 @@ def parse_portfolio_file(file_path):
         df.loc[invalid_amounts, 'validation_status'] = 'invalid'
         df.loc[invalid_amounts, 'validation_message'] += 'Invalid amount; '
 
-        # Convert optional price columns if present
+        # Handle optional columns
+        optional_columns = ['purchase_date', 'purchase_price', 'current_price', 'sector', 'notes']
+        for col in optional_columns:
+            if col not in df.columns:
+                df[col] = ''
+
+        # Convert price columns if present
         if 'purchase_price' in df.columns:
             df['purchase_price'] = pd.to_numeric(df['purchase_price'], errors='coerce')
         if 'current_price' in df.columns:
@@ -127,14 +133,11 @@ def format_preview_data(df):
             preview_row = {
                 'ticker': row['ticker'],
                 'amount': float(row['amount']) if not pd.isna(row['amount']) else 'Invalid',
-                'name': row.get('name', ''),
-                'exchange': row.get('exchange', ''),
-                'purchase_price': float(row['purchase_price']) if 'purchase_price' in row and not pd.isna(
-                    row['purchase_price']) else '',
-                'current_price': float(row['current_price']) if 'current_price' in row and not pd.isna(
-                    row['current_price']) else '',
-                'sector': row.get('sector', ''),
-                'purchase_date': row.get('purchase_date', ''),
+                'purchase_date': row['purchase_date'] if not pd.isna(row['purchase_date']) else '',
+                'purchase_price': float(row['purchase_price']) if not pd.isna(row['purchase_price']) else '',
+                'current_price': float(row['current_price']) if not pd.isna(row['current_price']) else '',
+                'sector': row['sector'] if not pd.isna(row['sector']) else '',
+                'notes': row['notes'] if not pd.isna(row['notes']) else '',
                 'validation_status': row['validation_status'],
                 'validation_message': row['validation_message'].strip('; ')
             }
