@@ -151,6 +151,7 @@
 
         <!-- Upload Portfolio Section -->
         <div id="uploadPortfolioSection" class="hidden">
+
             <h4>Upload Dataset</h4>
             <div class="upload-container">
                 <div class="upload-box" id="dropZone">
@@ -202,13 +203,28 @@
                         <tbody></tbody>
                     </table>
                 </div>
+
                 <div class="preview-actions">
                     <button id="createPortfolioBtn" class="btn-primary" disabled>Create Portfolio</button>
                     <button id="cancelPreviewBtn" class="btn-secondary">Cancel</button>
                 </div>
+                 <div id="filePortfolioNameModal" class="modal hidden">
+                    <div class="modal-content">
+                        <span class="close" id="closeFilePortfolioNameModal">&times;</span>
+                        <h3>Name Your Portfolio</h3>
+                        <input type="text" id="filePortfolioNameInput" class="input-box" placeholder="Enter portfolio name">
+                        <div class="modal-buttons">
+                            <button id="filePortfolioNameSaveBtn" class="btn-primary">Create Portfolio</button>
+                            <button id="filePortfolioNameCancelBtn" class="btn-secondary">Cancel</button>
+                        </div>
+                    </div>
+                </div>
             </div>
+
         </div>
+
     </div>
+
 </div>
 
 <div id="portfolioNameModal" class="modal hidden">

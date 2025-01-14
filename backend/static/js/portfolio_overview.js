@@ -41,6 +41,13 @@ const elements = {
     validationResults: document.getElementById('validationResults'),
     manualPortfolioSection: document.getElementById("manualPortfolioSection"),
 
+    filePortfolioNameModal: document.getElementById('filePortfolioNameModal'),
+    filePortfolioNameInput: document.getElementById('filePortfolioNameInput'),
+    filePortfolioNameSaveBtn: document.getElementById('filePortfolioNameSaveBtn'),
+    filePortfolioNameCancelBtn: document.getElementById('filePortfolioNameCancelBtn'),
+    closeFilePortfolioNameModal: document.getElementById('closeFilePortfolioNameModal'),
+
+
 
 };
 
@@ -623,6 +630,172 @@ function setupFileUploadHandlers() {
     }
 }
 
+function setupFilePortfolioHandlers() {
+    console.log('Setting up file portfolio handlers');
+
+    // Handle the "Create Portfolio" button click from the preview
+    document.getElementById('createPortfolioBtn').addEventListener('click', () => {
+        console.log('Create portfolio button clicked');
+        elements.filePortfolioNameInput.value = ''; // Clear any previous input
+        elements.filePortfolioNameModal.style.display = 'block';
+    });
+
+    // Handle portfolio name save
+    elements.filePortfolioNameSaveBtn.addEventListener('click', async () => {
+        console.log('Save button clicked');
+        const portfolioName = elements.filePortfolioNameInput.value.trim();
+
+        if (!portfolioName) {
+            showError('Please enter a portfolio name');
+            return;
+        }
+
+        console.log('Creating portfolio with name:', portfolioName);
+        await handlePortfolioCreation(portfolioName);
+        elements.filePortfolioNameModal.style.display = 'none';
+    });
+
+    // Handle modal close buttons
+    elements.closeFilePortfolioNameModal.addEventListener('click', () => {
+        elements.filePortfolioNameModal.style.display = 'none';
+    });
+
+    elements.filePortfolioNameCancelBtn.addEventListener('click', () => {
+        elements.filePortfolioNameModal.style.display = 'none';
+    });
+
+    // Close modal on outside click
+    window.addEventListener('click', (event) => {
+        if (event.target === elements.filePortfolioNameModal) {
+            elements.filePortfolioNameModal.style.display = 'none';
+        }
+    });
+}
+
+async function createPortfolioFromFile(portfolioName) {
+    try {
+        const createBtn = document.getElementById('createPortfolioBtn');
+        const fileId = createBtn.dataset.fileId;
+
+        if (!fileId) {
+            throw new Error('No file ID found. Please try uploading the file again.');
+        }
+
+        console.log('Creating portfolio:', {
+            fileId,
+            portfolioName
+        });
+
+        const csrfToken = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrf_access_token='))
+            ?.split('=')[1];
+
+        const response = await fetch(`/auth/create-portfolio-from-file/${fileId}`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            },
+            body: JSON.stringify({
+                portfolio_name: portfolioName
+            }),
+            credentials: 'include'
+        });
+
+        console.log('Response status:', response.status);
+
+        const responseText = await response.text();
+        console.log('Response text:', responseText);
+
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            console.error('Failed to parse response:', e);
+            throw new Error('Invalid server response');
+        }
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to create portfolio');
+        }
+
+        showSuccess("Portfolio created successfully!");
+        setTimeout(() => {
+            location.reload();
+        }, 1500);
+
+    } catch (error) {
+        console.error('Error creating portfolio:', error);
+        showError(error.message || "Failed to create portfolio. Please try again.");
+    }
+}
+
+async function handlePortfolioCreation(portfolioName) {
+    try {
+        const createBtn = document.getElementById('createPortfolioBtn');
+        const fileId = createBtn.dataset.fileId;
+
+        if (!fileId) {
+            throw new Error('No file ID found. Please try uploading the file again.');
+        }
+
+        // Debug logs
+        console.log('=== Portfolio Creation Request ===');
+        console.log('File ID:', fileId);
+        console.log('Portfolio Name:', portfolioName);
+
+        const requestData = {
+            portfolio_name: portfolioName
+        };
+        console.log('Request Data:', requestData);
+
+        const csrfToken = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrf_access_token='))
+            ?.split('=')[1];
+
+        const response = await fetch(`/auth/create-portfolio-from-file/${fileId}`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            },
+            body: JSON.stringify(requestData),
+            credentials: 'include'
+        });
+
+        console.log('Response Status:', response.status);
+        const responseText = await response.text();
+        console.log('Response Text:', responseText);
+
+        let responseData;
+        try {
+            responseData = JSON.parse(responseText);
+            console.log('Parsed Response:', responseData);
+        } catch (e) {
+            console.error('Failed to parse response:', e);
+            throw new Error('Invalid response format from server');
+        }
+
+        if (!response.ok) {
+            throw new Error(responseData.message || 'Failed to create portfolio');
+        }
+
+        showSuccess("Portfolio created successfully!");
+        setTimeout(() => {
+            location.reload();
+        }, 1500);
+
+    } catch (error) {
+        console.error('Portfolio Creation Error:', error);
+        showError(error.message || "Failed to create portfolio. Please try again.");
+    }
+}
+
+
 async function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -735,44 +908,44 @@ function handleFileDrop(e) {
     elements.portfolioFileInput.dispatchEvent(new Event('change'));
 }
 
-async function handlePortfolioCreation() {
-    try {
-        const createBtn = document.getElementById('createPortfolioBtn');
-        const fileId = createBtn.dataset.fileId;
-
-        if (!fileId) {
-            throw new Error('No file ID found');
-        }
-
-        const csrfToken = document.cookie
-            .split('; ')
-            .find(row => row.startsWith('csrf_access_token='))
-            ?.split('=')[1];
-
-        const response = await fetch(`/auth/create-portfolio-from-file/${fileId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken
-            },
-            credentials: 'include'
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to create portfolio');
-        }
-
-        const result = await response.json();
-        showSuccess("Portfolio created successfully!");
-        setTimeout(() => {
-            location.reload();
-        }, 1500);
-
-    } catch (error) {
-        console.error('Error creating portfolio:', error);
-        showError(error.message || "Failed to create portfolio");
-    }
-}
+// async function handlePortfolioCreation() {
+//     try {
+//         const createBtn = document.getElementById('createPortfolioBtn');
+//         const fileId = createBtn.dataset.fileId;
+//
+//         if (!fileId) {
+//             throw new Error('No file ID found');
+//         }
+//
+//         const csrfToken = document.cookie
+//             .split('; ')
+//             .find(row => row.startsWith('csrf_access_token='))
+//             ?.split('=')[1];
+//
+//         const response = await fetch(`/auth/create-portfolio-from-file/${fileId}`, {
+//             method: 'POST',
+//             headers: {
+//                 'Content-Type': 'application/json',
+//                 'X-CSRF-TOKEN': csrfToken
+//             },
+//             credentials: 'include'
+//         });
+//
+//         if (!response.ok) {
+//             throw new Error('Failed to create portfolio');
+//         }
+//
+//         const result = await response.json();
+//         showSuccess("Portfolio created successfully!");
+//         setTimeout(() => {
+//             location.reload();
+//         }, 1500);
+//
+//     } catch (error) {
+//         console.error('Error creating portfolio:', error);
+//         showError(error.message || "Failed to create portfolio");
+//     }
+// }
 
 function showError(message) {
     elements.errorMessage.textContent = message;
@@ -795,6 +968,7 @@ function showSuccess(message) {
         setupPortfolioActions();
         setupFileUploadHandlers();
         setupPreviewHandlers();
+        setupFilePortfolioHandlers();
 
         // Search type radio buttons
         document.querySelectorAll('input[name="searchType"]').forEach(radio => {
