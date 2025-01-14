@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, time
 
 import requests
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, make_response, current_app
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for, make_response, current_app, send_file
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity, verify_jwt_in_request
 from flask_jwt_extended.exceptions import NoAuthorizationError
 from flask_jwt_extended import decode_token
@@ -13,6 +13,8 @@ import os
 from werkzeug.utils import secure_filename
 
 # Create a blueprint for authentication routes
+from backend.utils.file_handlers import parse_portfolio_file, format_preview_data
+
 auth_blueprint = Blueprint("auth", __name__)
 
 # Define the upload folder
@@ -39,29 +41,26 @@ def signup_page():
 # Handle JWT exceptions globally within this blueprint
 @auth_blueprint.before_app_request
 def check_jwt():
+    """Verify JWT token for protected routes"""
+    # Skip JWT check for these endpoints
+    public_endpoints = [
+        "auth.login_page",
+        "auth.signup_page",
+        "auth.signup",
+        "auth.login",
+        "auth.logout"
+    ]
+
     if request.endpoint and "auth." in request.endpoint:
-        if request.endpoint in ["auth.login_page", "auth.signup_page", "auth.signup", "auth.login", "auth.logout"]:
-            print(f"Skipping JWT check for endpoint: {request.endpoint}")
+        if request.endpoint in public_endpoints:
             return
+
         try:
-            # Debugging: Log the cookie
-            jwt_cookie = request.cookies.get('access_token_cookie')
-            print(f"JWT Cookie: {jwt_cookie}")
-
-            # Debugging: Decode the token
-            if jwt_cookie:
-                from flask_jwt_extended import decode_token
-                decoded_jwt = decode_token(jwt_cookie)
-                print(f"Decoded JWT: {decoded_jwt}")
-
-            # Verify the JWT
             verify_jwt_in_request(locations=["cookies"])
-            print("JWT verification succeeded.")
         except NoAuthorizationError:
-            print("NoAuthorizationError: Redirecting to login.")
             return redirect(url_for("auth.login_page"))
         except Exception as e:
-            print(f"Unexpected JWT error: {e}")
+            print(f"JWT verification error: {e}")
             return redirect(url_for("auth.login_page"))
 
 
@@ -93,32 +92,66 @@ def signup():
 
 @auth_blueprint.route('/login', methods=['POST'])
 def login():
-    data = request.form
-    user = User.query.filter_by(email=data['email']).first()
+    """Handle login form submission"""
+    try:
+        data = request.form
+        user = User.query.filter_by(email=data['email']).first()
 
-    if user and bcrypt.check_password_hash(user.password_hash, data['password']):
-        additional_claims = {
-            "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name
-        }
-        access_token = create_access_token(identity=user.email, additional_claims=additional_claims)
+        if user and bcrypt.check_password_hash(user.password_hash, data['password']):
+            additional_claims = {
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name
+            }
+            access_token = create_access_token(identity=user.email, additional_claims=additional_claims)
+            csrf_token = get_csrf_token(access_token)
 
-        # Provide CSRF token as a separate cookie
-        csrf_token = get_csrf_token(access_token)
+            # Create response with redirect
+            response = make_response(redirect(url_for('auth.portfolio_overview')))
 
-        response = make_response(redirect(url_for('auth.portfolio_overview')))
-        response.set_cookie('access_token_cookie', access_token, httponly=True, samesite='Lax', secure=False)
-        response.set_cookie('csrf_access_token', csrf_token)  # Add this line
-        return response
+            # Set secure cookie flags
+            response.set_cookie(
+                'access_token_cookie',
+                access_token,
+                httponly=True,
+                secure=True,  # Require HTTPS
+                samesite='Lax',
+                max_age=7200  # 2 hours
+            )
+            response.set_cookie(
+                'csrf_access_token',
+                csrf_token,
+                secure=True,
+                samesite='Lax',
+                max_age=7200
+            )
+            return response
 
-    return jsonify({"message": "Invalid credentials"}), 401
+        # Invalid credentials
+        if not user:
+            return jsonify({
+                    "status": "error",
+                    "message": "No account found with that email address"
+                }), 401
+        else:
+            return jsonify({
+                    "status": "error",
+                    "message": "Invalid password"
+                }), 401
+
+    except Exception as e:
+        print(f"Error in login: {e}")
+        return jsonify({
+            "status": "error",
+            "message": "An error occurred during login"
+        }), 500
 
 
 @auth_blueprint.route('/logout', methods=['GET'])
 def logout():
     response = make_response(redirect(url_for('auth.login_page')))
     response.delete_cookie('access_token_cookie')
+    response.delete_cookie('csrf_access_token')
     return response
 
 
@@ -138,13 +171,16 @@ def dashboard():
 @jwt_required(locations=["cookies"])
 def portfolio_overview():
     try:
+        # Get the current user's identity
         current_user_email = get_jwt_identity()
+        if not current_user_email:
+            return redirect(url_for('auth.login_page'))
+
         user = User.query.filter_by(email=current_user_email).first()
         if not user:
-            return redirect(url_for("auth.login_page"))
+            return redirect(url_for('auth.login_page'))
 
-        # Get user's portfolios
-        portfolios = Portfolio.query.filter_by(user_id=user.id).all()
+        portfolios = Portfolio.query.filter_by(user_id=user.id).order_by(Portfolio.created_at.desc()).all()
 
         # Update prices if we have portfolios
         if portfolios:
@@ -539,3 +575,73 @@ def cache_stock_data():
     db.session.commit()
 
     return jsonify({'message': 'Cache updated'}), 200
+
+
+@auth_blueprint.route('/download-portfolio-template')
+def download_portfolio_template():
+    """Provide template file for portfolio uploads"""
+    try:
+        template_path = os.path.join(current_app.root_path, 'static', 'templates', 'portfolio_template.csv')
+        return send_file(
+            template_path,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name='portfolio_template.csv'
+        )
+    except Exception as e:
+        print(f"Error providing template: {e}")
+        return jsonify({"message": "Error downloading template"}), 500
+
+
+@auth_blueprint.route('/preview-portfolio-file', methods=['POST'])
+@jwt_required(locations=["cookies"])
+def preview_portfolio_file():
+    """Preview and validate uploaded portfolio file"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({"message": "No file uploaded"}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"message": "No file selected"}), 400
+
+        # Create upload folder if it doesn't exist
+        upload_folder = current_app.config['UPLOAD_FOLDER']
+        os.makedirs(upload_folder, exist_ok=True)
+
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(upload_folder, filename)
+
+        print(f"Saving file to: {filepath}")
+
+        # Save file temporarily
+        file.save(filepath)
+
+        try:
+            # Parse and validate file
+            df, validation_summary = parse_portfolio_file(filepath)
+            preview_data = format_preview_data(df)
+
+            print("File processed successfully")
+            print(f"Preview data size: {len(preview_data)}")
+            print(f"Validation summary: {validation_summary}")
+
+            return jsonify({
+                'preview_data': preview_data,
+                'summary': validation_summary,
+                'message': 'File processed successfully'
+            })
+
+        except Exception as e:
+            print(f"Error processing file: {str(e)}")  # Debug log
+            return jsonify({'message': str(e)}), 400
+        finally:
+            # Clean up temporary file
+            if os.path.exists(filepath):
+                os.remove(filepath)
+
+    except Exception as e:
+        print(f"Outer error: {str(e)}")  # Debug log
+        return jsonify({
+            'message': f"Error processing file: {str(e)}"
+        }), 400

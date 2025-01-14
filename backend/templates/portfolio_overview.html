@@ -99,8 +99,18 @@
         <span class="close" id="closeModal">&times;</span>
         <h3>Create New Portfolio</h3>
         <div class="options">
-            <button class="manual-portfolio-btn">Create Manually</button>
-            <button class="upload-portfolio-btn">Upload Dataset</button>
+<!--            <button class="manual-portfolio-btn">Create Manually</button>-->
+<!--            <button class="upload-portfolio-btn">Upload Dataset</button>-->
+            <button class="creation-option-btn manual-portfolio-btn">
+                <i class="fas fa-pencil-alt"></i>
+                <span>Create Manually</span>
+                <p class="option-description">Add securities one by one to build your portfolio</p>
+            </button>
+            <button class="creation-option-btn upload-portfolio-btn">
+                <i class="fas fa-file-upload"></i>
+                <span>Upload Portfolio File</span>
+                <p class="option-description">Import from CSV, Excel, or text file</p>
+            </button>
         </div>
 
         <!-- Manual Portfolio Section -->
@@ -142,8 +152,58 @@
         <!-- Upload Portfolio Section -->
         <div id="uploadPortfolioSection" class="hidden">
             <h4>Upload Dataset</h4>
-            <input type="file" id="portfolioUploadInput" />
-            <button id="uploadPortfolioBtn" class="btn-primary">Upload</button>
+            <div class="upload-container">
+                <div class="upload-box" id="dropZone">
+                    <p>Drag and drop your file here or</p>
+                    <input type="file" id="portfolioFileInput" accept=".csv,.xlsx,.xls,.txt"/>
+                </div>
+                <div class="template-download">
+                    <p>Download our <a href="/auth/download-portfolio-template">template file</a> for reference</p>
+                </div>
+            </div>
+            <div id="validationResults" class="hidden"></div>
+            <div id="filePreviewSection" class="hidden">
+                <div class="preview-header">
+                    <h4>File Preview</h4>
+                    <div class="preview-summary">
+                        <div class="summary-item">
+                            <span class="label">Total Rows:</span>
+                            <span id="totalRows" class="value">0</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Valid Rows:</span>
+                            <span id="validRows" class="value">0</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Invalid Rows:</span>
+                            <span id="invalidRows" class="value">0</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Total Amount:</span>
+                            <span id="totalAmount" class="value">0</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="preview-table-container">
+                    <table id="previewTable" class="preview-table">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th>Amount</th>
+                                <th>Name</th>
+                                <th>Exchange</th>
+                                <th>Status</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="preview-actions">
+                    <button id="createPortfolioBtn" class="btn-primary" disabled>Create Portfolio</button>
+                    <button id="cancelPreviewBtn" class="btn-secondary">Cancel</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -215,6 +275,7 @@
                     <td>{{ file.updated_at }}</td>
                     <td>{{ file.uploaded_by }}</td>
                     <td>
+                        <button class="create-portfolio-btn btn-small" data-file-id="{{ file.id }}">Create Portfolio</button>
                         <button class="edit-file-btn btn-small" data-file-id="{{ file.id }}">Edit</button>
                         <button class="delete-file-btn btn-small" data-file-id="{{ file.id }}">Delete</button>
                     </td>

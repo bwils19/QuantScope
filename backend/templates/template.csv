@@ -1,0 +1,9 @@
+ticker,amount,name,exchange
+AAPL,100,Apple Inc.,NASDAQ
+MSFT,50,Microsoft Corporation,NASDAQ
+GOOGL,25,Alphabet Inc.,NASDAQ
+# Add more rows as needed
+# ticker: Required - Stock symbol
+# amount: Required - Number of shares owned
+# name: Optional - Company name
+# exchange: Optional - Exchange where traded

@@ -16,20 +16,32 @@ const elements = {
     searchStockInput: document.getElementById("searchStockInput"),
     amountInput: document.getElementById("amountInput"),
     addStockBtn: document.getElementById("addStockBtn"),
+
     portfolioNameModal: document.getElementById("portfolioNameModal"),
     portfolioNameInput: document.getElementById("portfolioNameInput"),
     portfolioNameSaveBtn: document.getElementById("portfolioNameSaveBtn"),
     portfolioNameCancelBtn: document.getElementById("portfolioNameCancelBtn"),
+
     successModal: document.getElementById("successModal"),
     successMessage: document.getElementById("successMessage"),
     successOkBtn: document.getElementById("successOkBtn"),
     errorModal: document.getElementById("errorModal"),
     errorMessage: document.getElementById("errorMessage"),
     deleteConfirmModal: document.getElementById("deleteConfirmModal"),
+
     portfolioDetailsModal: document.getElementById("portfolioDetailsModal"),
     confirmDeleteBtn: document.getElementById("confirmDeleteBtn"),
     cancelDeleteBtn: document.getElementById("cancelDeleteBtn"),
+
     securitiesTableBody: document.getElementById("securitiesTableBody"),
+    portfolioFileInput: document.getElementById('portfolioFileInput'),
+    uploadPortfolioBtn: document.querySelector('.upload-portfolio-btn'),
+    uploadPortfolioSection: document.getElementById('uploadPortfolioSection'),
+    dropZone: document.getElementById('dropZone'),
+    validationResults: document.getElementById('validationResults'),
+    manualPortfolioSection: document.getElementById("manualPortfolioSection"),
+
+
 };
 
 // Create and append search suggestions element
@@ -581,206 +593,384 @@ function resetModal() {
     manualPortfolio.length = 0;
 }
 
-function setupEventListeners() {
-    // Search input handlers
-    elements.searchStockInput.addEventListener("input", handleSearchInput);
-    elements.searchStockInput.addEventListener("keydown", handleSearchKeydown);
-    elements.searchStockInput.addEventListener("blur", () => {
-        setTimeout(() => searchSuggestions.classList.add("hidden"), 200);
-    });
-    setupPortfolioActions();
-
-    // Search type radio buttons
-    document.querySelectorAll('input[name="searchType"]').forEach(radio => {
-        radio.addEventListener("change", (e) => {
-            searchType = e.target.value;
-        });
-    });
-
-    // Add stock handlers
-    elements.addStockBtn.addEventListener("click", addStock);
-    elements.amountInput.addEventListener("keypress", (event) => {
-        if (event.key === "Enter") addStock();
-    });
-    elements.amountInput.addEventListener("wheel", (event) => {
-        event.preventDefault();
-    });
-
-    // Modal handlers
-    document.querySelector(".manual-portfolio-btn").addEventListener("click", () => {
-        document.getElementById("manualPortfolioSection").classList.remove("hidden");
-        document.getElementById("uploadPortfolioSection").classList.add("hidden");
-    });
-
-    document.querySelector(".new-portfolio-btn").addEventListener("click", () => {
-        elements.newPortfolioModal.style.display = "block";
-        document.body.style.overflow = "hidden";
-    });
-
-    document.getElementById("closeModal").addEventListener("click", () => {
-        elements.newPortfolioModal.style.display = "none";
-        document.body.style.overflow = "";
-        resetModal();
-    });
-
-    // Portfolio creation handlers
-    document.getElementById("finishManualPortfolioBtn").addEventListener("click", () => {
-        elements.portfolioNameInput.value = "";
-        elements.portfolioNameModal.style.display = "block";
-    });
-
-    elements.portfolioNameSaveBtn.addEventListener("click", async () => {
-        try {
-            const portfolioData = {
-                name: elements.portfolioNameInput.value,
-                stocks: manualPortfolio
-            };
-            console.log("Attempting to save portfolio:", portfolioData);
-
-            const result = await createPortfolio(elements.portfolioNameInput.value);
-            console.log("Create portfolio result:", result);  // Debug log
-
-            elements.successMessage.textContent = result;
-            elements.successModal.style.display = "block";
-            elements.portfolioNameModal.style.display = "none";
-
-        } catch (error) {
-            console.error("Error creating portfolio:", error);
-            if (error.message.includes('<!DOCTYPE')) {
-                // If we got HTML back, it's likely an authentication issue
-                elements.errorMessage.textContent = "Session expired. Please log in again.";
-                setTimeout(() => {
-                    window.location.href = '/auth/login';
-                }, 2000);
-            } else {
-                elements.errorMessage.textContent = error.message;
+function setupFileUploadHandlers() {
+    if (elements.uploadPortfolioBtn) {
+        elements.uploadPortfolioBtn.addEventListener('click', () => {
+            if (elements.manualPortfolioSection) {
+                elements.manualPortfolioSection.classList.add('hidden');
             }
-            elements.errorModal.style.display = "block";
-        }
-    });
+            if (elements.uploadPortfolioSection) {
+                elements.uploadPortfolioSection.classList.remove('hidden');
+            }
+        });
+    }
 
-    elements.portfolioNameCancelBtn.addEventListener("click", () => {
-        elements.portfolioNameModal.style.display = "none";
-    });
+    if (elements.portfolioFileInput) {
+        elements.portfolioFileInput.addEventListener('change', handleFileUpload);
+    }
 
-    // Success/Error modal handlers
-    elements.successOkBtn.addEventListener("click", () => {
-        elements.successModal.style.display = "none";
-        location.reload();
-    });
-
-    // Click outside modal handlers
-    window.addEventListener("click", (event) => {
-        if (event.target === elements.portfolioNameModal) {
-            elements.portfolioNameModal.style.display = "none";
-        }
-        if (event.target === elements.successModal) {
-            elements.successModal.style.display = "none";
-            location.reload();
-        }
-        if (event.target === elements.errorModal) {
-            elements.errorModal.style.display = "none";
-        }
-    });
-
-    // Click outside suggestions handler
-    document.addEventListener("click", (event) => {
-        if (!elements.searchStockInput.contains(event.target) &&
-            !searchSuggestions.contains(event.target)) {
-            searchSuggestions.classList.add("hidden");
-        }
-    });
-    const fileInput = document.getElementById('fileInput');
-    const newFileBtn = document.querySelector('.new-file-btn');
-
-    if (newFileBtn && fileInput) {
-        newFileBtn.addEventListener('click', () => {
-            fileInput.click();
+    if (elements.dropZone) {
+        elements.dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            elements.dropZone.classList.add('drag-over');
         });
 
-        fileInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
+        elements.dropZone.addEventListener('dragleave', () => {
+            elements.dropZone.classList.remove('drag-over');
+        });
 
-            console.log('Attempting to upload file:', file.name);
+        elements.dropZone.addEventListener('drop', handleFileDrop);
+    }
+}
 
-            // Get CSRF token from cookie
-            const csrfToken = document.cookie
-                .split('; ')
-                .find(row => row.startsWith('csrf_access_token='))
-                ?.split('=')[1];
+async function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
 
-            const formData = new FormData();
-            formData.append('file', file);
+    const validTypes = ['.csv', '.xlsx', '.xls', '.txt'];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
 
+    if (!validTypes.includes(fileExtension)) {
+        showError("Invalid file type. Please upload CSV, Excel, or text file.");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const csrfToken = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrf_access_token='))
+            ?.split('=')[1];
+
+        const response = await fetch('/auth/preview-portfolio-file', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken
+            },
+            body: formData,
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to process file');
+        }
+
+        const result = await response.json();
+        displayFilePreview(result);
+
+    } catch (error) {
+        showError(error.message || "Failed to process file");
+    }
+}
+
+function displayFilePreview(data) {
+    // Update summary statistics
+    document.getElementById('totalRows').textContent = data.summary.total_rows;
+    document.getElementById('validRows').textContent = data.summary.valid_rows;
+    document.getElementById('invalidRows').textContent = data.summary.invalid_rows;
+    document.getElementById('totalAmount').textContent = new Intl.NumberFormat('en-US').format(data.summary.total_amount);
+
+    // Populate preview table
+    const tableBody = document.querySelector('#previewTable tbody');
+    tableBody.innerHTML = '';
+
+    data.preview_data.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.className = row.validation_status;
+
+        tr.innerHTML = `
+            <td>${row.ticker}</td>
+            <td>${row.amount}</td>
+            <td>${row.name}</td>
+            <td>${row.exchange}</td>
+            <td>${row.validation_status}</td>
+            <td>${row.validation_message}</td>
+        `;
+
+        tableBody.appendChild(tr);
+    });
+
+    // Show preview section and handle create button
+    document.getElementById('filePreviewSection').classList.remove('hidden');
+    const createBtn = document.getElementById('createPortfolioBtn');
+    createBtn.disabled = data.summary.invalid_rows > 0;
+
+    if (createBtn.disabled) {
+        createBtn.title = 'Please fix validation errors before creating portfolio';
+    } else {
+        createBtn.title = 'Create portfolio with validated data';
+    }
+}
+
+function setupPreviewHandlers() {
+    document.getElementById('cancelPreviewBtn').addEventListener('click', () => {
+        document.getElementById('filePreviewSection').classList.add('hidden');
+        document.getElementById('portfolioFileInput').value = '';
+    });
+
+    document.getElementById('createPortfolioBtn').addEventListener('click', () => {
+        // Your existing portfolio creation logic here
+        handlePortfolioCreation();
+    });
+}
+
+function handleFileDrop(e) {
+    e.preventDefault();
+    elements.dropZone.classList.remove('drag-over');
+
+    const file = e.dataTransfer.files[0];
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    elements.portfolioFileInput.files = dataTransfer.files;
+    elements.portfolioFileInput.dispatchEvent(new Event('change'));
+}
+
+async function handlePortfolioCreation(fileId) {
+    try {
+        const csrfToken = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrf_access_token='))
+            ?.split('=')[1];
+
+        const response = await fetch(`/auth/create-portfolio-from-file/${fileId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            },
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to create portfolio');
+        }
+
+        const result = await response.json();
+        showSuccess("Portfolio created successfully!");
+        setTimeout(() => {
+            location.reload();
+        }, 1500);
+
+    } catch (error) {
+        showError(error.message || "Failed to create portfolio");
+    }
+}
+
+function showError(message) {
+    elements.errorMessage.textContent = message;
+    elements.errorModal.style.display = "block";
+    elements.portfolioFileInput.value = '';
+}
+
+function showSuccess(message) {
+    elements.successMessage.textContent = message;
+    elements.successModal.style.display = "block";
+}
+
+    function setupEventListeners() {
+        // Search input handlers
+        elements.searchStockInput.addEventListener("input", handleSearchInput);
+        elements.searchStockInput.addEventListener("keydown", handleSearchKeydown);
+        elements.searchStockInput.addEventListener("blur", () => {
+            setTimeout(() => searchSuggestions.classList.add("hidden"), 200);
+        });
+        setupPortfolioActions();
+        setupFileUploadHandlers();
+        setupPreviewHandlers();
+
+        // Search type radio buttons
+        document.querySelectorAll('input[name="searchType"]').forEach(radio => {
+            radio.addEventListener("change", (e) => {
+                searchType = e.target.value;
+            });
+        });
+
+        // Add stock handlers
+        elements.addStockBtn.addEventListener("click", addStock);
+        elements.amountInput.addEventListener("keypress", (event) => {
+            if (event.key === "Enter") addStock();
+        });
+        elements.amountInput.addEventListener("wheel", (event) => {
+            event.preventDefault();
+        });
+
+        // Modal handlers
+        document.querySelector(".manual-portfolio-btn").addEventListener("click", () => {
+            document.getElementById("manualPortfolioSection").classList.remove("hidden");
+            document.getElementById("uploadPortfolioSection").classList.add("hidden");
+        });
+
+        document.querySelector(".new-portfolio-btn").addEventListener("click", () => {
+            elements.newPortfolioModal.style.display = "block";
+            document.body.style.overflow = "hidden";
+        });
+
+        document.getElementById("closeModal").addEventListener("click", () => {
+            elements.newPortfolioModal.style.display = "none";
+            document.body.style.overflow = "";
+            resetModal();
+        });
+
+        // Portfolio creation handlers
+        document.getElementById("finishManualPortfolioBtn").addEventListener("click", () => {
+            elements.portfolioNameInput.value = "";
+            elements.portfolioNameModal.style.display = "block";
+        });
+
+        elements.portfolioNameSaveBtn.addEventListener("click", async () => {
             try {
-                console.log('Sending upload request...');
-                const response = await fetch('/auth/upload', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken
-                    },
-                    body: formData,
-                    credentials: 'include'
-                });
+                const portfolioData = {
+                    name: elements.portfolioNameInput.value,
+                    stocks: manualPortfolio
+                };
+                console.log("Attempting to save portfolio:", portfolioData);
 
-                // Check if response is JSON
-                const contentType = response.headers.get("content-type");
-                if (contentType && contentType.indexOf("application/json") !== -1) {
-                    const responseData = await response.json();
-                    console.log('Upload response:', responseData);
+                const result = await createPortfolio(elements.portfolioNameInput.value);
+                console.log("Create portfolio result:", result);  // Debug log
 
-                    if (response.ok) {
-                        elements.successMessage.textContent = responseData.message || "File uploaded successfully!";
-                        elements.successModal.style.display = "block";
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1500);
-                    } else {
-                        throw new Error(responseData.message || 'Upload failed');
-                    }
-                } else {
-                    // If not JSON, might be redirected to login
-                    console.log('Non-JSON response received');
-                    if (response.status === 401 || response.status === 403) {
-                        elements.errorMessage.textContent = "Session expired. Please log in again.";
-                        elements.errorModal.style.display = "block";
-                        setTimeout(() => {
-                            window.location.href = '/auth/login';
-                        }, 1500);
-                    } else {
-                        throw new Error('Unexpected response type');
-                    }
-                }
+                elements.successMessage.textContent = result;
+                elements.successModal.style.display = "block";
+                elements.portfolioNameModal.style.display = "none";
+
             } catch (error) {
-                console.error('Error uploading file:', error);
-                elements.errorMessage.textContent = "Failed to upload file. Please try logging in again.";
+                console.error("Error creating portfolio:", error);
+                if (error.message.includes('<!DOCTYPE')) {
+                    // If we got HTML back, it's likely an authentication issue
+                    elements.errorMessage.textContent = "Session expired. Please log in again.";
+                    setTimeout(() => {
+                        window.location.href = '/auth/login';
+                    }, 2000);
+                } else {
+                    elements.errorMessage.textContent = error.message;
+                }
                 elements.errorModal.style.display = "block";
             }
         });
+
+        elements.portfolioNameCancelBtn.addEventListener("click", () => {
+            elements.portfolioNameModal.style.display = "none";
+        });
+
+        // Success/Error modal handlers
+        elements.successOkBtn.addEventListener("click", () => {
+            elements.successModal.style.display = "none";
+            location.reload();
+        });
+
+        // Click outside modal handlers
+        window.addEventListener("click", (event) => {
+            if (event.target === elements.portfolioNameModal) {
+                elements.portfolioNameModal.style.display = "none";
+            }
+            if (event.target === elements.successModal) {
+                elements.successModal.style.display = "none";
+                location.reload();
+            }
+            if (event.target === elements.errorModal) {
+                elements.errorModal.style.display = "none";
+            }
+        });
+
+        // Click outside suggestions handler
+        document.addEventListener("click", (event) => {
+            if (!elements.searchStockInput.contains(event.target) &&
+                !searchSuggestions.contains(event.target)) {
+                searchSuggestions.classList.add("hidden");
+            }
+        });
+        const fileInput = document.getElementById('fileInput');
+        const newFileBtn = document.querySelector('.new-file-btn');
+
+        if (newFileBtn && fileInput) {
+            newFileBtn.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', async (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                console.log('Attempting to upload file:', file.name);
+
+                // Get CSRF token from cookie
+                const csrfToken = document.cookie
+                    .split('; ')
+                    .find(row => row.startsWith('csrf_access_token='))
+                    ?.split('=')[1];
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    console.log('Sending upload request...');
+                    const response = await fetch('/auth/upload', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken
+                        },
+                        body: formData,
+                        credentials: 'include'
+                    });
+
+                    // Check if response is JSON
+                    const contentType = response.headers.get("content-type");
+                    if (contentType && contentType.indexOf("application/json") !== -1) {
+                        const responseData = await response.json();
+                        console.log('Upload response:', responseData);
+
+                        if (response.ok) {
+                            elements.successMessage.textContent = responseData.message || "File uploaded successfully!";
+                            elements.successModal.style.display = "block";
+                            setTimeout(() => {
+                                location.reload();
+                            }, 1500);
+                        } else {
+                            throw new Error(responseData.message || 'Upload failed');
+                        }
+                    } else {
+                        // If not JSON, might be redirected to login
+                        console.log('Non-JSON response received');
+                        if (response.status === 401 || response.status === 403) {
+                            elements.errorMessage.textContent = "Session expired. Please log in again.";
+                            elements.errorModal.style.display = "block";
+                            setTimeout(() => {
+                                window.location.href = '/auth/login';
+                            }, 1500);
+                        } else {
+                            throw new Error('Unexpected response type');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error uploading file:', error);
+                    elements.errorMessage.textContent = "Failed to upload file. Please try logging in again.";
+                    elements.errorModal.style.display = "block";
+                }
+            });
+        }
     }
-}
 
 // Initialize
-async function init() {
-    try {
-        // Load securities data
-        const response = await fetch("/static/data/symbols.json");
-        if (!response.ok) throw new Error("Failed to load securities data");
-        securitiesData = await response.json();
+    async function init() {
+        try {
+            // Load securities data
+            const response = await fetch("/static/data/symbols.json");
+            if (!response.ok) throw new Error("Failed to load securities data");
+            securitiesData = await response.json();
 
-        // Setup all event handlers
-        setupEventListeners();
+            // Setup all event handlers
+            setupEventListeners();
 
-        // Initialize view
-        elements.tableHeader.style.display = "none";
+            // Initialize view
+            elements.tableHeader.style.display = "none";
 
-    } catch (error) {
-        console.error("Initialization error:", error);
-        elements.errorMessage.textContent = "Failed to initialize application";
-        elements.errorModal.style.display = "block";
-    }
+        } catch (error) {
+            console.error("Initialization error:", error);
+            elements.errorMessage.textContent = "Failed to initialize application";
+            elements.errorModal.style.display = "block";
+        }
 }
-
 // Start the application when DOM is ready
 document.addEventListener("DOMContentLoaded", init);
