@@ -32,6 +32,7 @@ const elements = {
     portfolioDetailsModal: document.getElementById("portfolioDetailsModal"),
     confirmDeleteBtn: document.getElementById("confirmDeleteBtn"),
     cancelDeleteBtn: document.getElementById("cancelDeleteBtn"),
+    closePortfolioDetailsModal: document.getElementById('closePortfolioDetailsModal'),
 
     securitiesTableBody: document.getElementById("securitiesTableBody"),
     portfolioFileInput: document.getElementById('portfolioFileInput'),
@@ -230,27 +231,26 @@ async function loadPortfolioDetails(portfolioId) {
         data.securities.forEach(security => {
             const row = document.createElement('tr');
 
-            // Format percentages with null checks
             const valueChangePct = security.value_change_pct != null
-                ? `(${security.value_change_pct.toFixed(2)}%)`
-                : '(0.00%)';
+                ? formatPercentage(security.value_change_pct)
+                : '0.00%';
 
             const unrealizedGainPct = security.unrealized_gain_pct != null
-                ? `(${security.unrealized_gain_pct.toFixed(2)}%)`
-                : '(0.00%)';
+                ? formatPercentage(security.unrealized_gain_pct)
+                : '0.00%';
 
             row.innerHTML = `
                 <td>${security.name} (${security.ticker})</td>
-                <td>${security.amount_owned}</td>
+                <td>${security.amount_owned.toLocaleString()}</td>
                 <td>${formatCurrency(security.current_price || 0)}</td>
                 <td>${formatCurrency(security.total_value || 0)}</td>
                 <td class="${(security.value_change || 0) >= 0 ? 'positive' : 'negative'}">
                     ${formatCurrency(security.value_change || 0)}
-                    ${valueChangePct}
+                    (${valueChangePct})
                 </td>
                 <td class="${(security.unrealized_gain || 0) >= 0 ? 'positive' : 'negative'}">
                     ${formatCurrency(security.unrealized_gain || 0)}
-                    ${unrealizedGainPct}
+                    (${unrealizedGainPct})
                 </td>
             `;
             elements.securitiesTableBody.appendChild(row);
@@ -267,8 +267,17 @@ async function loadPortfolioDetails(portfolioId) {
 function formatCurrency(value) {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: 'USD'
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
     }).format(value);
+}
+
+function formatPercentage(value) {
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(value) + '%';
 }
 
 // Stock handling functions
@@ -975,6 +984,19 @@ function showSuccess(message) {
             radio.addEventListener("change", (e) => {
                 searchType = e.target.value;
             });
+        });
+
+        if (elements.closePortfolioDetailsModal) {
+            elements.closePortfolioDetailsModal.addEventListener('click', () => {
+                elements.portfolioDetailsModal.style.display = 'none';
+            });
+        }
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                if (elements.portfolioDetailsModal.style.display === 'block') {
+                    elements.portfolioDetailsModal.style.display = 'none';
+                }
+            }
         });
 
         // Add stock handlers

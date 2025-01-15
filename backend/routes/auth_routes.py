@@ -182,6 +182,17 @@ def portfolio_overview():
 
         portfolios = Portfolio.query.filter_by(user_id=user.id).order_by(Portfolio.created_at.desc()).all()
 
+        # Calculate dashboard statistics
+        total_portfolio_value = sum(p.total_value for p in portfolios) if portfolios else 0
+        total_day_change = sum(p.day_change for p in portfolios) if portfolios else 0
+        total_day_change_pct = (total_day_change / (
+                    total_portfolio_value - total_day_change) * 100) if total_portfolio_value != total_day_change else 0
+
+        # Calculate total unrealized gain/loss
+        total_unrealized_gain = sum(p.unrealized_gain for p in portfolios) if portfolios else 0
+        total_unrealized_gain_pct = sum(p.unrealized_gain_pct for p in portfolios) / len(
+            portfolios) if portfolios else 0
+
         # Update prices if we have portfolios
         if portfolios:
             try:
@@ -269,7 +280,14 @@ def portfolio_overview():
             body_class='portfolio-overview-page',
             user={"first_name": user.first_name, "email": user.email},
             portfolios=portfolios,
-            uploaded_files=uploaded_files,
+            # uploaded_files=uploaded_files,
+            dashboard_stats={
+                'total_value': total_portfolio_value,
+                'day_change': total_day_change,
+                'day_change_pct': total_day_change_pct,
+                'total_gain': total_unrealized_gain,
+                'total_gain_pct': total_unrealized_gain_pct
+            }
         )
 
     except Exception as e:
