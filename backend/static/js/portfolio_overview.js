@@ -703,6 +703,8 @@ function setupFilePortfolioHandlers() {
 }
 
 async function addNewSecurity() {
+    console.log('Starting addNewSecurity...');
+
     if (!selectedEditSecurity) {
         showError("Please select a security first");
         return;
@@ -1288,14 +1290,29 @@ function setupPortfolioEditHandlers() {
 // }
 
 function showError(message, isModalError = false) {
+    console.log('Showing error:', { message, isModalError });
+
     if (isModalError) {
         const modalError = document.getElementById('portfolioModalError');
+        if (!modalError) {
+            console.error('Portfolio modal error element not found!');
+            // Fallback to regular error modal
+            elements.errorMessage.textContent = message;
+            elements.errorModal.style.display = "block";
+            return;
+        }
+
+        console.log('Showing modal error message');
         modalError.textContent = message;
         modalError.classList.remove('hidden');
+        modalError.style.display = 'block';
+
         setTimeout(() => {
             modalError.classList.add('hidden');
-        }, 3000);  // Hide after 3 seconds
+            modalError.style.display = 'none';
+        }, 3000);
     } else {
+        console.log('Showing regular error modal');
         elements.errorMessage.textContent = message;
         elements.errorModal.style.display = "block";
     }
