@@ -1436,3 +1436,102 @@ button:hover {
 .template-download a:hover {
     text-decoration: underline;
 }
+
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.edit-mode-controls {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.add-security-section {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.search-container {
+    position: relative;
+    flex: 1;
+}
+
+.edit-mode-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.edit-column {
+    width: 100px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 5px;
+}
+
+.edit-amount-input {
+    width: 80px;
+    padding: 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.hidden {
+    display: none;
+}
+
+/* Style for the edit buttons */
+.edit-btn, .delete-btn {
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.edit-btn {
+    background-color: #6C7D93;
+    color: white;
+}
+
+.delete-btn {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.edit-btn:hover {
+    background-color: #556070;
+}
+
+.delete-btn:hover {
+    background-color: #c0392b;
+}
+
+.portfolio-modal-error {
+    color: #D64045;
+    background-color: #FFE8E8;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 4px;
+    border: 1px solid #D64045;
+    display: none;
+}
+
+.portfolio-modal-error.show {
+    display: block;
+}

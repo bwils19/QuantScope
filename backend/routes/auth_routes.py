@@ -793,3 +793,50 @@ def create_portfolio_from_file(file_id):
         if 'db' in locals():
             db.session.rollback()
         return jsonify({"message": f"Error creating portfolio: {str(e)}"}), 500
+
+
+@auth_blueprint.route('/portfolio/<int:portfolio_id>/update', methods=['POST'])
+@jwt_required(locations=["cookies"])
+def update_portfolio(portfolio_id):
+    try:
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        portfolio = Portfolio.query.filter_by(id=portfolio_id, user_id=user.id).first()
+        if not portfolio:
+            return jsonify({"message": "Portfolio not found"}), 404
+
+        data = request.get_json()
+        changes = data.get('changes', [])
+
+        for change in changes:
+            security_id = change.get('security_id')
+            security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
+
+            if not security:
+                continue
+
+            if change.get('deleted'):
+                db.session.delete(security)
+            elif 'amount' in change:
+                security.amount_owned = change['amount']
+                security.total_value = security.amount_owned * security.current_price
+                security.unrealized_gain = security.total_value - (security.amount_owned * security.purchase_price)
+                security.unrealized_gain_pct = ((security.total_value / (
+                            security.amount_owned * security.purchase_price)) - 1) * 100
+
+        # Update portfolio totals
+        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
+        portfolio.total_value = sum(s.total_value for s in securities)
+        portfolio.total_holdings = len(securities)
+        portfolio.day_change = sum(s.value_change for s in securities)
+        portfolio.unrealized_gain = sum(s.unrealized_gain for s in securities)
+
+        db.session.commit()
+        return jsonify({"message": "Portfolio updated successfully"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Failed to update portfolio: {str(e)}"}), 500

@@ -7,6 +7,10 @@ let searchType = "ticker"; // Default search type
 let activeIndex = -1;
 let currentPortfolioId = null;
 
+let currentPortfolio = null;
+let editedSecurities = new Map();
+let selectedEditSecurity = null;
+
 // Cache DOM elements
 const elements = {
     portfolioList: document.getElementById("portfolio-list"),
@@ -48,7 +52,14 @@ const elements = {
     filePortfolioNameCancelBtn: document.getElementById('filePortfolioNameCancelBtn'),
     closeFilePortfolioNameModal: document.getElementById('closeFilePortfolioNameModal'),
 
-
+    editPortfolioBtn: document.getElementById('editPortfolioBtn'),
+    editModeControls: document.getElementById('editModeControls'),
+    editSearchStockInput: document.getElementById('editSearchStockInput'),
+    editSearchSuggestions: document.getElementById('editSearchSuggestions'),
+    editAmountInput: document.getElementById('editAmountInput'),
+    editAddSecurityBtn: document.getElementById('editAddSecurityBtn'),
+    savePortfolioChangesBtn: document.getElementById('savePortfolioChangesBtn'),
+    cancelEditModeBtn: document.getElementById('cancelEditModeBtn'),
 
 };
 
@@ -227,34 +238,44 @@ async function loadPortfolioDetails(portfolioId) {
 
         const data = await response.json();
         elements.securitiesTableBody.innerHTML = '';
+        currentPortfolio = portfolioId;  // Set the current portfolio ID
 
         data.securities.forEach(security => {
             const row = document.createElement('tr');
+            row.dataset.securityId = security.id;  // Add security ID to the row
 
+            // Format percentages with null checks
             const valueChangePct = security.value_change_pct != null
-                ? formatPercentage(security.value_change_pct)
-                : '0.00%';
+                ? `(${security.value_change_pct.toFixed(2)}%)`
+                : '(0.00%)';
 
             const unrealizedGainPct = security.unrealized_gain_pct != null
-                ? formatPercentage(security.unrealized_gain_pct)
-                : '0.00%';
+                ? `(${security.unrealized_gain_pct.toFixed(2)}%)`
+                : '(0.00%)';
 
             row.innerHTML = `
                 <td>${security.name} (${security.ticker})</td>
-                <td>${security.amount_owned.toLocaleString()}</td>
+                <td>${security.amount_owned}</td>
                 <td>${formatCurrency(security.current_price || 0)}</td>
                 <td>${formatCurrency(security.total_value || 0)}</td>
                 <td class="${(security.value_change || 0) >= 0 ? 'positive' : 'negative'}">
                     ${formatCurrency(security.value_change || 0)}
-                    (${valueChangePct})
+                    ${valueChangePct}
                 </td>
                 <td class="${(security.unrealized_gain || 0) >= 0 ? 'positive' : 'negative'}">
                     ${formatCurrency(security.unrealized_gain || 0)}
-                    (${unrealizedGainPct})
+                    ${unrealizedGainPct}
                 </td>
+                <td class="action-buttons hidden"></td>
             `;
             elements.securitiesTableBody.appendChild(row);
         });
+
+        // Reset edit mode
+        elements.editModeControls.classList.add('hidden');
+        document.querySelector('.edit-column').classList.add('hidden');
+        elements.editPortfolioBtn.textContent = 'Edit Portfolio';
+        editedSecurities.clear();
 
         elements.portfolioDetailsModal.style.display = "block";
     } catch (error) {
@@ -681,6 +702,135 @@ function setupFilePortfolioHandlers() {
     });
 }
 
+async function addNewSecurity() {
+    if (!selectedEditSecurity) {
+        showError("Please select a security first");
+        return;
+    }
+
+    const amount = parseFloat(elements.editAmountInput.value);
+    if (!amount || amount <= 0) {
+        showError("Please enter a valid amount");
+        return;
+    }
+
+    // Check for existing security with same ticker
+    const existingRows = elements.securitiesTableBody.querySelectorAll('tr');
+    for (const row of existingRows) {
+        const tickerCell = row.querySelector('td:nth-child(1)');
+        const existingTicker = tickerCell.textContent.match(/\((.*?)\)/)[1]; // Extract ticker from "(TICKER)"
+        if (existingTicker === selectedEditSecurity.symbol) {
+            showError(`${selectedEditSecurity.symbol} is already in this portfolio.`, true);
+            return;
+        }
+    }
+
+    try {
+        const stockData = await fetchStockData(selectedEditSecurity.symbol);
+        if (!stockData) {
+            throw new Error(`Could not fetch data for ${selectedEditSecurity.symbol}`);
+        }
+
+        const newSecurity = {
+            ticker: selectedEditSecurity.symbol,
+            name: selectedEditSecurity.name,
+            amount: amount,
+            current_price: stockData.currentPrice,
+            total_value: amount * stockData.currentPrice,
+            value_change: amount * (stockData.currentPrice - stockData.previousClose),
+            value_change_pct: ((stockData.currentPrice - stockData.previousClose) / stockData.previousClose) * 100,
+            unrealized_gain: 0,  // Will be calculated on the server
+            unrealized_gain_pct: 0
+        };
+
+        // Add new row to table
+        const row = document.createElement('tr');
+        row.dataset.securityId = 'new_' + Date.now(); // Temporary ID for new securities
+
+        row.innerHTML = `
+            <td>${newSecurity.name} (${newSecurity.ticker})</td>
+            <td>${newSecurity.amount}</td>
+            <td>${formatCurrency(newSecurity.current_price)}</td>
+            <td>${formatCurrency(newSecurity.total_value)}</td>
+            <td class="${newSecurity.value_change >= 0 ? 'positive' : 'negative'}">
+                ${formatCurrency(newSecurity.value_change)}
+                (${newSecurity.value_change_pct.toFixed(2)}%)
+            </td>
+            <td>N/A</td>
+            <td class="action-buttons">
+                <button class="delete-btn" onclick="removeNewSecurity(this)">Remove</button>
+            </td>
+        `;
+
+        elements.securitiesTableBody.appendChild(row);
+        editedSecurities.set(row.dataset.securityId, { new: true, ...newSecurity });
+
+        // Clear inputs
+        elements.editSearchStockInput.value = '';
+        elements.editAmountInput.value = '';
+        selectedEditSecurity = null;
+
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+function removeNewSecurity(button) {
+    const row = button.closest('tr');
+    const securityId = row.dataset.securityId;
+    editedSecurities.delete(securityId);
+    row.remove();
+}
+
+function handleEditSearchInput() {
+    const query = elements.editSearchStockInput.value.trim().toLowerCase();
+    elements.editSearchSuggestions.innerHTML = '';
+
+    if (query.length === 0) {
+        elements.editSearchSuggestions.classList.add('hidden');
+        return;
+    }
+
+    const filteredSecurities = securitiesData
+        .filter((security) => {
+            if (searchType === "ticker") {
+                return security.symbol.toLowerCase().startsWith(query);
+            } else {
+                return security.name.toLowerCase().includes(query);
+            }
+        })
+        .slice(0, 10);  // Limit to 10 suggestions
+
+    if (filteredSecurities.length === 0) {
+        elements.editSearchSuggestions.classList.add('hidden');
+        return;
+    }
+
+    filteredSecurities.forEach(security => {
+        const li = document.createElement('li');
+        li.textContent = `${security.symbol} - ${security.name}`;
+        li.addEventListener('click', () => {
+            selectedEditSecurity = security;
+            elements.editSearchStockInput.value = `${security.symbol} - ${security.name}`;
+            elements.editSearchSuggestions.classList.add('hidden');
+            elements.editAmountInput.focus();
+        });
+        elements.editSearchSuggestions.appendChild(li);
+    });
+
+    elements.editSearchSuggestions.classList.remove('hidden');
+}
+
+function handleEditSearchKeydown(e) {
+    const suggestions = elements.editSearchSuggestions.querySelectorAll('li');
+    if (suggestions.length === 0) return;
+
+    if (e.key === 'Enter' && suggestions.length === 1) {
+        e.preventDefault();
+        suggestions[0].click();
+    }
+}
+
 async function createPortfolioFromFile(portfolioName) {
     try {
         const createBtn = document.getElementById('createPortfolioBtn');
@@ -917,49 +1067,238 @@ function handleFileDrop(e) {
     elements.portfolioFileInput.dispatchEvent(new Event('change'));
 }
 
-// async function handlePortfolioCreation() {
-//     try {
-//         const createBtn = document.getElementById('createPortfolioBtn');
-//         const fileId = createBtn.dataset.fileId;
-//
-//         if (!fileId) {
-//             throw new Error('No file ID found');
-//         }
-//
-//         const csrfToken = document.cookie
-//             .split('; ')
-//             .find(row => row.startsWith('csrf_access_token='))
-//             ?.split('=')[1];
-//
-//         const response = await fetch(`/auth/create-portfolio-from-file/${fileId}`, {
-//             method: 'POST',
-//             headers: {
-//                 'Content-Type': 'application/json',
-//                 'X-CSRF-TOKEN': csrfToken
-//             },
-//             credentials: 'include'
-//         });
-//
-//         if (!response.ok) {
-//             throw new Error('Failed to create portfolio');
-//         }
-//
-//         const result = await response.json();
-//         showSuccess("Portfolio created successfully!");
-//         setTimeout(() => {
-//             location.reload();
-//         }, 1500);
-//
-//     } catch (error) {
-//         console.error('Error creating portfolio:', error);
-//         showError(error.message || "Failed to create portfolio");
-//     }
+function toggleEditMode(portfolioId) {
+    console.log('Toggling edit mode for portfolio:', portfolioId); // Debug log
+
+    const editColumn = document.querySelector('.edit-column');
+    const isEditMode = elements.editModeControls.classList.contains('hidden');
+
+    console.log('Current edit mode state:', !isEditMode); // Debug log
+
+    if (!editColumn) {
+        console.error('Edit column not found');
+        return;
+    }
+
+    elements.editModeControls.classList.toggle('hidden');
+    editColumn.classList.toggle('hidden');
+    elements.editPortfolioBtn.textContent = isEditMode ? 'Cancel Edit' : 'Edit Portfolio';
+
+    if (isEditMode) {
+        // Entering edit mode
+        currentPortfolio = portfolioId;
+        console.log('Entering edit mode for portfolio:', currentPortfolio); // Debug log
+        refreshPortfolioView(true);
+    } else {
+        // Exiting edit mode
+        console.log('Exiting edit mode'); // Debug log
+        editedSecurities.clear();
+        refreshPortfolioView(false);
+    }
+}
+
+function refreshPortfolioView(isEditMode) {
+    const securities = elements.securitiesTableBody.querySelectorAll('tr');
+    securities.forEach(row => {
+        const securityId = row.dataset.securityId;
+        if (isEditMode) {
+            // Add edit and delete buttons
+            const actionsCell = document.createElement('td');
+            actionsCell.className = 'action-buttons';
+            actionsCell.innerHTML = `
+                <button class="edit-btn" onclick="editSecurity('${securityId}')">Edit</button>
+                <button class="delete-btn" onclick="deleteSecurity('${securityId}')">Delete</button>
+            `;
+            row.appendChild(actionsCell);
+        } else {
+            // Remove action column
+            const actionsCell = row.querySelector('.action-buttons');
+            if (actionsCell) {
+                actionsCell.remove();
+            }
+        }
+    });
+
+document.addEventListener('click', (event) => {
+    if (!elements.editSearchStockInput?.contains(event.target) &&
+        !elements.editSearchSuggestions?.contains(event.target)) {
+        elements.editSearchSuggestions?.classList.add('hidden');
+    }
+});
+}
+
+async function editSecurity(securityId) {
+    const row = document.querySelector(`tr[data-security-id="${securityId}"]`);
+    const amountCell = row.querySelector('td:nth-child(2)');
+    const currentPriceCell = row.querySelector('td:nth-child(3)');
+    const totalValueCell = row.querySelector('td:nth-child(4)');
+    const valueChangeCell = row.querySelector('td:nth-child(5)');
+    const unrealizedGainCell = row.querySelector('td:nth-child(6)');
+
+    const currentAmount = parseFloat(amountCell.textContent);
+    const currentPrice = parseFloat(currentPriceCell.textContent.replace(/[^0-9.-]+/g, ''));
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.value = currentAmount;
+    input.className = 'edit-amount-input';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = 'Save';
+    saveBtn.className = 'edit-btn';
+    saveBtn.onclick = async () => {
+        const newAmount = parseFloat(input.value);
+        if (newAmount > 0) {
+            try {
+                // Get the ticker from the first cell
+                const ticker = row.querySelector('td:nth-child(1)').textContent.match(/\((.*?)\)/)[1];
+                const stockData = await fetchStockData(ticker);
+
+                if (stockData) {
+                    const newTotalValue = newAmount * stockData.currentPrice;
+                    const newValueChange = newAmount * (stockData.currentPrice - stockData.previousClose);
+                    const valueChangePct = ((stockData.currentPrice - stockData.previousClose) / stockData.previousClose) * 100;
+
+                    // Update amount
+                    amountCell.textContent = newAmount;
+
+                    // Update total value
+                    totalValueCell.textContent = formatCurrency(newTotalValue);
+
+                    // Update value change with percentage
+                    valueChangeCell.textContent = `${formatCurrency(newValueChange)} (${valueChangePct.toFixed(2)}%)`;
+                    valueChangeCell.className = newValueChange >= 0 ? 'positive' : 'negative';
+
+                    // Store the changes for saving
+                    editedSecurities.set(securityId, {
+                        amount: newAmount,
+                        total_value: newTotalValue,
+                        value_change: newValueChange,
+                        value_change_pct: valueChangePct
+                    });
+
+                    row.querySelector('.action-buttons').style.display = 'flex';
+                }
+            } catch (error) {
+                showError('Failed to update security: ' + error.message);
+            }
+        } else {
+            showError('Please enter a valid amount greater than 0');
+        }
+    };
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.className = 'delete-btn';
+    cancelBtn.onclick = () => {
+        amountCell.textContent = currentAmount;
+        row.querySelector('.action-buttons').style.display = 'flex';
+    };
+
+    amountCell.textContent = '';
+    amountCell.appendChild(input);
+    amountCell.appendChild(saveBtn);
+    amountCell.appendChild(cancelBtn);
+    row.querySelector('.action-buttons').style.display = 'none';
+}
+
+async function deleteSecurity(securityId) {
+    if (confirm('Are you sure you want to remove this security from the portfolio?')) {
+        editedSecurities.set(securityId, { deleted: true });
+        const row = document.querySelector(`tr[data-security-id="${securityId}"]`);
+        row.style.display = 'none';
+    }
+}
+
+async function savePortfolioChanges() {
+    try {
+        const changes = {
+            portfolio_id: currentPortfolio,
+            changes: Array.from(editedSecurities.entries()).map(([id, change]) => ({
+                security_id: id,
+                ...change
+            }))
+        };
+
+        const csrfToken = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrf_access_token='))
+            ?.split('=')[1];
+
+        const response = await fetch(`/auth/portfolio/${currentPortfolio}/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            },
+            body: JSON.stringify(changes),
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to save changes');
+        }
+
+        showSuccess('Portfolio updated successfully');
+        toggleEditMode(currentPortfolio);
+        loadPortfolioDetails(currentPortfolio);
+    } catch (error) {
+        showError('Failed to save changes: ' + error.message);
+    }
+}
+
+function setupPortfolioEditHandlers() {
+    console.log('Setting up portfolio edit handlers'); // Debug log
+
+    if (elements.editPortfolioBtn) {
+        elements.editPortfolioBtn.addEventListener('click', () => {
+            console.log('Edit button clicked'); // Debug log
+            console.log('Current portfolio:', currentPortfolio); // Debug log
+            toggleEditMode(currentPortfolio);
+        });
+    } else {
+        console.error('Edit portfolio button not found');
+    }
+
+    if (elements.cancelEditModeBtn) {
+        elements.cancelEditModeBtn.addEventListener('click', () => {
+            console.log('Cancel edit mode clicked'); // Debug log
+            toggleEditMode(currentPortfolio);
+        });
+    }
+
+    if (elements.savePortfolioChangesBtn) {
+        elements.savePortfolioChangesBtn.addEventListener('click', () => {
+            console.log('Save changes clicked'); // Debug log
+            savePortfolioChanges();
+        });
+    }
+
+    if (elements.editAddSecurityBtn && elements.editSearchStockInput) {
+        elements.editAddSecurityBtn.addEventListener('click', addNewSecurity);
+        elements.editSearchStockInput.addEventListener('input', handleEditSearchInput);
+        elements.editSearchStockInput.addEventListener('keydown', handleEditSearchKeydown);
+    }
+}
+
+// function showError(message) {
+//     elements.errorMessage.textContent = message;
+//     elements.errorModal.style.display = "block";
+//     elements.portfolioFileInput.value = '';
 // }
 
-function showError(message) {
-    elements.errorMessage.textContent = message;
-    elements.errorModal.style.display = "block";
-    elements.portfolioFileInput.value = '';
+function showError(message, isModalError = false) {
+    if (isModalError) {
+        const modalError = document.getElementById('portfolioModalError');
+        modalError.textContent = message;
+        modalError.classList.remove('hidden');
+        setTimeout(() => {
+            modalError.classList.add('hidden');
+        }, 3000);  // Hide after 3 seconds
+    } else {
+        elements.errorMessage.textContent = message;
+        elements.errorModal.style.display = "block";
+    }
 }
 
 function showSuccess(message) {
@@ -978,6 +1317,8 @@ function showSuccess(message) {
         setupFileUploadHandlers();
         setupPreviewHandlers();
         setupFilePortfolioHandlers();
+        setupPortfolioEditHandlers();
+
 
         // Search type radio buttons
         document.querySelectorAll('input[name="searchType"]').forEach(radio => {

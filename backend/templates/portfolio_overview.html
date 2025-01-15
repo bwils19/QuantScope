@@ -328,8 +328,31 @@
 <!-- Portfolio Details Modal -->
 <div id="portfolioDetailsModal" class="modal hidden">
     <div class="modal-content">
-        <span class="close" id="closePortfolioDetailsModal">&times;</span>
-        <h3>Portfolio Details</h3>
+        <div class="modal-header">
+            <h3>Portfolio Details</h3>
+            <div class="modal-actions">
+                <button id="editPortfolioBtn" class="btn-secondary">Edit Portfolio</button>
+                <span class="close" id="closePortfolioDetailsModal">&times;</span>
+            </div>
+        </div>
+        <div id="portfolioModalError" class="portfolio-modal-error hidden"></div>
+
+        <!-- Edit Mode Controls (hidden by default) -->
+        <div id="editModeControls" class="edit-mode-controls hidden">
+            <div class="add-security-section">
+                <div class="search-container">
+                    <input type="text" id="editSearchStockInput" class="input-box" placeholder="Search for a security...">
+                    <ul id="editSearchSuggestions" class="search-suggestions hidden"></ul>
+                </div>
+                <input type="number" id="editAmountInput" class="input-box" placeholder="Amount">
+                <button id="editAddSecurityBtn" class="btn-primary">Add Security</button>
+            </div>
+            <div class="edit-mode-buttons">
+                <button id="savePortfolioChangesBtn" class="btn-primary">Save Changes</button>
+                <button id="cancelEditModeBtn" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+
         <div class="portfolio-securities">
             <table class="securities-table">
                 <thead>
@@ -340,6 +363,7 @@
                         <th>Total Value</th>
                         <th>Day Change</th>
                         <th>Unrealized G/L</th>
+                        <th class="edit-column hidden">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="securitiesTableBody">
@@ -348,6 +372,7 @@
             </table>
         </div>
     </div>
+</div>
 </div>
 
 <script src="{{ url_for('static', filename='js/portfolio_overview.js') }}"></script>
