@@ -813,30 +813,76 @@ def update_portfolio(portfolio_id):
 
         for change in changes:
             security_id = change.get('security_id')
+
+            # Handle existing securities
             security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
+            if security:
+                if change.get('deleted'):
+                    db.session.delete(security)
+                elif 'amount' in change:
+                    new_amount = float(change['amount'])
+                    security.amount_owned = new_amount
 
-            if not security:
-                continue
+                    # Safe calculations with None checks
+                    current_price = security.current_price or 0
+                    purchase_price = security.purchase_price or current_price
 
-            if change.get('deleted'):
-                db.session.delete(security)
-            elif 'amount' in change:
-                security.amount_owned = change['amount']
-                security.total_value = security.amount_owned * security.current_price
-                security.unrealized_gain = security.total_value - (security.amount_owned * security.purchase_price)
-                security.unrealized_gain_pct = ((security.total_value / (
-                            security.amount_owned * security.purchase_price)) - 1) * 100
+                    security.total_value = new_amount * current_price
+                    security.value_change = new_amount * (current_price - purchase_price)
+
+                    # Avoid division by zero or None values
+                    if purchase_price != 0:
+                        security.value_change_pct = ((current_price - purchase_price) / purchase_price) * 100
+                    else:
+                        security.value_change_pct = 0
+
+                    security.unrealized_gain = security.total_value - (new_amount * purchase_price)
+
+                    # Avoid division by zero
+                    if (new_amount * purchase_price) != 0:
+                        security.unrealized_gain_pct = ((security.total_value / (
+                                    new_amount * purchase_price)) - 1) * 100
+                    else:
+                        security.unrealized_gain_pct = 0
 
         # Update portfolio totals
         securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
-        portfolio.total_value = sum(s.total_value for s in securities)
+
+        # Calculate totals with None checks
+        portfolio.total_value = sum((s.total_value or 0) for s in securities)
+        portfolio.day_change = sum((s.value_change or 0) for s in securities)
+
+        # Safe percentage calculation
+        base_value = portfolio.total_value - portfolio.day_change
+        if base_value and base_value != 0:
+            portfolio.day_change_pct = (portfolio.day_change / base_value) * 100
+        else:
+            portfolio.day_change_pct = 0
+
+        portfolio.unrealized_gain = sum((s.unrealized_gain or 0) for s in securities)
+
+        # Safe total cost calculation
+        total_cost = sum((s.amount_owned or 0) * (s.purchase_price or 0) for s in securities)
+        if total_cost and total_cost != 0:
+            portfolio.unrealized_gain_pct = ((portfolio.total_value / total_cost) - 1) * 100
+        else:
+            portfolio.unrealized_gain_pct = 0
+
         portfolio.total_holdings = len(securities)
-        portfolio.day_change = sum(s.value_change for s in securities)
-        portfolio.unrealized_gain = sum(s.unrealized_gain for s in securities)
 
         db.session.commit()
-        return jsonify({"message": "Portfolio updated successfully"}), 200
+        return jsonify({
+            "message": "Portfolio updated successfully",
+            "portfolio_id": portfolio_id,
+            "total_value": portfolio.total_value,
+            "total_holdings": portfolio.total_holdings,
+            "day_change": portfolio.day_change,
+            "day_change_pct": portfolio.day_change_pct,
+            "unrealized_gain": portfolio.unrealized_gain,
+            "unrealized_gain_pct": portfolio.unrealized_gain_pct
+        }), 200
 
     except Exception as e:
+        print(f"Error in update_portfolio: {str(e)}")
         db.session.rollback()
         return jsonify({"message": f"Failed to update portfolio: {str(e)}"}), 500

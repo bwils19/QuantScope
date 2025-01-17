@@ -402,13 +402,13 @@ function handleSearchKeydown(e) {
 
 async function addStock() {
     if (!selectedSecurity) {
-        alert("Please select a security first.");
+        showError("Please select a security first.", "newPortfolioModal");
         return;
     }
 
     const amount = parseFloat(elements.amountInput.value.trim());
     if (!amount || amount <= 0) {
-        alert("Please enter a valid amount.");
+        showError("Please enter a valid amount.", "newPortfolioModal");
         return;
     }
 
@@ -1241,12 +1241,48 @@ async function savePortfolioChanges() {
             throw new Error('Failed to save changes');
         }
 
+        const updatedData = await response.json();
+
+        // Update the portfolio card in the overview
+        const portfolioCard = document.querySelector(`.portfolio-item[data-id="${currentPortfolio}"]`);
+        if (portfolioCard) {
+            // Update total value
+            const totalValueElement = portfolioCard.querySelector('.metric-value:nth-child(2)');
+            if (totalValueElement) {
+                totalValueElement.textContent = formatCurrency(updatedData.total_value);
+            }
+
+            // Update holdings count
+            const holdingsElement = portfolioCard.querySelector('.metric-value:first-child');
+            if (holdingsElement) {
+                holdingsElement.textContent = updatedData.total_holdings;
+            }
+
+            // Update day change
+            const dayChangeElement = portfolioCard.querySelector('.metric-value:nth-child(3)');
+            if (dayChangeElement) {
+                const changeClass = updatedData.day_change >= 0 ? 'positive' : 'negative';
+                dayChangeElement.className = `metric-value ${changeClass}`;
+                dayChangeElement.textContent = `${formatCurrency(updatedData.day_change)} (${updatedData.day_change_pct.toFixed(2)}%)`;
+            }
+
+            // Update unrealized gain/loss
+            const unrealizedElement = portfolioCard.querySelector('.metric-value:nth-child(4)');
+            if (unrealizedElement) {
+                const gainClass = updatedData.unrealized_gain >= 0 ? 'positive' : 'negative';
+                unrealizedElement.className = `metric-value ${gainClass}`;
+                unrealizedElement.textContent = `${formatCurrency(updatedData.unrealized_gain)} (${updatedData.unrealized_gain_pct.toFixed(2)}%)`;
+            }
+        }
+
         showSuccess('Portfolio updated successfully');
         toggleEditMode(currentPortfolio);
-        loadPortfolioDetails(currentPortfolio);
+        await loadPortfolioDetails(currentPortfolio);
+
     } catch (error) {
-        showError('Failed to save changes: ' + error.message);
+        showError('Failed to save changes: ' + error.message, 'portfolioDetailsModal');
     }
+
 }
 
 function setupPortfolioEditHandlers() {
@@ -1289,33 +1325,42 @@ function setupPortfolioEditHandlers() {
 //     elements.portfolioFileInput.value = '';
 // }
 
-function showError(message, isModalError = false) {
-    console.log('Showing error:', { message, isModalError });
+function addErrorDisplay() {
+    // Add to manual portfolio section
+    const manualSection = document.getElementById('manualPortfolioSection');
+    if (!manualSection.querySelector('.modal-error')) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'modal-error hidden';
+        manualSection.insertBefore(errorDiv, manualSection.firstChild);
+    }
 
-    if (isModalError) {
-        const modalError = document.getElementById('portfolioModalError');
-        if (!modalError) {
-            console.error('Portfolio modal error element not found!');
-            // Fallback to regular error modal
-            elements.errorMessage.textContent = message;
-            elements.errorModal.style.display = "block";
+    // Add to portfolio details modal
+    const portfolioDetails = document.getElementById('portfolioDetailsModal');
+    if (!portfolioDetails.querySelector('.modal-error')) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'modal-error hidden';
+        const modalContent = portfolioDetails.querySelector('.modal-content');
+        modalContent.insertBefore(errorDiv, modalContent.firstChild);
+    }
+}
+
+
+function showError(message, modalId = null) {
+    if (modalId) {
+        const modalErrorDiv = document.querySelector(`#${modalId} .modal-error`);
+        if (modalErrorDiv) {
+            modalErrorDiv.textContent = message;
+            modalErrorDiv.classList.remove('hidden');
+            setTimeout(() => {
+                modalErrorDiv.classList.add('hidden');
+            }, 3000);
             return;
         }
-
-        console.log('Showing modal error message');
-        modalError.textContent = message;
-        modalError.classList.remove('hidden');
-        modalError.style.display = 'block';
-
-        setTimeout(() => {
-            modalError.classList.add('hidden');
-            modalError.style.display = 'none';
-        }, 3000);
-    } else {
-        console.log('Showing regular error modal');
-        elements.errorMessage.textContent = message;
-        elements.errorModal.style.display = "block";
     }
+
+    // Fallback to original error modal if no modal specified
+    elements.errorMessage.textContent = message;
+    elements.errorModal.style.display = "block";
 }
 
 function showSuccess(message) {
