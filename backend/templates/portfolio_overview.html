@@ -101,6 +101,7 @@
 
 <div id="newPortfolioModal" class="modal hidden">
     <div class="modal-content">
+        <div id="modalErrorMessage" class="modal-error-message hidden"></div>
         <span class="close" id="closeModal">&times;</span>
         <h3>Create New Portfolio</h3>
         <div class="options">
@@ -120,6 +121,7 @@
 
         <!-- Manual Portfolio Section -->
         <div id="manualPortfolioSection" class="hidden">
+            <div class="modal-error-message hidden"></div>
             <h4>Add Securities Manually</h4>
 
             <!-- Search Type Toggle -->
@@ -328,6 +330,7 @@
 <!-- Portfolio Details Modal -->
 <div id="portfolioDetailsModal" class="modal hidden">
     <div class="modal-content">
+        <div id="portfolioModalError" class="portfolio-modal-error hidden"></div>
         <div class="modal-header">
             <h3>Portfolio Details</h3>
             <div class="modal-actions">
@@ -335,13 +338,13 @@
                 <span class="close" id="closePortfolioDetailsModal">&times;</span>
             </div>
         </div>
-        <div id="portfolioModalError" class="portfolio-modal-error hidden"></div>
 
         <!-- Edit Mode Controls (hidden by default) -->
         <div id="editModeControls" class="edit-mode-controls hidden">
             <div class="add-security-section">
                 <div class="search-container">
-                    <input type="text" id="editSearchStockInput" class="input-box" placeholder="Search for a security...">
+                    <input type="text" id="editSearchStockInput" class="input-box" placeholder="Search for a security..."
+                    autocomplete="off">
                     <ul id="editSearchSuggestions" class="search-suggestions hidden"></ul>
                 </div>
                 <input type="number" id="editAmountInput" class="input-box" placeholder="Amount">

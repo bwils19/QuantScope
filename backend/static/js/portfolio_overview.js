@@ -706,13 +706,13 @@ async function addNewSecurity() {
     console.log('Starting addNewSecurity...');
 
     if (!selectedEditSecurity) {
-        showError("Please select a security first");
+        showError("Please select a security first","portfolioDetailsModal");
         return;
     }
 
     const amount = parseFloat(elements.editAmountInput.value);
     if (!amount || amount <= 0) {
-        showError("Please enter a valid amount");
+        showError("Please enter a valid amount", "portfolioDetailsModal");
         return;
     }
 
@@ -720,9 +720,14 @@ async function addNewSecurity() {
     const existingRows = elements.securitiesTableBody.querySelectorAll('tr');
     for (const row of existingRows) {
         const tickerCell = row.querySelector('td:nth-child(1)');
-        const existingTicker = tickerCell.textContent.match(/\((.*?)\)/)[1]; // Extract ticker from "(TICKER)"
-        if (existingTicker === selectedEditSecurity.symbol) {
-            showError(`${selectedEditSecurity.symbol} is already in this portfolio.`, true);
+        if (!tickerCell) continue;
+
+        const match = tickerCell.textContent.match(/\((.*?)\)/);
+        if (match && match[1] === selectedEditSecurity.symbol) {
+            showError(`${selectedEditSecurity.symbol} is already in this portfolio`, "portfolioDetailsModal");
+            elements.editSearchStockInput.value = '';
+            elements.editAmountInput.value = '';
+            selectedEditSecurity = null;
             return;
         }
     }
@@ -1242,47 +1247,61 @@ async function savePortfolioChanges() {
         }
 
         const updatedData = await response.json();
+        console.log('Updated data received:', updatedData);
 
-        // Update the portfolio card in the overview
-        const portfolioCard = document.querySelector(`.portfolio-item[data-id="${currentPortfolio}"]`);
-        if (portfolioCard) {
-            // Update total value
-            const totalValueElement = portfolioCard.querySelector('.metric-value:nth-child(2)');
-            if (totalValueElement) {
-                totalValueElement.textContent = formatCurrency(updatedData.total_value);
-            }
+        // Update the portfolio card
+        updatePortfolioCard(updatedData);
 
-            // Update holdings count
-            const holdingsElement = portfolioCard.querySelector('.metric-value:first-child');
-            if (holdingsElement) {
-                holdingsElement.textContent = updatedData.total_holdings;
-            }
+        // Close the modal
+        elements.portfolioDetailsModal.style.display = "none";
 
-            // Update day change
-            const dayChangeElement = portfolioCard.querySelector('.metric-value:nth-child(3)');
-            if (dayChangeElement) {
-                const changeClass = updatedData.day_change >= 0 ? 'positive' : 'negative';
-                dayChangeElement.className = `metric-value ${changeClass}`;
-                dayChangeElement.textContent = `${formatCurrency(updatedData.day_change)} (${updatedData.day_change_pct.toFixed(2)}%)`;
-            }
-
-            // Update unrealized gain/loss
-            const unrealizedElement = portfolioCard.querySelector('.metric-value:nth-child(4)');
-            if (unrealizedElement) {
-                const gainClass = updatedData.unrealized_gain >= 0 ? 'positive' : 'negative';
-                unrealizedElement.className = `metric-value ${gainClass}`;
-                unrealizedElement.textContent = `${formatCurrency(updatedData.unrealized_gain)} (${updatedData.unrealized_gain_pct.toFixed(2)}%)`;
-            }
-        }
-
+        // Show success message
         showSuccess('Portfolio updated successfully');
-        toggleEditMode(currentPortfolio);
-        await loadPortfolioDetails(currentPortfolio);
+
+        // Refresh the page after a short delay
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
 
     } catch (error) {
-        showError('Failed to save changes: ' + error.message, 'portfolioDetailsModal');
+        console.error('Save error:', error);
+        showError('Failed to save changes: ' + error.message);
+    }
+}
+
+function updatePortfolioCard(data) {
+    const portfolioCard = document.querySelector(`.portfolio-item[data-id="${data.portfolio_id}"]`);
+    if (!portfolioCard) {
+        console.error('Portfolio card not found:', data.portfolio_id);
+        return;
     }
 
+    // Find and update all metrics
+    const metrics = portfolioCard.querySelectorAll('.metric-item');
+
+    metrics.forEach(metric => {
+        const label = metric.querySelector('.metric-label');
+        const value = metric.querySelector('.metric-value');
+
+        if (!label || !value) return;
+
+        const labelText = label.textContent.trim().toLowerCase();
+
+        if (labelText === 'holdings') {
+            value.textContent = data.total_holdings;
+        }
+        else if (labelText === 'total value') {
+            value.textContent = formatCurrency(data.total_value);
+        }
+        else if (labelText === 'day change') {
+            value.className = `metric-value ${data.day_change >= 0 ? 'positive' : 'negative'}`;
+            value.textContent = `${formatCurrency(data.day_change)} (${data.day_change_pct.toFixed(2)}%)`;
+        }
+        else if (labelText === 'unrealized gain/loss') {
+            value.className = `metric-value ${data.unrealized_gain >= 0 ? 'positive' : 'negative'}`;
+            value.textContent = `${formatCurrency(data.unrealized_gain)} (${data.unrealized_gain_pct.toFixed(2)}%)`;
+        }
+    });
 }
 
 function setupPortfolioEditHandlers() {
@@ -1346,19 +1365,22 @@ function addErrorDisplay() {
 
 
 function showError(message, modalId = null) {
+    console.log('Showing error:', { message, modalId });
+
     if (modalId) {
-        const modalErrorDiv = document.querySelector(`#${modalId} .modal-error`);
-        if (modalErrorDiv) {
-            modalErrorDiv.textContent = message;
-            modalErrorDiv.classList.remove('hidden');
+        const modalError = document.getElementById('portfolioModalError');
+        if (modalError) {
+            modalError.textContent = message;
+            modalError.classList.remove('hidden');
+            // Hide the error after 3 seconds
             setTimeout(() => {
-                modalErrorDiv.classList.add('hidden');
+                modalError.classList.add('hidden');
             }, 3000);
             return;
         }
     }
 
-    // Fallback to original error modal if no modal specified
+    // Fallback to regular error modal
     elements.errorMessage.textContent = message;
     elements.errorModal.style.display = "block";
 }

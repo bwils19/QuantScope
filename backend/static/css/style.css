@@ -1454,25 +1454,38 @@ button:hover {
 .edit-mode-controls {
     margin-bottom: 20px;
     padding: 15px;
-    background-color: #f8f9fa;
+    background-color: #fff;  /* Match the background color */
     border-radius: 4px;
 }
 
 .add-security-section {
     display: flex;
+    align-items: flex-start;
     gap: 10px;
     margin-bottom: 15px;
 }
 
 .search-container {
+    width: 300px;  /* Match the width of the manual creation search box */
     position: relative;
-    flex: 1;
 }
+
+/*???????*/
+#editSearchStockInput {
+    width: 100%;
+    height: 40px;
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
 
 .edit-mode-buttons {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
+    margin-top: 20px;
 }
 
 .edit-column {
@@ -1529,9 +1542,57 @@ button:hover {
     margin: 10px 0;
     border-radius: 4px;
     border: 1px solid #D64045;
+    text-align: center;
+    font-size: 14px;
+}
+
+.portfolio-modal-error.hidden {
     display: none;
 }
 
 .portfolio-modal-error.show {
     display: block;
 }
+
+.modal-error-message {
+    background-color: #fee2e2;
+    border: 1px solid #ef4444;
+    color: #991b1b;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.modal-error-message.hidden {
+    display: none;
+}
+
+#editAmountInput {
+    width: 200px;  /* Match the width of the manual creation amount input */
+    height: 40px;
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    -moz-appearance: textfield;
+}
+
+#editAddSecurityBtn {
+    height: 40px;
+    padding: 0 20px;
+    background-color: #6C7D93;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+#editAmountInput::-webkit-outer-spin-button,
+#editAmountInput::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
