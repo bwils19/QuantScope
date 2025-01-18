@@ -1247,15 +1247,16 @@ async function savePortfolioChanges() {
         if (!response.ok) {
             throw new Error('Failed to save changes');
         }
+        elements.portfolioDetailsModal.style.display = "none";
+
 
         // Show success message first
         showSuccess('Portfolio updated successfully');
 
-        // Close the modal
-        elements.portfolioDetailsModal.style.display = "none";
-
-        // Force a complete page refresh to ensure we get fresh data
-        window.location.href = window.location.href.split('#')[0];
+        // Wait for success message to be visible before reloading
+        setTimeout(() => {
+            window.location.href = window.location.href.split('#')[0];
+        }, 2000);  // Increased to 2 seconds to ensure message is visible
 
     } catch (error) {
         console.error('Save error:', error);

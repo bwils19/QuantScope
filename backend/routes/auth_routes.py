@@ -852,13 +852,30 @@ def update_portfolio(portfolio_id):
         portfolio.day_change = sum((s.value_change or 0) for s in securities)
         portfolio.total_holdings = len(securities)
 
-        # Update other portfolio metrics...
+        # Safe percentage calculation for day change
+        base_value = portfolio.total_value - portfolio.day_change
+        if base_value and base_value != 0:
+            portfolio.day_change_pct = (portfolio.day_change / base_value) * 100
+        else:
+            portfolio.day_change_pct = 0
+
+        portfolio.unrealized_gain = sum((s.unrealized_gain or 0) for s in securities)
+
+        # Safe total cost calculation
+        total_cost = sum((s.amount_owned or 0) * (s.purchase_price or 0) for s in securities)
+        if total_cost and total_cost != 0:
+            portfolio.unrealized_gain_pct = ((portfolio.total_value / total_cost) - 1) * 100
+        else:
+            portfolio.unrealized_gain_pct = 0
 
         db.session.commit()
         print("Updated portfolio values:", {
             "total_value": portfolio.total_value,
             "total_holdings": portfolio.total_holdings,
-            "day_change": portfolio.day_change
+            "day_change": portfolio.day_change,
+            "day_change_pct": portfolio.day_change_pct,  # Added
+            "unrealized_gain": portfolio.unrealized_gain,  # Added
+            "unrealized_gain_pct": portfolio.unrealized_gain_pct  # Added
         })
 
         return jsonify({
