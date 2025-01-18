@@ -151,6 +151,8 @@ async function fetchStockData(symbol) {
 }
 
 function setupPortfolioActions() {
+    console.log('Setting up portfolio actions');
+    console.log('Found view buttons:', document.querySelectorAll('.view-portfolio-btn').length);
     // Setup delete buttons
     document.querySelectorAll('.delete-portfolio-btn').forEach(button => {
         button.addEventListener('click', (e) => {
@@ -1246,22 +1248,14 @@ async function savePortfolioChanges() {
             throw new Error('Failed to save changes');
         }
 
-        const updatedData = await response.json();
-        console.log('Updated data received:', updatedData);
-
-        // Update the portfolio card
-        updatePortfolioCard(updatedData);
+        // Show success message first
+        showSuccess('Portfolio updated successfully');
 
         // Close the modal
         elements.portfolioDetailsModal.style.display = "none";
 
-        // Show success message
-        showSuccess('Portfolio updated successfully');
-
-        // Refresh the page after a short delay
-        setTimeout(() => {
-            window.location.reload();
-        }, 1500);
+        // Force a complete page refresh to ensure we get fresh data
+        window.location.href = window.location.href.split('#')[0];
 
     } catch (error) {
         console.error('Save error:', error);
@@ -1269,74 +1263,39 @@ async function savePortfolioChanges() {
     }
 }
 
-function updatePortfolioCard(data) {
-    const portfolioCard = document.querySelector(`.portfolio-item[data-id="${data.portfolio_id}"]`);
-    if (!portfolioCard) {
-        console.error('Portfolio card not found:', data.portfolio_id);
-        return;
-    }
+    function setupPortfolioEditHandlers() {
+        console.log('Setting up portfolio edit handlers'); // Debug log
 
-    // Find and update all metrics
-    const metrics = portfolioCard.querySelectorAll('.metric-item');
-
-    metrics.forEach(metric => {
-        const label = metric.querySelector('.metric-label');
-        const value = metric.querySelector('.metric-value');
-
-        if (!label || !value) return;
-
-        const labelText = label.textContent.trim().toLowerCase();
-
-        if (labelText === 'holdings') {
-            value.textContent = data.total_holdings;
+        if (elements.editPortfolioBtn) {
+            elements.editPortfolioBtn.addEventListener('click', () => {
+                console.log('Edit button clicked'); // Debug log
+                console.log('Current portfolio:', currentPortfolio); // Debug log
+                toggleEditMode(currentPortfolio);
+            });
+        } else {
+            console.error('Edit portfolio button not found');
         }
-        else if (labelText === 'total value') {
-            value.textContent = formatCurrency(data.total_value);
+
+        if (elements.cancelEditModeBtn) {
+            elements.cancelEditModeBtn.addEventListener('click', () => {
+                console.log('Cancel edit mode clicked'); // Debug log
+                toggleEditMode(currentPortfolio);
+            });
         }
-        else if (labelText === 'day change') {
-            value.className = `metric-value ${data.day_change >= 0 ? 'positive' : 'negative'}`;
-            value.textContent = `${formatCurrency(data.day_change)} (${data.day_change_pct.toFixed(2)}%)`;
+
+        if (elements.savePortfolioChangesBtn) {
+            elements.savePortfolioChangesBtn.addEventListener('click', () => {
+                console.log('Save changes clicked'); // Debug log
+                savePortfolioChanges();
+            });
         }
-        else if (labelText === 'unrealized gain/loss') {
-            value.className = `metric-value ${data.unrealized_gain >= 0 ? 'positive' : 'negative'}`;
-            value.textContent = `${formatCurrency(data.unrealized_gain)} (${data.unrealized_gain_pct.toFixed(2)}%)`;
+
+        if (elements.editAddSecurityBtn && elements.editSearchStockInput) {
+            elements.editAddSecurityBtn.addEventListener('click', addNewSecurity);
+            elements.editSearchStockInput.addEventListener('input', handleEditSearchInput);
+            elements.editSearchStockInput.addEventListener('keydown', handleEditSearchKeydown);
         }
-    });
-}
-
-function setupPortfolioEditHandlers() {
-    console.log('Setting up portfolio edit handlers'); // Debug log
-
-    if (elements.editPortfolioBtn) {
-        elements.editPortfolioBtn.addEventListener('click', () => {
-            console.log('Edit button clicked'); // Debug log
-            console.log('Current portfolio:', currentPortfolio); // Debug log
-            toggleEditMode(currentPortfolio);
-        });
-    } else {
-        console.error('Edit portfolio button not found');
     }
-
-    if (elements.cancelEditModeBtn) {
-        elements.cancelEditModeBtn.addEventListener('click', () => {
-            console.log('Cancel edit mode clicked'); // Debug log
-            toggleEditMode(currentPortfolio);
-        });
-    }
-
-    if (elements.savePortfolioChangesBtn) {
-        elements.savePortfolioChangesBtn.addEventListener('click', () => {
-            console.log('Save changes clicked'); // Debug log
-            savePortfolioChanges();
-        });
-    }
-
-    if (elements.editAddSecurityBtn && elements.editSearchStockInput) {
-        elements.editAddSecurityBtn.addEventListener('click', addNewSecurity);
-        elements.editSearchStockInput.addEventListener('input', handleEditSearchInput);
-        elements.editSearchStockInput.addEventListener('keydown', handleEditSearchKeydown);
-    }
-}
 
 // function showError(message) {
 //     elements.errorMessage.textContent = message;
@@ -1344,51 +1303,51 @@ function setupPortfolioEditHandlers() {
 //     elements.portfolioFileInput.value = '';
 // }
 
-function addErrorDisplay() {
-    // Add to manual portfolio section
-    const manualSection = document.getElementById('manualPortfolioSection');
-    if (!manualSection.querySelector('.modal-error')) {
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'modal-error hidden';
-        manualSection.insertBefore(errorDiv, manualSection.firstChild);
-    }
+    function addErrorDisplay() {
+        // Add to manual portfolio section
+        const manualSection = document.getElementById('manualPortfolioSection');
+        if (!manualSection.querySelector('.modal-error')) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'modal-error hidden';
+            manualSection.insertBefore(errorDiv, manualSection.firstChild);
+        }
 
-    // Add to portfolio details modal
-    const portfolioDetails = document.getElementById('portfolioDetailsModal');
-    if (!portfolioDetails.querySelector('.modal-error')) {
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'modal-error hidden';
-        const modalContent = portfolioDetails.querySelector('.modal-content');
-        modalContent.insertBefore(errorDiv, modalContent.firstChild);
-    }
-}
-
-
-function showError(message, modalId = null) {
-    console.log('Showing error:', { message, modalId });
-
-    if (modalId) {
-        const modalError = document.getElementById('portfolioModalError');
-        if (modalError) {
-            modalError.textContent = message;
-            modalError.classList.remove('hidden');
-            // Hide the error after 3 seconds
-            setTimeout(() => {
-                modalError.classList.add('hidden');
-            }, 3000);
-            return;
+        // Add to portfolio details modal
+        const portfolioDetails = document.getElementById('portfolioDetailsModal');
+        if (!portfolioDetails.querySelector('.modal-error')) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'modal-error hidden';
+            const modalContent = portfolioDetails.querySelector('.modal-content');
+            modalContent.insertBefore(errorDiv, modalContent.firstChild);
         }
     }
 
-    // Fallback to regular error modal
-    elements.errorMessage.textContent = message;
-    elements.errorModal.style.display = "block";
-}
 
-function showSuccess(message) {
-    elements.successMessage.textContent = message;
-    elements.successModal.style.display = "block";
-}
+    function showError(message, modalId = null) {
+        console.log('Showing error:', {message, modalId});
+
+        if (modalId) {
+            const modalError = document.getElementById('portfolioModalError');
+            if (modalError) {
+                modalError.textContent = message;
+                modalError.classList.remove('hidden');
+                // Hide the error after 3 seconds
+                setTimeout(() => {
+                    modalError.classList.add('hidden');
+                }, 3000);
+                return;
+            }
+        }
+
+        // Fallback to regular error modal
+        elements.errorMessage.textContent = message;
+        elements.errorModal.style.display = "block";
+    }
+
+    function showSuccess(message) {
+        elements.successMessage.textContent = message;
+        elements.successModal.style.display = "block";
+    }
 
     function setupEventListeners() {
         // Search input handlers
@@ -1607,6 +1566,7 @@ function showSuccess(message) {
             elements.errorMessage.textContent = "Failed to initialize application";
             elements.errorModal.style.display = "block";
         }
-}
+    }
+
 // Start the application when DOM is ready
-document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", init);
