@@ -151,8 +151,7 @@ async function fetchStockData(symbol) {
 }
 
 function setupPortfolioActions() {
-    console.log('Setting up portfolio actions');
-    console.log('Found view buttons:', document.querySelectorAll('.view-portfolio-btn').length);
+
     // Setup delete buttons
     document.querySelectorAll('.delete-portfolio-btn').forEach(button => {
         button.addEventListener('click', (e) => {
@@ -226,6 +225,101 @@ function setupPortfolioActions() {
             elements.portfolioDetailsModal.style.display = "none";
         }
     });
+    document.querySelectorAll('.rename-portfolio-btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const portfolioId = e.target.dataset.id;
+            const portfolioCard = e.target.closest('.portfolio-item');
+            const titleElement = portfolioCard.querySelector('h4');
+            const currentName = titleElement.textContent;
+
+            // Create input field
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentName;
+            input.className = 'rename-input';
+
+            // Create save and cancel buttons
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'Save';
+            saveBtn.className = 'rename-save-btn';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.className = 'rename-cancel-btn';
+
+            // Create container for the input and buttons
+            const container = document.createElement('div');
+            container.className = 'rename-container';
+            container.appendChild(input);
+            container.appendChild(saveBtn);
+            container.appendChild(cancelBtn);
+
+            // Replace title with input
+            titleElement.replaceWith(container);
+            input.focus();
+            input.select();
+
+            // Handle save
+            saveBtn.addEventListener('click', async () => {
+                const newName = input.value.trim();
+                if (newName && newName !== currentName) {
+                    try {
+                        await renamePortfolio(portfolioId, newName);
+                        titleElement.textContent = newName;
+                        container.replaceWith(titleElement);
+                        showSuccess('Portfolio renamed successfully');
+                    } catch (error) {
+                        showError('Failed to rename portfolio: ' + error.message);
+                    }
+                } else {
+                    container.replaceWith(titleElement);
+                }
+            });
+
+            // Handle cancel
+            cancelBtn.addEventListener('click', () => {
+                container.replaceWith(titleElement);
+            });
+
+            // Handle Enter key
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    saveBtn.click();
+                }
+            });
+
+            // Handle Escape key
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    cancelBtn.click();
+                }
+            });
+        });
+    });
+}
+
+async function renamePortfolio(portfolioId, newName) {
+    const csrfToken = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('csrf_access_token='))
+        ?.split('=')[1];
+
+    const response = await fetch(`/auth/portfolio/${portfolioId}/rename`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken
+        },
+        body: JSON.stringify({ name: newName }),
+        credentials: 'include'
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to rename portfolio');
+    }
+
+    return response.json();
 }
 
 async function loadPortfolioDetails(portfolioId) {
@@ -1248,15 +1342,10 @@ async function savePortfolioChanges() {
             throw new Error('Failed to save changes');
         }
         elements.portfolioDetailsModal.style.display = "none";
-
-
-        // Show success message first
         showSuccess('Portfolio updated successfully');
-
-        // Wait for success message to be visible before reloading
         setTimeout(() => {
             window.location.href = window.location.href.split('#')[0];
-        }, 2000);  // Increased to 2 seconds to ensure message is visible
+        }, 2000);
 
     } catch (error) {
         console.error('Save error:', error);
@@ -1265,12 +1354,8 @@ async function savePortfolioChanges() {
 }
 
     function setupPortfolioEditHandlers() {
-        console.log('Setting up portfolio edit handlers'); // Debug log
-
         if (elements.editPortfolioBtn) {
             elements.editPortfolioBtn.addEventListener('click', () => {
-                console.log('Edit button clicked'); // Debug log
-                console.log('Current portfolio:', currentPortfolio); // Debug log
                 toggleEditMode(currentPortfolio);
             });
         } else {
@@ -1279,14 +1364,12 @@ async function savePortfolioChanges() {
 
         if (elements.cancelEditModeBtn) {
             elements.cancelEditModeBtn.addEventListener('click', () => {
-                console.log('Cancel edit mode clicked'); // Debug log
                 toggleEditMode(currentPortfolio);
             });
         }
 
         if (elements.savePortfolioChangesBtn) {
             elements.savePortfolioChangesBtn.addEventListener('click', () => {
-                console.log('Save changes clicked'); // Debug log
                 savePortfolioChanges();
             });
         }
@@ -1297,12 +1380,6 @@ async function savePortfolioChanges() {
             elements.editSearchStockInput.addEventListener('keydown', handleEditSearchKeydown);
         }
     }
-
-// function showError(message) {
-//     elements.errorMessage.textContent = message;
-//     elements.errorModal.style.display = "block";
-//     elements.portfolioFileInput.value = '';
-// }
 
     function addErrorDisplay() {
         // Add to manual portfolio section

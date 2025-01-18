@@ -894,3 +894,36 @@ def update_portfolio(portfolio_id):
         db.session.rollback()
         return jsonify({"message": f"Failed to update portfolio: {str(e)}"}), 500
 
+
+@auth_blueprint.route('/portfolio/<int:portfolio_id>/rename', methods=['POST'])
+@jwt_required(locations=["cookies"])
+def rename_portfolio(portfolio_id):
+    try:
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        portfolio = Portfolio.query.filter_by(id=portfolio_id, user_id=user.id).first()
+        if not portfolio:
+            return jsonify({"message": "Portfolio not found"}), 404
+
+        data = request.get_json()
+        new_name = data.get('name', '').strip()
+
+        if not new_name:
+            return jsonify({"message": "Portfolio name cannot be empty"}), 400
+
+        portfolio.name = new_name
+        db.session.commit()
+
+        return jsonify({
+            "message": "Portfolio renamed successfully",
+            "portfolio_id": portfolio_id,
+            "new_name": new_name
+        }), 200
+
+    except Exception as e:
+        print(f"Error renaming portfolio: {str(e)}")
+        db.session.rollback()
+        return jsonify({"message": f"Failed to rename portfolio: {str(e)}"}), 500
