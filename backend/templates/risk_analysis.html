@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="risk-analysis-container">
+    <!-- Add margin-top to account for fixed header -->
+    <div class="page-header">
+        <div class="header-content">
+            <h3 class="page-title">Risk Analysis</h3>
+            <button class="back-btn" onclick="window.history.back()">Back to Portfolios</button>
+        </div>
+    </div>
+
+
+        <!-- Portfolio Overview -->
+        <div class="dashboard-card">
+            <div class="dashboard-stat">
+                <h3>TOTAL VALUE</h3>
+                <div id="totalValue" class="stat-value"></div>
+            </div>
+            <div class="dashboard-stat">
+                <h3>VALUE AT RISK (VaR)</h3>
+                <div id="varValue" class="stat-value"></div>
+            </div>
+            <div class="dashboard-stat">
+                <h3>BETA</h3>
+                <div id="betaValue" class="stat-value"></div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div id="charts-container" class="charts-section">
+            <!-- Placeholder for charts -->
+        </div>
+    </div>
+<script>
+    document.addEventListener("DOMContentLoaded", async () => {
+        const params = new URLSearchParams(window.location.search);
+        const portfolioId = params.get("portfolio_id");
+
+        try {
+            const response = await fetch(`/auth/api/portfolio/${portfolioId}/risk`);
+            const data = await response.json();
+
+            // Display data
+            document.getElementById("portfolioName").textContent = data.portfolio_name;
+            document.getElementById("totalValue").textContent = `$${data.total_value.toFixed(2)}`;
+            document.getElementById("beta").textContent = data.beta.toFixed(2);
+            document.getElementById("var").textContent = `${data.var.toFixed(2)}%`;
+        } catch (error) {
+            console.error("Error loading risk metrics:", error);
+        }
+    });
+</script>
+<script src="{{ url_for('static', filename='js/risk_analysis.js') }}"></script>
+
+</body>
+{% endblock %}

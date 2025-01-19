@@ -9,6 +9,7 @@ from flask_jwt_extended import get_csrf_token
 from backend import bcrypt, db
 from backend.models import User, Portfolio, Security, StockCache
 from backend.models import PortfolioFiles
+
 import os
 from werkzeug.utils import secure_filename
 
@@ -927,3 +928,83 @@ def rename_portfolio(portfolio_id):
         print(f"Error renaming portfolio: {str(e)}")
         db.session.rollback()
         return jsonify({"message": f"Failed to rename portfolio: {str(e)}"}), 500
+
+
+# this is the risk metrics page section --------------------------------------
+
+@auth_blueprint.route('/api/portfolio/<int:portfolio_id>/risk', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def get_portfolio_risk(portfolio_id):
+    try:
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+        portfolio = Portfolio.query.filter_by(id=portfolio_id, user_id=user.id).first()
+
+        if not portfolio:
+            return jsonify({"error": "Portfolio not found"}), 404
+
+        # Calculate or fetch risk metrics
+        risk_metrics = {
+            "portfolio_name": portfolio.name,
+            "total_value": portfolio.total_value,
+            "beta": 1.0,  # Placeholder - implement actual calculation
+            "var": 5.0,   # Placeholder - implement actual calculation
+        }
+
+        return jsonify(risk_metrics)
+
+    except Exception as e:
+        print(f"Error fetching risk metrics: {str(e)}")
+        return jsonify({"error": "Failed to fetch risk metrics"}), 500
+
+
+@auth_blueprint.route('/risk-analysis-page', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def risk_analysis_page():
+    try:
+        print("\n=== Risk Analysis Page Route ===")
+        print("1. Starting route handler")
+
+        portfolio_id = request.args.get('portfolio_id')
+        print(f"2. Portfolio ID from request: {portfolio_id}")
+
+        current_user_email = get_jwt_identity()
+        print(f"3. Current user email: {current_user_email}")
+
+        user = User.query.filter_by(email=current_user_email).first()
+        print(f"4. Found user: {user is not None}")
+
+        if not user:
+            print("User not found - redirecting to login")
+            return redirect(url_for('auth.login_page'))
+
+        portfolio = Portfolio.query.filter_by(id=portfolio_id, user_id=user.id).first()
+        print(f"5. Found portfolio: {portfolio is not None}")
+
+        if not portfolio:
+            print("Portfolio not found - redirecting to overview")
+            return redirect(url_for('auth.portfolio_overview'))
+
+        print("6. About to render template")
+        try:
+            result = render_template(
+                'risk_analysis.html',
+                user={"first_name": user.first_name, "email": user.email},
+                portfolio_name=portfolio.name,
+                portfolio_id=portfolio.id,
+                body_class='risk-analysis-page'
+            )
+            print("7. Template rendered successfully")
+            return result
+        except Exception as template_error:
+            print(f"Template rendering error: {str(template_error)}")
+            raise
+
+    except Exception as e:
+        print(f"\nError in risk analysis page:")
+        print(f"Type: {type(e)}")
+        print(f"Error: {str(e)}")
+        import traceback
+        print("Traceback:")
+        print(traceback.format_exc())
+        return redirect(url_for('auth.portfolio_overview'))

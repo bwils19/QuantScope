@@ -47,8 +47,10 @@ def create_app(test_config=None):
         # Register blueprints
         from backend.routes.auth_routes import auth_blueprint
         from backend.routes.stock_routes import stock_blueprint
+        from .routes.analytics_routes import analytics_blueprint
         app.register_blueprint(auth_blueprint, url_prefix="/auth")
         app.register_blueprint(stock_blueprint)
+        app.register_blueprint(analytics_blueprint, url_prefix='/analytics')
 
     # Root route
     @app.route("/")

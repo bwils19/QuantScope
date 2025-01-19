@@ -1,9 +1,8 @@
-// Global state
 const manualPortfolio = [];
 let selectedSecurity = null;
 const stockDataCache = {};
 let securitiesData = [];
-let searchType = "ticker"; // Default search type
+let searchType = "ticker";
 let activeIndex = -1;
 let currentPortfolioId = null;
 
@@ -82,7 +81,7 @@ async function getApiKey() {
 
 async function fetchStockData(symbol) {
     try {
-        // First check database cache
+        // First check database cache, don't wanna be hitting that api a ton of times...
         const cacheResponse = await fetch(`/auth/stock-cache/${symbol}`, {
             credentials: 'include'  // Add this
         });
@@ -1625,10 +1624,14 @@ async function savePortfolioChanges() {
         }
     }
 
+function navigateToRiskAnalysis(portfolioId) {
+  window.location.href = `/risk-analysis?portfolio_id=${portfolioId}`;
+}
+
 // Initialize
     async function init() {
         try {
-            // Load securities data
+            // Load securities data - might need to refresh this list periodically, not sure how often it changes
             const response = await fetch("/static/data/symbols.json");
             if (!response.ok) throw new Error("Failed to load securities data");
             securitiesData = await response.json();

@@ -51,9 +51,11 @@
                     <button class="rename-portfolio-btn" data-id="{{ portfolio.id }}">Rename</button>
                     <button class="view-portfolio-btn" data-id="{{ portfolio.id }}">View</button>
                     <button class="delete-portfolio-btn" data-id="{{ portfolio.id }}">Delete</button>
-                    <button class="risk-analysis-btn" data-id="{{ portfolio.id }}">
-    <i class="fas fa-chart-line"></i> Risk Analysis
-</button>
+                    <button
+                        class="risk-analysis-btn"
+                        onclick="location.href='{{ url_for('auth.risk_analysis_page', portfolio_id=portfolio.id) }}'">
+                        <i class="fas fa-chart-line"></i> Risk Analysis
+                    </button>
                 </div>
             </div>
 
