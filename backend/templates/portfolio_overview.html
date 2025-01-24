@@ -79,10 +79,10 @@
                 </div>
 
                 <div class="metric-item">
-                    <span class="metric-label">Unrealized Gain/Loss</span>
-                    <span class="metric-value {% if portfolio.unrealized_gain > 0 %}positive{% elif portfolio.unrealized_gain < 0 %}negative{% endif %}">
-                        ${{ "{:,.2f}".format(portfolio.unrealized_gain|default(0)) }}
-                        ({{ "%.2f"|format(portfolio.unrealized_gain_pct|default(0)) }}%)
+                    <span class="metric-label">Total Gain/Loss</span>
+                    <span class="metric-value {% if portfolio.total_gain > 0 %}positive{% elif portfolio.total_gain < 0 %}negative{% endif %}">
+                        ${{ "{:,.2f}".format(portfolio.total_gain|default(0)) }}
+                        ({{ "%.2f"|format(portfolio.total_gain_pct|default(0)) }}%)
                     </span>
                 </div>
 

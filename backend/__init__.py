@@ -7,4 +7,3 @@ db = SQLAlchemy()
 bcrypt = Bcrypt()
 jwt = JWTManager()
 
-from backend.app import create_app

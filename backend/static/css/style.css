@@ -589,6 +589,11 @@ button:hover {
     color: #2f855a;
 }
 
+.preview-table td.error {
+    color: #dc3545;  /* Red text for errors */
+    font-weight: bold;
+}
+
 .preview-actions {
     display: flex;
     justify-content: flex-end;

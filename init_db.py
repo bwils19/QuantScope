@@ -1,25 +1,28 @@
-from backend import db, app
-from backend.models import User
-from sqlalchemy import inspect
-from sqlalchemy.schema import CreateTable
+from backend.app import create_app
+from backend import db
+from backend.models import User, Security, Portfolio
+from sqlalchemy import inspect, text
+
+app = create_app()  # Create the app instance
 
 with app.app_context():
-    # Debugging: Print database URI and path
     print("Database URI:", app.config['SQLALCHEMY_DATABASE_URI'])
     print("Actual Database Path:", db.engine.url)
 
-    # Drop all tables to reset schema
+    # Drop all tables
+    print("Dropping all tables...")
     db.drop_all()
-    print("Dropped all tables.")
+    print("All tables dropped.")
 
-    # Create all tables
+    # Create all tables with new schema
+    print("Creating all tables...")
     db.create_all()
-    print("Created all tables.")
+    print("All tables created.")
 
-    # Verify tables
+    # Verify the securities table schema
     inspector = inspect(db.engine)
-    print("Tables in database:", inspector.get_table_names())
+    print("\nVerifying securities table columns:")
+    columns = inspector.get_columns('securities')
+    for column in columns:
+        print(f"  - {column['name']}: {column['type']}")
 
-    # Print SQL used to create User table (debugging)
-    print("User table SQL:")
-    print(CreateTable(User.__table__).compile(db.engine))

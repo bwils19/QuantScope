@@ -1,4 +1,5 @@
-from datetime import datetime, timezone, time
+from datetime import datetime, timedelta
+import time
 
 import requests
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, make_response, current_app, send_file
@@ -10,10 +11,14 @@ from backend import bcrypt, db
 from backend.models import User, Portfolio, Security, StockCache
 from backend.models import PortfolioFiles
 
+from contextlib import contextmanager
+from sqlalchemy.orm import Session
+
 import os
 from werkzeug.utils import secure_filename
 
 # Create a blueprint for authentication routes
+from backend.tasks import is_market_open
 from backend.utils.file_handlers import parse_portfolio_file, format_preview_data
 
 auth_blueprint = Blueprint("auth", __name__)
@@ -168,11 +173,46 @@ def dashboard():
         return redirect(url_for('auth.login_page'))
 
 
+@contextmanager
+def session_scope():
+    """Provide a transactional scope around a series of operations."""
+    session = db.create_scoped_session()
+    try:
+        yield session
+        session.commit()
+    except Exception as e:
+        print(f"Session error: {e}")
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def should_update_price(cache_entry):
+    """Determine if price update is needed"""
+    if not cache_entry:
+        return True
+
+    cache_date = cache_entry.date
+    now = datetime.utcnow().date()
+
+    # Don't update if market is closed
+    if not is_market_open():
+        return False
+
+    # Don't update if cache is from today and less than 5 minutes old
+    if cache_date == now:
+        cache_time = cache_entry.updated_at
+        five_mins_ago = datetime.utcnow() - timedelta(minutes=5)
+        return cache_time < five_mins_ago
+
+    return True
+
+
 @auth_blueprint.route('/portfolio-overview', methods=['GET'])
 @jwt_required(locations=["cookies"])
 def portfolio_overview():
     try:
-        # Get the current user's identity
         current_user_email = get_jwt_identity()
         if not current_user_email:
             return redirect(url_for('auth.login_page'))
@@ -183,26 +223,15 @@ def portfolio_overview():
 
         portfolios = Portfolio.query.filter_by(user_id=user.id).order_by(Portfolio.created_at.desc()).all()
 
-        # Calculate dashboard statistics
-        total_portfolio_value = sum(p.total_value for p in portfolios) if portfolios else 0
-        total_day_change = sum(p.day_change for p in portfolios) if portfolios else 0
-        total_day_change_pct = (total_day_change / (
-                    total_portfolio_value - total_day_change) * 100) if total_portfolio_value != total_day_change else 0
-
-        # Calculate total unrealized gain/loss
-        total_unrealized_gain = sum(p.unrealized_gain for p in portfolios) if portfolios else 0
-        total_unrealized_gain_pct = sum(p.unrealized_gain_pct for p in portfolios) / len(
-            portfolios) if portfolios else 0
-
-        # Update prices if we have portfolios
-        if portfolios:
+        if is_market_open():
             try:
-                # Get unique tickers from user's portfolios
+                # Get unique tickers from user's portfolios with proper locking
                 unique_tickers = (
                     db.session.query(Security.ticker)
                     .join(Portfolio)
                     .filter(Portfolio.user_id == user.id)
                     .distinct()
+                    .with_for_update()
                     .all()
                 )
 
@@ -210,9 +239,10 @@ def portfolio_overview():
                 api_key = os.getenv('ALPHA_VANTAGE_KEY')
 
                 for ticker in tickers:
-                    # Check if cache is stale (older than today)
-                    cache = StockCache.query.filter_by(ticker=ticker).first()
-                    if not cache or cache.date < datetime.utcnow().date():
+                    # Add locking for cache operations
+                    cache = StockCache.query.filter_by(ticker=ticker).with_for_update().first()
+
+                    if not cache or should_update_price(cache):
                         try:
                             url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={api_key}"
                             response = requests.get(url)
@@ -223,7 +253,6 @@ def portfolio_overview():
                                 current_price = float(quote['05. price'])
                                 prev_close = float(quote['08. previous close'])
 
-                                # Update or create cache
                                 if not cache:
                                     cache = StockCache(ticker=ticker)
 
@@ -235,22 +264,32 @@ def portfolio_overview():
                                 }
                                 db.session.add(cache)
 
-                                # Update securities with this ticker
-                                securities = Security.query.filter_by(ticker=ticker).all()
+                                # Update all securities with this ticker
+                                securities = Security.query.filter_by(ticker=ticker).with_for_update().all()
                                 for security in securities:
                                     old_value = security.total_value
                                     security.current_price = current_price
                                     security.total_value = security.amount_owned * current_price
                                     security.value_change = security.amount_owned * (current_price - prev_close)
-                                    security.value_change_pct = (security.value_change / (
-                                                old_value - security.value_change)) * 100 if old_value != security.value_change else 0
-                                    security.unrealized_gain = security.total_value - (
-                                                security.amount_owned * security.purchase_price)
-                                    security.unrealized_gain_pct = ((security.total_value / (
-                                                security.amount_owned * security.purchase_price)) - 1) * 100
 
-                            # Respect API rate limits
-                            time.sleep(12)  # Alpha Vantage free tier limit is 5 calls per minute - will buy premium
+                                    # Safe division for percentages
+                                    if old_value != security.value_change:
+                                        base_value = old_value - security.value_change
+                                        security.value_change_pct = (
+                                                                                security.value_change / base_value) * 100 if base_value != 0 else 0
+                                    else:
+                                        security.value_change_pct = 0
+
+                                    # Calculate total gain
+                                    security.total_gain = security.total_value - (
+                                                security.amount_owned * security.purchase_price)
+                                    if security.purchase_price and security.purchase_price != 0:
+                                        security.total_gain_pct = ((security.total_value / (
+                                                    security.amount_owned * security.purchase_price)) - 1) * 100
+                                    else:
+                                        security.total_gain_pct = 0
+
+                            time.sleep(12)  # Alpha Vantage rate limit
 
                         except Exception as e:
                             print(f"Error updating {ticker}: {str(e)}")
@@ -258,15 +297,23 @@ def portfolio_overview():
 
                 # Update portfolio totals
                 for portfolio in portfolios:
-                    portfolio.total_value = sum(s.total_value for s in portfolio.securities)
-                    portfolio.day_change = sum(s.value_change for s in portfolio.securities)
-                    portfolio.day_change_pct = (portfolio.day_change / (
-                                portfolio.total_value - portfolio.day_change)) * 100 if portfolio.total_value != portfolio.day_change else 0
+                    securities = portfolio.securities
 
-                    total_cost = sum(s.amount_owned * s.purchase_price for s in portfolio.securities)
-                    portfolio.unrealized_gain = portfolio.total_value - total_cost
-                    portfolio.unrealized_gain_pct = ((
-                                                                 portfolio.total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
+                    # Calculate totals with null checks
+                    portfolio.total_value = sum((s.total_value or 0) for s in securities)
+                    portfolio.day_change = sum((s.value_change or 0) for s in securities)
+
+                    # Safe calculation of day change percentage
+                    if portfolio.total_value != portfolio.day_change:
+                        base_value = portfolio.total_value - portfolio.day_change
+                        portfolio.day_change_pct = (portfolio.day_change / base_value) * 100 if base_value != 0 else 0
+                    else:
+                        portfolio.day_change_pct = 0
+
+                    # Calculate total gain
+                    total_cost = sum((s.amount_owned or 0) * (s.purchase_price or 0) for s in securities)
+                    portfolio.total_gain = portfolio.total_value - total_cost
+                    portfolio.total_gain_pct = ((portfolio.total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
 
                 db.session.commit()
 
@@ -274,20 +321,31 @@ def portfolio_overview():
                 print(f"Error updating prices: {str(e)}")
                 db.session.rollback()
 
-        uploaded_files = PortfolioFiles.query.filter_by(user_id=user.id).all()
+        # Calculate dashboard statistics with null checks
+        total_portfolio_value = sum(p.total_value or 0 for p in portfolios) if portfolios else 0
+        total_day_change = sum(p.day_change or 0 for p in portfolios) if portfolios else 0
+
+        # Safe calculation of total day change percentage
+        if total_portfolio_value != total_day_change:
+            base_value = total_portfolio_value - total_day_change
+            total_day_change_pct = (total_day_change / base_value) * 100 if base_value != 0 else 0
+        else:
+            total_day_change_pct = 0
+
+        total_total_gain = sum(p.total_gain or 0 for p in portfolios) if portfolios else 0
+        total_total_gain_pct = (sum(p.total_gain_pct or 0 for p in portfolios) / len(portfolios)) if portfolios else 0
 
         return render_template(
             'portfolio_overview.html',
             body_class='portfolio-overview-page',
             user={"first_name": user.first_name, "email": user.email},
             portfolios=portfolios,
-            # uploaded_files=uploaded_files,
             dashboard_stats={
                 'total_value': total_portfolio_value,
                 'day_change': total_day_change,
                 'day_change_pct': total_day_change_pct,
-                'total_gain': total_unrealized_gain,
-                'total_gain_pct': total_unrealized_gain_pct
+                'total_gain': total_total_gain,
+                'total_gain_pct': total_total_gain_pct
             }
         )
 
@@ -486,8 +544,8 @@ def create_portfolio():
                 total_value=current_value,
                 value_change=float(stock['valueChange']),
                 value_change_pct=float(price_data['changePercent']),
-                unrealized_gain=current_value - cost_basis,  # Add this
-                unrealized_gain_pct=((current_value / cost_basis) - 1) * 100  # Add this
+                total_gain=current_value - cost_basis,  # Add this
+                total_gain_pct=((current_value / cost_basis) - 1) * 100  # Add this
             )
 
             total_value += current_value
@@ -499,8 +557,8 @@ def create_portfolio():
         portfolio.total_value = total_value
         portfolio.day_change = sum(float(s['valueChange']) for s in stocks)
         portfolio.day_change_pct = (portfolio.day_change / (total_value - portfolio.day_change)) * 100
-        portfolio.unrealized_gain = total_value - total_cost
-        portfolio.unrealized_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
+        portfolio.total_gain = total_value - total_cost
+        portfolio.total_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
 
         db.session.commit()
 
@@ -543,8 +601,8 @@ def get_portfolio_securities(portfolio_id):
             'total_value': s.total_value,
             'value_change': s.value_change,
             'value_change_pct': s.value_change_pct,
-            'unrealized_gain': s.unrealized_gain,
-            'unrealized_gain_pct': s.unrealized_gain_pct
+            'total_gain': s.total_gain,
+            'total_gain_pct': s.total_gain_pct
         } for s in securities]
 
         return jsonify({
@@ -575,25 +633,27 @@ def get_cached_stock(symbol):
 @auth_blueprint.route('/stock-cache', methods=['POST'])
 @jwt_required(locations=["cookies"])
 def cache_stock_data():
-    data = request.json
-    symbol = data['symbol']
+    try:
+        with session_scope() as session:
+            data = request.json
+            symbol = data['symbol']
 
-    # Update or create cache entry
-    cache = StockCache.query.filter_by(ticker=symbol).first()
-    if not cache:
-        cache = StockCache(
-            ticker=symbol,
-            date=datetime.utcnow().date(),
-            data=data['data']
-        )
-    else:
-        cache.date = datetime.utcnow().date()
-        cache.data = data['data']
+            cache = session.query(StockCache).filter_by(ticker=symbol).with_for_update().first()
+            if not cache:
+                cache = StockCache(
+                    ticker=symbol,
+                    date=datetime.utcnow().date(),
+                    data=data['data']
+                )
+                session.add(cache)
+            else:
+                cache.date = datetime.utcnow().date()
+                cache.data = data['data']
 
-    db.session.add(cache)
-    db.session.commit()
-
-    return jsonify({'message': 'Cache updated'}), 200
+            return jsonify({'message': 'Cache updated'}), 200
+    except Exception as e:
+        print(f"Error updating cache: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @auth_blueprint.route('/download-portfolio-template')
@@ -765,8 +825,8 @@ def create_portfolio_from_file(file_id):
         # Update totals
         print("\n=== Updating Portfolio Totals ===")
         portfolio.total_value = total_value
-        portfolio.unrealized_gain = total_value - total_cost
-        portfolio.unrealized_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
+        portfolio.total_gain = total_value - total_cost
+        portfolio.total_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
 
         db.session.commit()
         print("Portfolio creation completed successfully")
@@ -829,8 +889,8 @@ def update_portfolio(portfolio_id):
                     total_value=float(change['total_value']),
                     value_change=float(change['value_change']),
                     value_change_pct=float(change['value_change_pct']),
-                    unrealized_gain=float(change.get('unrealized_gain', 0)),
-                    unrealized_gain_pct=float(change.get('unrealized_gain_pct', 0))
+                    total_gain=float(change.get('total_gain', 0)),
+                    total_gain_pct=float(change.get('total_gain_pct', 0))
                 )
                 db.session.add(security)
                 print("New security added to session")
@@ -860,14 +920,14 @@ def update_portfolio(portfolio_id):
         else:
             portfolio.day_change_pct = 0
 
-        portfolio.unrealized_gain = sum((s.unrealized_gain or 0) for s in securities)
+        portfolio.total_gain = sum((s.total_gain or 0) for s in securities)
 
         # Safe total cost calculation
         total_cost = sum((s.amount_owned or 0) * (s.purchase_price or 0) for s in securities)
         if total_cost and total_cost != 0:
-            portfolio.unrealized_gain_pct = ((portfolio.total_value / total_cost) - 1) * 100
+            portfolio.total_gain_pct = ((portfolio.total_value / total_cost) - 1) * 100
         else:
-            portfolio.unrealized_gain_pct = 0
+            portfolio.total_gain_pct = 0
 
         db.session.commit()
         print("Updated portfolio values:", {
@@ -875,8 +935,8 @@ def update_portfolio(portfolio_id):
             "total_holdings": portfolio.total_holdings,
             "day_change": portfolio.day_change,
             "day_change_pct": portfolio.day_change_pct,  # Added
-            "unrealized_gain": portfolio.unrealized_gain,  # Added
-            "unrealized_gain_pct": portfolio.unrealized_gain_pct  # Added
+            "total_gain": portfolio.total_gain,  # Added
+            "total_gain_pct": portfolio.total_gain_pct  # Added
         })
 
         return jsonify({
@@ -886,8 +946,8 @@ def update_portfolio(portfolio_id):
             "total_holdings": portfolio.total_holdings,
             "day_change": portfolio.day_change,
             "day_change_pct": portfolio.day_change_pct,
-            "unrealized_gain": portfolio.unrealized_gain,
-            "unrealized_gain_pct": portfolio.unrealized_gain_pct
+            "total_gain": portfolio.total_gain,
+            "total_gain_pct": portfolio.total_gain_pct
         }), 200
 
     except Exception as e:

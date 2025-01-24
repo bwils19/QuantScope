@@ -38,6 +38,9 @@ def create_app(test_config=None):
     jwt.init_app(app)
 
     with app.app_context():
+
+        from backend.models import User, Portfolio, Security
+
         # Create database tables
         db.create_all()
 

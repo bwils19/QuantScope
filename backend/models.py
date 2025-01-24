@@ -27,8 +27,8 @@ class Portfolio(db.Model):
     total_value = db.Column(db.Float, default=0.0)  # Current total value
     day_change = db.Column(db.Float, default=0.0)  # Daily value change
     day_change_pct = db.Column(db.Float, default=0.0)  # Daily percentage change
-    unrealized_gain = db.Column(db.Float, default=0.0)  # Unrealized gain/loss
-    unrealized_gain_pct = db.Column(db.Float, default=0.0)  # Unrealized gain/loss percentage
+    total_gain = db.Column(db.Float, default=0.0)  # Total gain/loss across all positions
+    total_gain_pct = db.Column(db.Float, default=0.0)
     total_return = db.Column(db.Float, default=0.0)  # Total return including closed positions
     total_return_pct = db.Column(db.Float, default=0.0)  # Total return percentage
 
@@ -45,19 +45,24 @@ class Security(db.Model):
     ticker = db.Column(db.String(20), nullable=False)
     name = db.Column(db.String(200), nullable=False)
     exchange = db.Column(db.String(50))
-    asset_type = db.Column(db.String(50))
+
+    # Additional categorization fields
+    asset_type = db.Column(db.String(50), default='Equity')
+    sector = db.Column(db.String(50), nullable=True)
+    currency = db.Column(db.String(3), default='USD')
 
     # Position information
     amount_owned = db.Column(db.Float, nullable=False)
-    purchase_price = db.Column(db.Float)  # Average purchase price
-    current_price = db.Column(db.Float)  # Latest price
-    total_value = db.Column(db.Float)  # Current total value
+    purchase_price = db.Column(db.Float)
+    purchase_date = db.Column(db.Date, nullable=True)
+    current_price = db.Column(db.Float)
+    total_value = db.Column(db.Float)
 
     # Performance metrics
-    value_change = db.Column(db.Float)  # Daily value change
-    value_change_pct = db.Column(db.Float)  # Daily percentage change
-    unrealized_gain = db.Column(db.Float)  # Unrealized gain/loss
-    unrealized_gain_pct = db.Column(db.Float)  # Unrealized gain/loss percentage
+    value_change = db.Column(db.Float)
+    value_change_pct = db.Column(db.Float)
+    total_gain = db.Column(db.Float)  # total gain/loss in dollars since purchase
+    total_gain_pct = db.Column(db.Float)
 
     # Timestamps
     added_at = db.Column(db.DateTime, default=datetime.utcnow)

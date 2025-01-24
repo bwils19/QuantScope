@@ -1,37 +1,25 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from ..models import Portfolio, Security
-from ..analytics.risk_calculations import RiskAnalytics
+from .. import db
 
 analytics_blueprint = Blueprint('analytics', __name__)
-risk_analytics = RiskAnalytics()
 
 
 @analytics_blueprint.route('/portfolio/<int:portfolio_id>/risk', methods=['GET'])
 @jwt_required(locations=["cookies"])
 def get_portfolio_risk(portfolio_id):
     try:
-        portfolio = Portfolio.query.get_or_404(portfolio_id)
-        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
+        from ..models import Portfolio, Security  # Import here instead
 
-        # Convert securities to dict format expected by RiskAnalytics
-        securities_data = [{
-            'ticker': s.ticker,
-            'amount_owned': s.amount_owned,
-            'current_price': s.current_price,
-            'total_value': s.total_value
-        } for s in securities]
+        current_user_email = get_jwt_identity()
+        user = Security.query.filter_by(email=current_user_email).first()
+        portfolio = Portfolio.query.filter_by(id=portfolio_id, user_id=user.id).first()
 
-        # Calculate all risk metrics
-        var_95 = risk_analytics.calculate_var(securities_data)
-        credit_risk = risk_analytics.calculate_credit_risk(securities_data)
-        beta = risk_analytics.calculate_portfolio_beta(securities_data, portfolio.total_value)
+        if not portfolio:
+            return jsonify({"error": "Portfolio not found"}), 404
 
-        return jsonify({
-            'var_95': var_95,
-            'credit_risk': credit_risk,
-            'beta': beta
-        })
+        # Rest of your function...
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error fetching risk metrics: {str(e)}")
+        return jsonify({"error": "Failed to fetch risk metrics"}), 500

@@ -344,8 +344,8 @@ async function loadPortfolioDetails(portfolioId) {
                 ? `(${security.value_change_pct.toFixed(2)}%)`
                 : '(0.00%)';
 
-            const unrealizedGainPct = security.unrealized_gain_pct != null
-                ? `(${security.unrealized_gain_pct.toFixed(2)}%)`
+            const totalGainPct = security.total_gain_pct != null
+                ? `(${security.total_gain_pct.toFixed(2)}%)`
                 : '(0.00%)';
 
             row.innerHTML = `
@@ -357,9 +357,9 @@ async function loadPortfolioDetails(portfolioId) {
                     ${formatCurrency(security.value_change || 0)}
                     ${valueChangePct}
                 </td>
-                <td class="${(security.unrealized_gain || 0) >= 0 ? 'positive' : 'negative'}">
-                    ${formatCurrency(security.unrealized_gain || 0)}
-                    ${unrealizedGainPct}
+                <td class="${(security.total_gain || 0) >= 0 ? 'positive' : 'negative'}">
+                    ${formatCurrency(security.total_gain || 0)}
+                    ${totalGainPct}
                 </td>
                 <td class="action-buttons hidden"></td>
             `;
@@ -759,15 +759,18 @@ function setupFilePortfolioHandlers() {
     console.log('Setting up file portfolio handlers');
 
     // Handle the "Create Portfolio" button click from the preview
-    document.getElementById('createPortfolioBtn').addEventListener('click', () => {
+    document.getElementById('createPortfolioBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         console.log('Create portfolio button clicked');
         elements.filePortfolioNameInput.value = ''; // Clear any previous input
         elements.filePortfolioNameModal.style.display = 'block';
     });
 
     // Handle portfolio name save
-    elements.filePortfolioNameSaveBtn.addEventListener('click', async () => {
+    elements.filePortfolioNameSaveBtn.addEventListener('click', async (e) => {
         console.log('Save button clicked');
+        e.preventDefault();
         const portfolioName = elements.filePortfolioNameInput.value.trim();
 
         if (!portfolioName) {
@@ -841,8 +844,8 @@ async function addNewSecurity() {
             total_value: amount * stockData.currentPrice,
             value_change: amount * (stockData.currentPrice - stockData.previousClose),
             value_change_pct: ((stockData.currentPrice - stockData.previousClose) / stockData.previousClose) * 100,
-            unrealized_gain: 0,  // Will be calculated on the server
-            unrealized_gain_pct: 0
+            total_gain: 0,
+            total_gain_pct: 0
         };
 
         // Add new row to table
@@ -1104,6 +1107,48 @@ async function handleFileUpload(event) {
     }
 }
 
+// function displayFilePreview(data) {
+//     // Update summary statistics
+//     document.getElementById('totalRows').textContent = data.summary.total_rows;
+//     document.getElementById('validRows').textContent = data.summary.valid_rows;
+//     document.getElementById('invalidRows').textContent = data.summary.invalid_rows;
+//     document.getElementById('totalAmount').textContent = new Intl.NumberFormat('en-US').format(data.summary.total_amount);
+//
+//     // Populate preview table
+//     const tableBody = document.querySelector('#previewTable tbody');
+//     tableBody.innerHTML = '';
+//
+//     data.preview_data.forEach(row => {
+//         const tr = document.createElement('tr');
+//         tr.className = row.validation_status;
+//
+//         tr.innerHTML = `
+//            <td>${row.ticker}</td>
+//             <td>${row.amount}</td>
+//             <td>${row.purchase_date}</td>
+//             <td>${row.purchase_price ? `$${row.purchase_price.toLocaleString()}` : ''}</td>
+//             <td>${row.current_price ? `$${row.current_price.toLocaleString()}` : ''}</td>
+//             <td>${row.sector}</td>
+//             <td>${row.notes}</td>
+//             <td>${row.validation_status}</td>
+//             <td>${row.validation_message}</td>
+//         `;
+//
+//         tableBody.appendChild(tr);
+//     });
+//
+//     // Show preview section and handle create button
+//     document.getElementById('filePreviewSection').classList.remove('hidden');
+//     const createBtn = document.getElementById('createPortfolioBtn');
+//     createBtn.disabled = data.summary.invalid_rows > 0;
+//
+//     if (createBtn.disabled) {
+//         createBtn.title = 'Please fix validation errors before creating portfolio';
+//     } else {
+//         createBtn.title = 'Create portfolio with validated data';
+//     }
+// }
+
 function displayFilePreview(data) {
     // Update summary statistics
     document.getElementById('totalRows').textContent = data.summary.total_rows;
@@ -1117,19 +1162,34 @@ function displayFilePreview(data) {
 
     data.preview_data.forEach(row => {
         const tr = document.createElement('tr');
+        // Add validation status class for styling
         tr.className = row.validation_status;
 
-        tr.innerHTML = `
-           <td>${row.ticker}</td>
-            <td>${row.amount}</td>
-            <td>${row.purchase_date}</td>
-            <td>${row.purchase_price ? `$${row.purchase_price.toLocaleString()}` : ''}</td>
-            <td>${row.current_price ? `$${row.current_price.toLocaleString()}` : ''}</td>
-            <td>${row.sector}</td>
-            <td>${row.notes}</td>
-            <td>${row.validation_status}</td>
-            <td>${row.validation_message}</td>
-        `;
+        // Create cells with appropriate styling based on validation
+        const cells = [
+            { value: row.ticker || 'Missing', required: true },
+            { value: row.amount || 'Missing', required: true },
+            { value: row.purchase_date || '', required: true },
+            { value: row.purchase_price ? `$${row.purchase_price.toLocaleString()}` : '', required: false },
+            { value: row.current_price ? `$${row.current_price.toLocaleString()}` : '', required: false },
+            { value: row.sector || '', required: false },
+            { value: row.notes || '', required: false },
+            { value: row.validation_status, required: false },
+            { value: row.validation_message, required: false }
+        ];
+
+        // Create each cell with appropriate styling
+        cells.forEach(cell => {
+            const td = document.createElement('td');
+            td.textContent = cell.value;
+
+            // Add error styling for missing required fields
+            if (cell.required && (cell.value === 'Missing' || cell.value === 'Invalid')) {
+                td.classList.add('error');
+            }
+
+            tr.appendChild(td);
+        });
 
         tableBody.appendChild(tr);
     });
@@ -1140,11 +1200,12 @@ function displayFilePreview(data) {
     createBtn.disabled = data.summary.invalid_rows > 0;
 
     if (createBtn.disabled) {
-        createBtn.title = 'Please fix validation errors before creating portfolio';
+        createBtn.title = 'Fix validation errors before creating portfolio';
     } else {
         createBtn.title = 'Create portfolio with validated data';
     }
 }
+
 
 function setupPreviewHandlers() {
     document.getElementById('cancelPreviewBtn').addEventListener('click', () => {
@@ -1235,7 +1296,7 @@ async function editSecurity(securityId) {
     const currentPriceCell = row.querySelector('td:nth-child(3)');
     const totalValueCell = row.querySelector('td:nth-child(4)');
     const valueChangeCell = row.querySelector('td:nth-child(5)');
-    const unrealizedGainCell = row.querySelector('td:nth-child(6)');
+    const totalGainCell = row.querySelector('td:nth-child(6)');
 
     const currentAmount = parseFloat(amountCell.textContent);
     const currentPrice = parseFloat(currentPriceCell.textContent.replace(/[^0-9.-]+/g, ''));

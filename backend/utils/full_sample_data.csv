@@ -1,0 +1,21 @@
+ticker,name,amount_owned,purchase_price,purchase_date,current_price,sector,asset_type,currency,exchange
+AAPL,Apple Inc.,150,147.92,2023-06-15,169.58,Technology,Equity,USD,NASDAQ
+MSFT,Microsoft Corp,100,287.55,2023-08-01,328.79,Technology,Equity,USD,NASDAQ
+GOOGL,Alphabet Inc.,80,123.4,2023-09-15,141.8,Technology,Equity,USD,NASDAQ
+JPM,JPMorgan Chase,200,143.22,2023-07-01,172.98,Financials,Equity,USD,NYSE
+JNJ,Johnson & Johnson,120,152.64,2023-05-20,158.37,Healthcare,Equity,USD,NYSE
+PG,Procter & Gamble,90,145.33,2023-04-10,152.43,Consumer Staples,Equity,USD,NYSE
+XOM,Exxon Mobil,175,98.75,2023-10-01,103.5,Energy,Equity,USD,NYSE
+BAC,Bank of America,300,28.44,2023-11-15,33.47,Financials,Equity,USD,NYSE
+NVDA,NVIDIA Corp,50,423.5,2023-08-30,626.58,Technology,Equity,USD,NASDAQ
+HD,Home Depot,80,287.92,2023-07-20,362.35,Consumer Discretionary,Equity,USD,NYSE
+PFE,Pfizer Inc.,250,35.68,2023-09-01,27.76,Healthcare,Equity,USD,NYSE
+AMZN,Amazon.com Inc.,110,127.12,2023-06-01,169.51,Consumer Discretionary,Equity,USD,NASDAQ
+VZ,Verizon,220,41.23,2023-05-01,40.2,Communications,Equity,USD,NYSE
+KO,Coca-Cola Co,180,58.89,2023-04-15,59.84,Consumer Staples,Equity,USD,NYSE
+DIS,Walt Disney Co,140,84.34,2023-10-15,90.35,Communications,Equity,USD,NYSE
+MRK,Merck & Co,130,107.45,2023-11-01,121.69,Healthcare,Equity,USD,NYSE
+INTC,Intel Corp,200,35.55,2023-07-15,43.65,Technology,Equity,USD,NASDAQ
+CRM,Salesforce,70,212.88,2023-08-15,284.45,Technology,Equity,USD,NYSE
+WMT,Walmart Inc,95,154.67,2023-09-30,164.27,Consumer Staples,Equity,USD,NYSE
+V,Visa Inc,85,223.34,2023-06-30,277.14,Financials,Equity,USD,NYSE
