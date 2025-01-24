@@ -1160,32 +1160,88 @@ function displayFilePreview(data) {
     const tableBody = document.querySelector('#previewTable tbody');
     tableBody.innerHTML = '';
 
-    data.preview_data.forEach(row => {
+    data.preview_data.forEach((row, rowIndex) => {
         const tr = document.createElement('tr');
-        // Add validation status class for styling
         tr.className = row.validation_status;
+        tr.dataset.rowIndex = rowIndex;
 
-        // Create cells with appropriate styling based on validation
+        // Store original row data
+        tr.dataset.originalData = JSON.stringify(row);
+
         const cells = [
-            { value: row.ticker || 'Missing', required: true },
-            { value: row.amount || 'Missing', required: true },
-            { value: row.purchase_date || '', required: true },
-            { value: row.purchase_price ? `$${row.purchase_price.toLocaleString()}` : '', required: false },
-            { value: row.current_price ? `$${row.current_price.toLocaleString()}` : '', required: false },
-            { value: row.sector || '', required: false },
-            { value: row.notes || '', required: false },
-            { value: row.validation_status, required: false },
-            { value: row.validation_message, required: false }
+            { field: 'ticker', value: row.ticker, required: true, validate: validateTicker },
+            { field: 'amount', value: row.amount, required: true, validate: validateAmount },
+            { field: 'purchase_date', value: row.purchase_date, required: true, validate: validateDate },
+            { field: 'purchase_price', value: row.purchase_price, required: false, validate: validatePrice },
+            { field: 'current_price', value: row.current_price, required: false, validate: validatePrice },
+            { field: 'sector', value: row.sector, required: false },
+            { field: 'notes', value: row.notes, required: false },
+            { field: 'validation_status', value: row.validation_status, required: false, readonly: true },
+            { field: 'validation_message', value: row.validation_message, required: false, readonly: true }
         ];
 
-        // Create each cell with appropriate styling
-        cells.forEach(cell => {
+        cells.forEach((cell, cellIndex) => {
             const td = document.createElement('td');
-            td.textContent = cell.value;
 
-            // Add error styling for missing required fields
-            if (cell.required && (cell.value === 'Missing' || cell.value === 'Invalid')) {
-                td.classList.add('error');
+            // Don't make readonly cells editable
+            if (!cell.readonly) {
+                td.contentEditable = true;
+                td.dataset.field = cell.field;
+                td.dataset.required = cell.required;
+
+                // Add validation indicator
+                if (cell.required && !cell.value) {
+                    td.classList.add('invalid');
+                }
+            }
+
+            // Display the original value even if invalid
+            if (cell.field === 'purchase_price' || cell.field === 'current_price') {
+                td.textContent = cell.value ? `$${cell.value.toLocaleString()}` : '';
+            } else {
+                td.textContent = cell.value || '';
+            }
+
+            // Add event listeners for editing
+            if (!cell.readonly) {
+                td.addEventListener('focus', function() {
+                    // Remove currency symbol when editing price fields
+                    if (this.textContent.startsWith('$')) {
+                        this.textContent = this.textContent.replace('$', '').replace(/,/g, '');
+                    }
+                });
+
+                td.addEventListener('blur', async function() {
+                    const newValue = this.textContent.trim();
+                    const field = this.dataset.field;
+                    const required = this.dataset.required === 'true';
+
+                    // Validate the new value
+                    const validation = cell.validate ?
+                        await cell.validate(newValue, required) :
+                        { isValid: true, message: '' };
+
+                    if (validation.isValid) {
+                        this.classList.remove('invalid');
+                        // Format price fields
+                        if (field === 'purchase_price' || field === 'current_price') {
+                            this.textContent = `$${parseFloat(newValue).toLocaleString()}`;
+                        }
+                    } else {
+                        this.classList.add('invalid');
+                    }
+
+                    // Update row validation status
+                    updateRowValidation(tr);
+                });
+
+                // Prevent line breaks
+                td.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this.blur();
+                    }
+                });
             }
 
             tr.appendChild(td);
@@ -1196,8 +1252,64 @@ function displayFilePreview(data) {
 
     // Show preview section and handle create button
     document.getElementById('filePreviewSection').classList.remove('hidden');
+    updateCreateButtonState();
+}
+
+// Validation functions
+async function validateTicker(value, required) {
+    if (!value && required) return { isValid: false, message: 'Ticker is required' };
+
+    // Add API call to verify ticker exists
+    try {
+        const response = await fetch(`/auth/validate-ticker/${value}`);
+        const data = await response.json();
+        return { isValid: data.valid, message: data.message };
+    } catch (error) {
+        return { isValid: false, message: 'Error validating ticker' };
+    }
+}
+
+function validateAmount(value, required) {
+    if (!value && required) return { isValid: false, message: 'Amount is required' };
+    const amount = parseFloat(value);
+    return {
+        isValid: !isNaN(amount) && amount > 0,
+        message: 'Amount must be a positive number'
+    };
+}
+
+function validateDate(value, required) {
+    if (!value && required) return { isValid: false, message: 'Date is required' };
+    const date = new Date(value);
+    return {
+        isValid: !isNaN(date.getTime()),
+        message: 'Invalid date format'
+    };
+}
+
+function validatePrice(value, required) {
+    if (!value && !required) return { isValid: true, message: '' };
+    const price = parseFloat(value);
+    return {
+        isValid: !isNaN(price) && price >= 0,
+        message: 'Price must be a non-negative number'
+    };
+}
+
+function updateRowValidation(row) {
+    const invalidCells = row.querySelectorAll('td.invalid');
+    if (invalidCells.length > 0) {
+        row.className = 'invalid';
+    } else {
+        row.className = 'valid';
+    }
+    updateCreateButtonState();
+}
+
+function updateCreateButtonState() {
     const createBtn = document.getElementById('createPortfolioBtn');
-    createBtn.disabled = data.summary.invalid_rows > 0;
+    const invalidRows = document.querySelectorAll('#previewTable tbody tr.invalid');
+    createBtn.disabled = invalidRows.length > 0;
 
     if (createBtn.disabled) {
         createBtn.title = 'Fix validation errors before creating portfolio';

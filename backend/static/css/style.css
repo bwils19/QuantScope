@@ -594,6 +594,25 @@ button:hover {
     font-weight: bold;
 }
 
+.preview-table td[contenteditable="true"] {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.preview-table td[contenteditable="true"]:hover {
+    background-color: #f8f9fa;
+}
+
+.preview-table td[contenteditable="true"]:focus {
+    outline: 2px solid #007bff;
+    background-color: #fff;
+}
+
+.preview-table td.invalid {
+    border: 1px solid #dc3545;
+    color: #dc3545;
+}
+
 .preview-actions {
     display: flex;
     justify-content: flex-end;
