@@ -1259,12 +1259,22 @@ function displayFilePreview(data) {
 async function validateTicker(value, required) {
     if (!value && required) return { isValid: false, message: 'Ticker is required' };
 
-    // Add API call to verify ticker exists
+    // standardize the ticker format
+    const ticker = value.trim().toUpperCase();
+
+    // first check against local securities data - don't want to hit that API a bazillion times...
+    const existsLocally = securitiesData.some(security => security.symbol === ticker);
+    if (existsLocally) {
+        return { isValid: true, message: '' };
+    }
+
+    // if not found locally, verify with API
     try {
-        const response = await fetch(`/auth/validate-ticker/${value}`);
+        const response = await fetch(`/auth/validate-ticker/${ticker}`);
         const data = await response.json();
         return { isValid: data.valid, message: data.message };
     } catch (error) {
+        // If API fails, return invalid
         return { isValid: false, message: 'Error validating ticker' };
     }
 }

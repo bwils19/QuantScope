@@ -47,14 +47,14 @@ def parse_portfolio_file(file_path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         else:
             raise ValueError(f"Unsupported file type: {file_ext}")
 
-        # Standardize column names
+        # standardize column names
         df = standardize_columns(df)
 
-        # Initialize validation
+        # initialize validation
         df['validation_status'] = 'valid'
         df['validation_message'] = ''
 
-        # Validate required columns
+        # validate required columns
         missing_columns = []
         for col in ['ticker', 'amount']:
             if col not in df.columns:
@@ -66,11 +66,9 @@ def parse_portfolio_file(file_path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
                 "Please ensure your file has ticker and amount/quantity columns."
             )
 
-        # Clean and validate data with improved error messages
         df['ticker'] = df['ticker'].str.strip().str.upper()
         df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
 
-        # Enhanced validation with detailed messages
         invalid_tickers = df['ticker'].str.contains(r'[^A-Z\.]').fillna(True)
         invalid_amounts = df['amount'].isna() | (df['amount'] <= 0)
 
@@ -89,7 +87,7 @@ def parse_portfolio_file(file_path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
                     df.loc[invalid_prices, 'validation_status'] = 'invalid'
                     df.loc[invalid_prices, 'validation_message'] += f'Invalid {col}; '
 
-        # Comprehensive validation summary
+        # validation summary
         validation_summary = {
             'total_rows': len(df),
             'valid_rows': len(df[df['validation_status'] == 'valid']),
@@ -116,13 +114,13 @@ def format_preview_data(df):
     try:
         preview_data = []
 
-        # Define required and optional columns
+        # required and optional columns
         required_columns = {
             'ticker': str,
             'amount': float,
-            'purchase_date': str  # Now required
+            'purchase_date': str
         }
-
+        # i can implement an api call later to grab this information if it isn't provided in the file.
         optional_columns = {
             'name': str,
             'purchase_price': float,
@@ -191,6 +189,7 @@ def format_preview_data(df):
         print(f"Error in format_preview_data: {str(e)}")
         raise
 
+
 def validate_portfolio_file(file_path: str) -> Tuple[bool, str, Optional[pd.DataFrame]]:
     """
     Validate uploaded file with enhanced error handling and reporting
@@ -198,7 +197,6 @@ def validate_portfolio_file(file_path: str) -> Tuple[bool, str, Optional[pd.Data
     try:
         df, validation_summary = parse_portfolio_file(file_path)
 
-        # Enhanced validation message with more details
         message = (
             f"File validated successfully:\n"
             f"- Total securities: {validation_summary['total_securities']}\n"
@@ -208,7 +206,7 @@ def validate_portfolio_file(file_path: str) -> Tuple[bool, str, Optional[pd.Data
             f"- Invalid rows: {validation_summary['invalid_rows']}"
         )
 
-        # Add warning if there are invalid rows
+        # warning if there are invalid rows
         if validation_summary['invalid_rows'] > 0:
             message += "\n\nWarning: Some rows contain invalid data. Check the preview for details."
 
