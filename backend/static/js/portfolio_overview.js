@@ -10,6 +10,8 @@ let currentPortfolio = null;
 let editedSecurities = new Map();
 let selectedEditSecurity = null;
 
+let editedPreviewData = [];
+
 // Cache DOM elements
 const elements = {
     portfolioList: document.getElementById("portfolio-list"),
@@ -997,6 +999,7 @@ async function createPortfolioFromFile(portfolioName) {
 }
 
 async function handlePortfolioCreation(portfolioName) {
+    console.log('Edited Preview Data:', editedPreviewData);
     try {
         const createBtn = document.getElementById('createPortfolioBtn');
         const fileId = createBtn.dataset.fileId;
@@ -1011,7 +1014,8 @@ async function handlePortfolioCreation(portfolioName) {
         console.log('Portfolio Name:', portfolioName);
 
         const requestData = {
-            portfolio_name: portfolioName
+            portfolio_name: portfolioName,
+            preview_data: editedPreviewData  // Send edited data
         };
         console.log('Request Data:', requestData);
 
@@ -1150,6 +1154,9 @@ async function handleFileUpload(event) {
 // }
 
 function displayFilePreview(data) {
+
+    editedPreviewData = [...data.preview_data];
+
     // Update summary statistics
     document.getElementById('totalRows').textContent = data.summary.total_rows;
     document.getElementById('validRows').textContent = data.summary.valid_rows;
@@ -1195,7 +1202,7 @@ function displayFilePreview(data) {
                 }
             }
 
-            // Display the original value even if invalid
+            // Display the original value even if invalid - this still isn't working?
             if (cell.field === 'purchase_price' || cell.field === 'current_price') {
                 td.textContent = cell.value ? `$${cell.value.toLocaleString()}` : '';
             } else {
@@ -1212,29 +1219,40 @@ function displayFilePreview(data) {
                 });
 
                 td.addEventListener('blur', async function() {
-                    const newValue = this.textContent.trim();
-                    const field = this.dataset.field;
-                    const required = this.dataset.required === 'true';
+                   const newValue = this.textContent.trim();
+                   const field = this.dataset.field;
+                   const required = this.dataset.required === 'true';
+                   const rowIndex = parseInt(tr.dataset.rowIndex);
 
-                    // Validate the new value
-                    const validation = cell.validate ?
-                        await cell.validate(newValue, required) :
-                        { isValid: true, message: '' };
+                   // Validate the new value
+                   const validation = cell.validate ?
+                       await cell.validate(newValue, required) :
+                       { isValid: true, message: '' };
 
-                    if (validation.isValid) {
-                        this.classList.remove('invalid');
-                        // Format price fields
-                        if (field === 'purchase_price' || field === 'current_price') {
-                            this.textContent = `$${parseFloat(newValue).toLocaleString()}`;
-                        }
-                    } else {
-                        this.classList.add('invalid');
-                    }
+                   if (validation.isValid) {
+                       this.classList.remove('invalid');
+                       // Format price fields
+                       if (field === 'purchase_price' || field === 'current_price') {
+                           this.textContent = `$${parseFloat(newValue).toLocaleString()}`;
+                           editedPreviewData[rowIndex][field] = parseFloat(newValue);
+                       } else {
+                           editedPreviewData[rowIndex][field] = newValue;
+                       }
 
-                    // Update row validation status
-                    updateRowValidation(tr);
+                       // Update validation status
+                       editedPreviewData[rowIndex].validation_status = 'valid';
+                       editedPreviewData[rowIndex].validation_message = '';
+
+                       console.log(`Updated ${field} for row ${rowIndex}:`, editedPreviewData[rowIndex]);
+                   } else {
+                       this.classList.add('invalid');
+                       editedPreviewData[rowIndex].validation_status = 'invalid';
+                       editedPreviewData[rowIndex].validation_message = validation.message;
+                   }
+
+                   // Update row validation status
+                   updateRowValidation(tr);
                 });
-
                 // Prevent line breaks
                 td.addEventListener('keydown', function(e) {
                     if (e.key === 'Enter') {
@@ -1242,6 +1260,8 @@ function displayFilePreview(data) {
                         this.blur();
                     }
                 });
+                    cells.forEach((cell, cellIndex) => {
+            });
             }
 
             tr.appendChild(td);

@@ -728,91 +728,43 @@ def preview_portfolio_file():
 @jwt_required(locations=["cookies"])
 def create_portfolio_from_file(file_id):
     """Create a portfolio from an uploaded file"""
-    print("\n=== Starting Portfolio Creation ===")
-    print(f"File ID: {file_id}")
-
     try:
-        # Log request details
-        print("\n=== Request Details ===")
-        print(f"Method: {request.method}")
-        print(f"Headers: {dict(request.headers)}")
-        print(f"Content-Type: {request.headers.get('Content-Type')}")
-        print(f"Raw Data: {request.get_data()}")
-
-        # Parse JSON data
-        print("\n=== Parsing JSON ===")
-        try:
-            raw_data = request.get_data()
-            print(f"Raw request data: {raw_data}")
-            data = request.get_json(force=True)
-            print(f"Parsed JSON data: {data}")
-        except Exception as e:
-            print(f"JSON parsing error: {str(e)}")
-            return jsonify({"message": f"Invalid JSON data: {str(e)}"}), 400
-
-        # Get portfolio name
-        print("\n=== Processing Portfolio Name ===")
+        data = request.get_json(force=True)
         portfolio_name = data.get('portfolio_name', '').strip()
-        print(f"Portfolio Name: {portfolio_name}")
+        preview_data = data.get('preview_data', [])  # Get edited data
 
         if not portfolio_name:
-            print("Error: Portfolio name is required")
             return jsonify({"message": "Portfolio name is required"}), 400
 
-        # Get user
-        print("\n=== Getting User ===")
         current_user_email = get_jwt_identity()
         user = User.query.filter_by(email=current_user_email).first()
-        print(f"User Email: {current_user_email}")
-
         if not user:
-            print("Error: User not found")
             return jsonify({"message": "User not found"}), 404
 
-        # Get file record
-        print("\n=== Getting File Record ===")
-        file_record = PortfolioFiles.query.get(file_id)
-        if not file_record or file_record.user_id != user.id:
-            print(f"Error: File not found or unauthorized for ID {file_id}")
-            return jsonify({"message": "File not found"}), 404
-
-        # Process file
-        print("\n=== Processing File ===")
-        file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], file_record.filename)
-        print(f"File Path: {file_path}")
-
-        if not os.path.exists(file_path):
-            print(f"Error: File not found at path: {file_path}")
-            return jsonify({"message": "File not found on server"}), 404
-
         # Create portfolio
-        print("\n=== Creating Portfolio ===")
-        df, _ = parse_portfolio_file(file_path)
-        print(f"Parsed file columns: {df.columns.tolist()}")
-
         portfolio = Portfolio(
             name=portfolio_name,
             user_id=user.id,
-            total_holdings=len(df)
+            total_holdings=len([row for row in preview_data if row['validation_status'] == 'valid'])
         )
         db.session.add(portfolio)
         db.session.flush()
-        print(f"Created portfolio with ID: {portfolio.id}")
 
-        # Add securities
-        print("\n=== Adding Securities ===")
+        # Add securities from edited preview data
         total_value = 0
         total_cost = 0
 
-        for _, row in df.iterrows():
+        for row in preview_data:
             if row['validation_status'] == 'valid':
                 security = Security(
                     portfolio_id=portfolio.id,
-                    ticker=row['ticker'],
+                    ticker=row['ticker'].upper(),
                     name=row.get('name', row['ticker']),
                     amount_owned=float(row['amount']),
-                    purchase_price=float(row.get('purchase_price', 0)) if 'purchase_price' in row else 0,
-                    current_price=float(row.get('current_price', 0)) if 'current_price' in row else 0
+                    purchase_date=datetime.strptime(row['purchase_date'], '%Y-%m-%d').date(),
+                    purchase_price=float(row.get('purchase_price', 0)) if row.get('purchase_price') else 0,
+                    current_price=float(row.get('current_price', 0)) if row.get('current_price') else 0,
+                    sector=row.get('sector', '')
                 )
 
                 security.total_value = security.amount_owned * (security.current_price or security.purchase_price)
@@ -822,22 +774,20 @@ def create_portfolio_from_file(file_id):
                 db.session.add(security)
                 print(f"Added security: {security.ticker}")
 
-        # Update totals
-        print("\n=== Updating Portfolio Totals ===")
         portfolio.total_value = total_value
         portfolio.total_gain = total_value - total_cost
         portfolio.total_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
 
         db.session.commit()
-        print("Portfolio creation completed successfully")
 
         # Clean up
-        print("\n=== Cleanup ===")
-        try:
-            os.remove(file_path)
-            print(f"Removed temporary file: {file_path}")
-        except Exception as e:
-            print(f"Warning: Failed to remove temporary file: {e}")
+        file_record = PortfolioFiles.query.get(file_id)
+        if file_record:
+            file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], file_record.filename)
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Warning: Failed to remove temporary file: {e}")
 
         return jsonify({
             "message": "Portfolio created successfully",
@@ -845,12 +795,7 @@ def create_portfolio_from_file(file_id):
         }), 200
 
     except Exception as e:
-        print("\n=== Error Details ===")
-        print(f"Error type: {type(e)}")
-        print(f"Error message: {str(e)}")
-        import traceback
-        print("Traceback:")
-        print(traceback.format_exc())
+        print(f"Error creating portfolio: {str(e)}")
         if 'db' in locals():
             db.session.rollback()
         return jsonify({"message": f"Error creating portfolio: {str(e)}"}), 500
