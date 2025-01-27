@@ -1,3 +1,4 @@
+# tasks.py
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
@@ -8,36 +9,7 @@ from backend import db
 from backend.models import Portfolio, Security, StockCache
 import os
 
-
-def is_market_open():
-    """Check if US market is open"""
-    ny_tz = pytz.timezone('America/New_York')
-    now = datetime.now(ny_tz)
-
-    # US Market Holidays 2025 for now, need to make more dynamic later
-    holidays_2025 = {
-        datetime(2025, 1, 1),   # New Year's Day
-        datetime(2025, 1, 20),  # Martin Luther King Jr. Day
-        datetime(2025, 2, 17),  # Presidents Day
-        datetime(2025, 4, 18),  # Good Friday
-        datetime(2025, 5, 26),  # Memorial Day
-        datetime(2025, 7, 4),   # Independence Day
-        datetime(2025, 9, 1),   # Labor Day
-        datetime(2025, 11, 27),  # Thanksgiving Day
-        datetime(2025, 12, 25),  # Christmas Day
-    }
-
-    # Check if today is a holiday
-    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    if today in holidays_2025:
-        return False
-
-    # Market hours are 9:30 AM to 4:00 PM Eastern, Monday to Friday
-    market_start = now.replace(hour=9, minute=30, second=0, microsecond=0).time()
-    market_end = now.replace(hour=16, minute=0, second=0, microsecond=0).time()
-
-    return (now.weekday() < 5 and  # Monday = 0, Friday = 4
-            market_start <= now.time() <= market_end)
+from backend.services.stock_service import update_prices, is_market_open
 
 
 def update_portfolio_prices():
@@ -187,24 +159,22 @@ def update_portfolio_prices():
 
 
 def init_scheduler(app):
-
     scheduler = BackgroundScheduler()
 
-    # Run every 5 minutes during market hours
+    # Run twice daily during market hours
     scheduler.add_job(
-        func=update_portfolio_prices,
+        func=update_prices,
         trigger=CronTrigger(
             day_of_week='mon-fri',
-            hour='9,12,15',  # Run at 9am, 12pm, and 3pm
-            minute='30',  # At :30 past the hour
+            hour='9,13',  # Run at market open (9:30 AM) and mid-day (1 PM)
+            minute='30',
             timezone=pytz.timezone('America/New_York')
         ),
-        id='update_portfolio_prices',
-        name='Update portfolio prices every 5 minutes during market hours',
+        id='update_prices',
+        name='Update security prices twice daily',
         coalesce=True,
-        max_instances=1  # Only one instance can run at a time
+        max_instances=1
     )
 
-    # Start the scheduler
     scheduler.start()
     return scheduler

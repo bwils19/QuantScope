@@ -4,6 +4,7 @@ from datetime import datetime
 
 class User(db.Model):
     __tablename__ = 'users'  # Changed to match foreign key references
+    __table_args__ = {'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
@@ -15,7 +16,7 @@ class User(db.Model):
 
 class Portfolio(db.Model):
     __tablename__ = 'portfolios'
-
+    __table_args__ = {'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
@@ -39,7 +40,7 @@ class Portfolio(db.Model):
 
 class Security(db.Model):
     __tablename__ = 'securities'
-
+    __table_args__ = {'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'), nullable=False)
     ticker = db.Column(db.String(20), nullable=False)
@@ -70,17 +71,29 @@ class Security(db.Model):
 
 
 class StockCache(db.Model):
-    __tablename__ = 'stock_cache'  # Added tablename for consistency
+    __tablename__ = 'stock_cache'
+    __table_args__ = {'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
-    ticker = db.Column(db.String(10), nullable=False, unique=True)
+    ticker = db.Column(db.String(10), nullable=False, unique=True, index=True)
     date = db.Column(db.Date, nullable=False)
-    data = db.Column(db.JSON, nullable=False)
-    updated_at = db.Column(db.DateTime, default=db.func.now())
+    data = db.Column(db.JSON)
+
+    @property
+    def current_price(self):
+        return self.data.get('currentPrice') if self.data else None
+
+    @property
+    def previous_close(self):
+        return self.data.get('previousClose') if self.data else None
+
+    @property
+    def change_percent(self):
+        return self.data.get('changePercent') if self.data else None
 
 
 class PortfolioFiles(db.Model):
     __tablename__ = 'portfolio_files'
-
+    __table_args__ = {'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # Updated to match users table
     filename = db.Column(db.String(255), nullable=False)

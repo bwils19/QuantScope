@@ -146,13 +146,22 @@
                 <ul id="searchSuggestions" class="search-suggestions hidden"></ul>
             </div>
             <input type="number" id="amountInput" class="input-box" placeholder="Enter amount owned" />
+
+            <div style="margin-top: 8px;">
+                <div class="date-input-container">
+                    <label for="datePurchasedInput" class="date-placeholder">Enter date purchased</label>
+                    <input type="date" id="datePurchasedInput" class="input-box" />
+                </div>
+            </div>
+
             <button id="addStockBtn" class="btn-primary">Add</button>
             <table id="manualPortfolioTable">
                 <thead>
                     <tr>
                         <th class="chevron-header"></th>
-                        <th>Equity</th>
+                        <th>Security</th>
                         <th>Amount Owned</th>
+                        <th>Purchase Date</th>
                         <th>Value Change (Day)</th>
                         <th>Total Value</th>
                     </tr>

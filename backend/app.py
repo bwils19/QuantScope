@@ -1,4 +1,4 @@
-from flask import Flask, redirect, url_for, jsonify
+from flask import Flask, redirect, url_for, jsonify, make_response
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from flask_migrate import Migrate
 from backend import db, bcrypt, jwt
@@ -32,6 +32,10 @@ def create_app(test_config=None):
         # Load test config if passed in
         app.config.update(test_config)
 
+    lock_file = 'sessions_cleared.lock'
+    if os.path.exists(lock_file):
+        os.remove(lock_file)
+
     # Initialize extensions
     db.init_app(app)
     bcrypt.init_app(app)
@@ -40,6 +44,22 @@ def create_app(test_config=None):
     with app.app_context():
 
         from backend.models import User, Portfolio, Security
+
+        @app.before_request
+        def clear_sessions_on_startup():
+            lock_file = 'sessions_cleared.lock'
+
+            if not os.path.exists(lock_file):
+                # Delete cookies on the first request after restart
+                response = make_response(redirect(url_for('auth.login_page')))
+                response.delete_cookie('access_token_cookie')
+                response.delete_cookie('csrf_access_token')
+
+                # Create the lock file to mark that sessions have been cleared
+                with open(lock_file, 'w') as f:
+                    f.write('cleared')
+
+                return response
 
         # Create database tables
         db.create_all()

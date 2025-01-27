@@ -11,6 +11,7 @@ let editedSecurities = new Map();
 let selectedEditSecurity = null;
 
 let editedPreviewData = [];
+const MAX_NAME_SIMILARITY = 0.8;
 
 // Cache DOM elements
 const elements = {
@@ -20,6 +21,7 @@ const elements = {
     tableHeader: document.querySelector("#manualPortfolioTable thead"),
     searchStockInput: document.getElementById("searchStockInput"),
     amountInput: document.getElementById("amountInput"),
+    datePurchasedInput: document.getElementById("datePurchasedInput"),
     addStockBtn: document.getElementById("addStockBtn"),
 
     portfolioNameModal: document.getElementById("portfolioNameModal"),
@@ -391,6 +393,51 @@ function formatCurrency(value) {
     }).format(value);
 }
 
+function findMatchingTicker(companyName) {
+    if (!companyName) return null;
+
+    // Convert to lowercase for comparison
+    const searchName = companyName.toLowerCase();
+
+    const matches = securitiesData
+        .map(security => ({
+            symbol: security.symbol,
+            name: security.name,
+            similarity: stringSimilarity(security.name.toLowerCase(), searchName)
+        }))
+        .filter(match => match.similarity > MAX_NAME_SIMILARITY)
+        .sort((a, b) => b.similarity - a.similarity);
+
+    return matches.length > 0 ? matches[0] : null;
+}
+
+function stringSimilarity(str1, str2) {
+    const maxLength = Math.max(str1.length, str2.length);
+    if (maxLength === 0) return 1.0;
+
+    const distance = levenshteinDistance(str1, str2);
+    return 1 - distance / maxLength;
+}
+
+function levenshteinDistance(str1, str2) {
+    const dp = Array(str1.length + 1).fill(null)
+        .map(() => Array(str2.length + 1).fill(0));
+
+    for (let i = 0; i <= str1.length; i++) dp[i][0] = i;
+    for (let j = 0; j <= str2.length; j++) dp[0][j] = j;
+
+    for (let i = 1; i <= str1.length; i++) {
+        for (let j = 1; j <= str2.length; j++) {
+            dp[i][j] = Math.min(
+                dp[i-1][j] + 1,
+                dp[i][j-1] + 1,
+                dp[i-1][j-1] + (str1[i-1] === str2[j-1] ? 0 : 1)
+            );
+        }
+    }
+    return dp[str1.length][str2.length];
+}
+
 function formatPercentage(value) {
     return new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 2,
@@ -509,6 +556,12 @@ async function addStock() {
         return;
     }
 
+    const purchaseDate = elements.datePurchasedInput.value.trim();
+    if (!purchaseDate) {
+        showError("Please select a purchase date.");
+        return;
+    }
+
     const isDuplicate = manualPortfolio.some(
         (stock) => stock.equityDetails === `${selectedSecurity.symbol}:${selectedSecurity.exchange}`
     );
@@ -531,6 +584,7 @@ async function addStock() {
         equityName: selectedSecurity.name,
         equityDetails: `${selectedSecurity.symbol}:${selectedSecurity.exchange}`,
         amount: amount,
+        purchase_date: purchaseDate,
         valueChange: dailyChange,
         totalValue: totalValue,
     });
@@ -538,6 +592,7 @@ async function addStock() {
     elements.searchStockInput.value = "";
     elements.amountInput.value = "";
     selectedSecurity = null;
+    elements.datePurchasedInput.value = "";
     elements.tableHeader.style.display = "table-header-group";
     elements.searchStockInput.focus();
 }
@@ -561,6 +616,7 @@ function addStockRow(stock) {
             <span style="font-size: 0.8em; color: grey;">${stock.equityDetails}</span>
         </td>
         <td class="amount-cell">${stock.amount}</td>
+        <td class="purchase-date">${stock.purchase_date || "Not Provided"}</td>
         <td class="value-change ${valueChangeClass}">${parseFloat(stock.valueChange).toLocaleString('en-US', {
             style: 'currency', currency: 'USD'
         })}</td>
@@ -694,7 +750,9 @@ async function createPortfolio(portfolioName) {
         ticker: stock.equityDetails.split(":")[0],
         name: stock.equityName,
         exchange: stock.equityDetails.split(":")[1],
+        date_purchased: stock.datePurchased,
         amount: stock.amount,
+
         valueChange: parseFloat(stock.valueChange),
         totalValue: parseFloat(stock.totalValue)
     }));
@@ -1154,125 +1212,144 @@ async function handleFileUpload(event) {
 // }
 
 function displayFilePreview(data) {
+   document.getElementById('totalRows').textContent = data.summary.total_rows;
+   document.getElementById('validRows').textContent = data.summary.valid_rows;
+   document.getElementById('invalidRows').textContent = data.summary.invalid_rows;
+   document.getElementById('totalAmount').textContent = new Intl.NumberFormat('en-US').format(data.summary.total_amount);
 
-    editedPreviewData = [...data.preview_data];
+   editedPreviewData = [...data.preview_data];
 
-    // Update summary statistics
-    document.getElementById('totalRows').textContent = data.summary.total_rows;
-    document.getElementById('validRows').textContent = data.summary.valid_rows;
-    document.getElementById('invalidRows').textContent = data.summary.invalid_rows;
-    document.getElementById('totalAmount').textContent = new Intl.NumberFormat('en-US').format(data.summary.total_amount);
+   const tableBody = document.querySelector('#previewTable tbody');
+   tableBody.innerHTML = '';
 
-    // Populate preview table
-    const tableBody = document.querySelector('#previewTable tbody');
-    tableBody.innerHTML = '';
+   data.preview_data.forEach((row, rowIndex) => {
+       const tr = document.createElement('tr');
+       tr.className = row.validation_status;
+       tr.dataset.rowIndex = rowIndex;
+       tr.dataset.originalData = JSON.stringify(row);
 
-    data.preview_data.forEach((row, rowIndex) => {
-        const tr = document.createElement('tr');
-        tr.className = row.validation_status;
-        tr.dataset.rowIndex = rowIndex;
+       const cells = [
+           { field: 'ticker', value: row.ticker, required: true, validate: validateTicker },
+           { field: 'amount', value: row.amount, required: true, validate: validateAmount },
+           { field: 'purchase_date', value: row.purchase_date, required: true, validate: validateDate },
+           { field: 'purchase_price', value: row.purchase_price, required: false, validate: validatePrice },
+           { field: 'current_price', value: row.current_price, required: false, validate: validatePrice },
+           { field: 'sector', value: row.sector, required: false },
+           { field: 'notes', value: row.notes, required: false },
+           { field: 'validation_status', value: row.validation_status, required: false, readonly: true },
+           { field: 'validation_message', value: row.validation_message, required: false, readonly: true }
+       ];
 
-        // Store original row data
-        tr.dataset.originalData = JSON.stringify(row);
+       cells.forEach((cell) => {
+           const td = document.createElement('td');
 
-        const cells = [
-            { field: 'ticker', value: row.ticker, required: true, validate: validateTicker },
-            { field: 'amount', value: row.amount, required: true, validate: validateAmount },
-            { field: 'purchase_date', value: row.purchase_date, required: true, validate: validateDate },
-            { field: 'purchase_price', value: row.purchase_price, required: false, validate: validatePrice },
-            { field: 'current_price', value: row.current_price, required: false, validate: validatePrice },
-            { field: 'sector', value: row.sector, required: false },
-            { field: 'notes', value: row.notes, required: false },
-            { field: 'validation_status', value: row.validation_status, required: false, readonly: true },
-            { field: 'validation_message', value: row.validation_message, required: false, readonly: true }
-        ];
+           if (!cell.readonly) {
+               td.contentEditable = true;
+               td.dataset.field = cell.field;
+               td.dataset.required = cell.required;
 
-        cells.forEach((cell, cellIndex) => {
-            const td = document.createElement('td');
+               if (cell.required && !cell.value) {
+                   td.classList.add('invalid');
+               }
+           }
 
-            // Don't make readonly cells editable
-            if (!cell.readonly) {
-                td.contentEditable = true;
-                td.dataset.field = cell.field;
-                td.dataset.required = cell.required;
+           if (cell.field === 'purchase_price' || cell.field === 'current_price') {
+               td.textContent = cell.value ? `$${cell.value.toLocaleString()}` : '';
+           } else {
+               td.textContent = cell.value || '';
+           }
 
-                // Add validation indicator
-                if (cell.required && !cell.value) {
-                    td.classList.add('invalid');
-                }
-            }
+           if (!cell.readonly) {
+               td.addEventListener('focus', function() {
+                   if (this.textContent.startsWith('$')) {
+                       this.textContent = this.textContent.replace('$', '').replace(/,/g, '');
+                   }
+               });
 
-            // Display the original value even if invalid - this still isn't working?
-            if (cell.field === 'purchase_price' || cell.field === 'current_price') {
-                td.textContent = cell.value ? `$${cell.value.toLocaleString()}` : '';
-            } else {
-                td.textContent = cell.value || '';
-            }
-
-            // Add event listeners for editing
-            if (!cell.readonly) {
-                td.addEventListener('focus', function() {
-                    // Remove currency symbol when editing price fields
-                    if (this.textContent.startsWith('$')) {
-                        this.textContent = this.textContent.replace('$', '').replace(/,/g, '');
-                    }
-                });
-
-                td.addEventListener('blur', async function() {
+               td.addEventListener('blur', async function() {
                    const newValue = this.textContent.trim();
                    const field = this.dataset.field;
                    const required = this.dataset.required === 'true';
                    const rowIndex = parseInt(tr.dataset.rowIndex);
 
-                   // Validate the new value
-                   const validation = cell.validate ?
-                       await cell.validate(newValue, required) :
-                       { isValid: true, message: '' };
-
-                   if (validation.isValid) {
-                       this.classList.remove('invalid');
-                       // Format price fields
-                       if (field === 'purchase_price' || field === 'current_price') {
-                           this.textContent = `$${parseFloat(newValue).toLocaleString()}`;
-                           editedPreviewData[rowIndex][field] = parseFloat(newValue);
+                   if (field === 'ticker') {
+                       const validation = await validateTicker(newValue, required);
+                       if (!validation.isValid) {
+                           const companyName = editedPreviewData[rowIndex].name;
+                           if (companyName) {
+                               const suggestion = findMatchingTicker(companyName);
+                               if (suggestion) {
+                                   const useSymbol = confirm(
+                                       `Did you mean ${suggestion.symbol} for ${suggestion.name}?`
+                                   );
+                                   if (useSymbol) {
+                                       this.textContent = suggestion.symbol;
+                                       editedPreviewData[rowIndex].ticker = suggestion.symbol;
+                                       editedPreviewData[rowIndex].name = suggestion.name;
+                                       this.classList.remove('invalid');
+                                       editedPreviewData[rowIndex].validation_status = 'valid';
+                                       editedPreviewData[rowIndex].validation_message = '';
+                                       updateRowValidation(tr);
+                                       return;
+                                   }
+                               }
+                           }
+                           this.classList.add('invalid');
+                           editedPreviewData[rowIndex].validation_status = 'invalid';
+                           editedPreviewData[rowIndex].validation_message = validation.message;
                        } else {
+                           this.classList.remove('invalid');
                            editedPreviewData[rowIndex][field] = newValue;
+                           editedPreviewData[rowIndex].validation_status = 'valid';
+                           editedPreviewData[rowIndex].validation_message = '';
                        }
-
-                       // Update validation status
-                       editedPreviewData[rowIndex].validation_status = 'valid';
-                       editedPreviewData[rowIndex].validation_message = '';
-
-                       console.log(`Updated ${field} for row ${rowIndex}:`, editedPreviewData[rowIndex]);
                    } else {
-                       this.classList.add('invalid');
-                       editedPreviewData[rowIndex].validation_status = 'invalid';
-                       editedPreviewData[rowIndex].validation_message = validation.message;
+                       const validation = cell.validate ?
+                           await cell.validate(newValue, required) :
+                           { isValid: true, message: '' };
+
+                       if (validation.isValid) {
+                           this.classList.remove('invalid');
+                           if (field === 'purchase_price' || field === 'current_price') {
+                               this.textContent = `$${parseFloat(newValue).toLocaleString()}`;
+                               editedPreviewData[rowIndex][field] = parseFloat(newValue);
+                           } else {
+                               editedPreviewData[rowIndex][field] = newValue;
+                           }
+                           editedPreviewData[rowIndex].validation_status = 'valid';
+                           editedPreviewData[rowIndex].validation_message = '';
+                       } else {
+                           this.classList.add('invalid');
+                           editedPreviewData[rowIndex].validation_status = 'invalid';
+                           editedPreviewData[rowIndex].validation_message = validation.message;
+                       }
                    }
-
-                   // Update row validation status
                    updateRowValidation(tr);
-                });
-                // Prevent line breaks
-                td.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        this.blur();
-                    }
-                });
-                    cells.forEach((cell, cellIndex) => {
-            });
-            }
+               });
 
-            tr.appendChild(td);
-        });
+               td.addEventListener('keydown', function(e) {
+                   if (e.key === 'Enter') {
+                       e.preventDefault();
+                       this.blur();
+                   }
+               });
+           }
 
-        tableBody.appendChild(tr);
-    });
+           tr.appendChild(td);
+       });
 
-    // Show preview section and handle create button
-    document.getElementById('filePreviewSection').classList.remove('hidden');
-    updateCreateButtonState();
+       tableBody.appendChild(tr);
+   });
+
+   document.getElementById('filePreviewSection').classList.remove('hidden');
+   const createBtn = document.getElementById('createPortfolioBtn');
+   createBtn.disabled = data.summary.invalid_rows > 0;
+
+   if (createBtn.disabled) {
+       createBtn.title = 'Fix validation errors before creating portfolio';
+   } else {
+       createBtn.title = 'Create portfolio with validated data';
+   }
 }
 
 // Validation functions
@@ -1584,7 +1661,6 @@ async function savePortfolioChanges() {
     }
 
     function addErrorDisplay() {
-        // Add to manual portfolio section
         const manualSection = document.getElementById('manualPortfolioSection');
         if (!manualSection.querySelector('.modal-error')) {
             const errorDiv = document.createElement('div');

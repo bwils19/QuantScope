@@ -1,0 +1,15 @@
+flask~=3.0.3
+httpx~=0.28.1
+pandas~=2.2.2
+numpy~=1.26.4
+python-dotenv~=1.0.1
+requests~=2.32.3
+sqlalchemy~=2.0.36
+werkzeug~=3.0.6
+pytz~=2024.1
+apscheduler~=3.11.0
+alembic~=1.14.0
+yaml~=0.2.5
+pyyaml~=6.0.2
+matplotlib~=3.9.2
+urllib3>=2.0.0

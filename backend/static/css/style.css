@@ -1148,25 +1148,39 @@ button:hover {
 /* Equity Details Column */
 #manualPortfolioTable th:nth-child(2),
 #manualPortfolioTable td:nth-child(2) {
-    width: 40%;
+    width: 30%;
     padding-left: 10px; /* Move closer to the chevron */
 }
 
 /* Amount Owned */
-#manualPortfolioTable th:nth-child(3),
-#manualPortfolioTable td:nth-child(3) {
-    width: 20%;
-}
+/*#manualPortfolioTable th:nth-child(3),*/
+/*#manualPortfolioTable td:nth-child(3) {*/
+/*    width: 20%;*/
+/*}*/
 
-/* Value Change */
+/*!* Value Change *!*/
+/*#manualPortfolioTable th:nth-child(4),*/
+/*#manualPortfolioTable td:nth-child(4) {*/
+/*    width: 15%;*/
+/*}*/
+
+#manualPortfolioTable th:nth-child(3),
+#manualPortfolioTable td:nth-child(3),
 #manualPortfolioTable th:nth-child(4),
 #manualPortfolioTable td:nth-child(4) {
     width: 15%;
 }
 
-/* Total Value */
+/*!* Total Value *!*/
+/*#manualPortfolioTable th:nth-child(5),*/
+/*#manualPortfolioTable td:nth-child(5) {*/
+/*    width: 20%;*/
+/*}*/
+
 #manualPortfolioTable th:nth-child(5),
-#manualPortfolioTable td:nth-child(5) {
+#manualPortfolioTable td:nth-child(5),
+#manualPortfolioTable th:nth-child(6),
+#manualPortfolioTable td:nth-child(6) {
     width: 20%;
 }
 
@@ -1251,7 +1265,21 @@ button:hover {
     margin-top: 8px;
     box-sizing: border-box;
     -moz-appearance: textfield;
+    maargin-bottom: 8px;
 }
+
+#datePurchasedInput {
+    width: 25%;
+    height: 40px;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    -moz-appearance: textfield;
+}
+
+
 
 #amountInput::-webkit-outer-spin-button,
 #amountInput::-webkit-inner-spin-button {
