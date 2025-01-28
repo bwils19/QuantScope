@@ -26,13 +26,14 @@ def get_portfolio_risk(portfolio_id):
         securities_data = [{
             'ticker': s.ticker,
             'amount_owned': s.amount_owned,
+            'purchase_date': s.purchase_date.strftime("%Y-%m-%d") if s.purchase_date else None,
             'current_price': s.current_price,
             'total_value': s.total_value
         } for s in securities]
 
         # Calculate metrics
         var_data = risk_analyzer.calculate_dynamic_var(securities_data)
-        credit_risk = risk_analyzer.calculate_credit_risk(securities_data)
+        credit_risk = calculate_credit_risk(securities_data)
         beta = risk_analyzer.calculate_portfolio_beta(securities_data, portfolio.total_value)
 
         var_components = risk_analyzer.get_var_components(securities_data)

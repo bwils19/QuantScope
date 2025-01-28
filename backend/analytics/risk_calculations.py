@@ -5,6 +5,45 @@ from typing import List, Dict, Optional
 from .market_data import fetch_historical_prices
 
 
+def calculate_credit_risk(securities_data):
+    """ Placeholder method for credit risk.
+        Could be refined to look up credit spreads,
+        bond durations, or default probabilities.
+    """
+    total_credit_risk = 0
+    for s in securities_data:
+        # Placeholder logic:
+        # Suppose each security that is a bond has a small credit risk measure
+        # or just return 0 for everything as a placeholder
+        pass
+
+    return {
+        "cs01": 0.0  # or some real measure
+    }
+
+
+def calculate_portfolio_beta(self, securities_data, portfolio_value):
+    """ Calculate portfolio beta as weighted average of individual betas.
+        This requires you to have a way to fetch each security's beta or compute it.
+    """
+    total_beta = 0
+    for s in securities_data:
+        # You'd need each security's beta from some source
+        # e.g., yahoo finance or your own historical regression
+        # For now, let's pretend we have a function get_beta(ticker)
+        beta_of_security = self._get_beta_for_ticker(s['ticker'])
+        weight = s['total_value'] / portfolio_value if portfolio_value else 0
+        total_beta += beta_of_security * weight
+
+    return total_beta
+
+
+def _get_beta_for_ticker(self, ticker):
+    # Placeholder or fetch from an API
+    # e.g., return 1.2 for AAPL, etc.
+    return 1.0
+
+
 class RiskAnalytics:
     def __init__(self):
         self.market_data = None
