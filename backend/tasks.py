@@ -159,6 +159,9 @@ def update_portfolio_prices():
 
 
 def init_scheduler(app):
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from backend.services.stock_service import update_prices
+
     scheduler = BackgroundScheduler()
 
     # Run twice daily during market hours

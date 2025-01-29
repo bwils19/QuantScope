@@ -96,8 +96,11 @@ class RiskAnalytics:
         portfolio_returns = np.sum(historical_returns, axis=0)
 
         if len(portfolio_returns) > 0:
-            var_normal = np.percentile(portfolio_returns, (1 - confidence) * 100)
-            var_stress = np.percentile(portfolio_returns, (1 - confidence - 0.1) * 100)
+            var_normal_conf = 0.95
+            var_stress_conf = 0.99  # i could up this to 0.995 for more extreme stress. this is good for now...
+
+            var_normal = np.percentile(portfolio_returns, (1 - var_normal_conf) * 100)
+            var_stress = np.percentile(portfolio_returns, (1 - var_stress_conf) * 100)
             tail_returns = portfolio_returns[portfolio_returns <= var_normal]
             cvar = np.mean(tail_returns) if len(tail_returns) > 0 else var_normal
         else:
@@ -116,21 +119,30 @@ class RiskAnalytics:
         }
 
     def get_var_components(self, securities: List[Dict]) -> List[Dict]:
-        """Calculate individual security contributions to portfolio VaR"""
         components = []
         portfolio_value = sum(s['total_value'] for s in securities)
 
         for security in securities:
-            prices = fetch_historical_prices(security['ticker'])
-            returns = self._calculate_daily_returns(prices)
+            # Fetch (date, price) pairs
+            all_data = fetch_historical_prices(security['ticker'])
+            # Extract just the price floats
+            price_series = [p for (d, p) in all_data]
 
-            var_contrib = np.percentile(returns, 5) * security['total_value']
+            returns = self._calculate_daily_returns(price_series)
+
+            if len(returns) == 0:
+                # handle the case where there's no usable data? - need to figure that out.
+                # for now set var_contrib = 0
+                var_contrib = 0
+            else:
+                # 5th percentile of returns (which is the same as 95% confidence if you interpret negative tail)
+                var_contrib = np.percentile(returns, 5) * security['total_value']
 
             components.append({
                 "ticker": security['ticker'],
                 "var_contribution": var_contrib,
-                "weight": security['total_value'] / portfolio_value,
-                "volatility": np.std(returns) * np.sqrt(252)  # Annualized volatility
+                "weight": security['total_value'] / portfolio_value if portfolio_value else 0,
+                "volatility": np.std(returns) * np.sqrt(252) if len(returns) > 0 else 0
             })
 
         return components

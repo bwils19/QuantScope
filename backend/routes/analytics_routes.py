@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from backend.models import User, Portfolio, Security  # Use absolute imports
-from backend.analytics.risk_calculations import RiskAnalytics
+from backend.analytics.risk_calculations import RiskAnalytics, calculate_credit_risk
 from backend import db
 
 analytics_blueprint = Blueprint('analytics', __name__)
@@ -34,7 +34,7 @@ def get_portfolio_risk(portfolio_id):
         # Calculate metrics
         var_data = risk_analyzer.calculate_dynamic_var(securities_data)
         credit_risk = calculate_credit_risk(securities_data)
-        beta = risk_analyzer.calculate_portfolio_beta(securities_data, portfolio.total_value)
+        # beta = risk_analyzer.calculate_portfolio_beta(securities_data, portfolio.total_value)
 
         var_components = risk_analyzer.get_var_components(securities_data)
 
@@ -43,7 +43,7 @@ def get_portfolio_risk(portfolio_id):
             'total_value': portfolio.total_value,
             'var_metrics': var_data,
             'credit_risk': credit_risk,
-            'beta': beta,
+            'beta': 0.0,  # beta,
             'var_components': var_components,
             'securities': securities_data
         })

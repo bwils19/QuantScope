@@ -45,18 +45,18 @@ def update_prices():
     if not is_market_open():
         return
 
-    try:
-        session = db.create_scoped_session()
+    # Use the current_app context to ensure everything is set
+    from flask import current_app
+    with current_app.app_context():
+        session = None
+        try:
+            session = db.session  # or a custom session with SessionLocal if needed
 
-        with session.begin():
-            # Get unique tickers across all portfolios
-            unique_tickers = (
-                session.query(distinct(Security.ticker))
-                .all()
-            )
-
-            tickers = [t[0] for t in unique_tickers]
-            api_key = os.getenv('ALPHA_VANTAGE_KEY')
+            # Your existing logic with session.begin() or explicit commits
+            with session.begin():
+                unique_tickers = session.query(distinct(Security.ticker)).all()
+                tickers = [t[0] for t in unique_tickers]
+                api_key = os.getenv('ALPHA_VANTAGE_KEY')
 
             for ticker in tickers:
                 try:
@@ -89,16 +89,12 @@ def update_prices():
                     time.sleep(12)  # Rate limit compliance
 
                 except Exception as e:
-                    print(f"Error updating {ticker}: {str(e)}")
-                    continue
-
-            session.commit()
-
-    except Exception as e:
-        print(f"Error in price update task: {str(e)}")
-        session.rollback()
-    finally:
-        session.close()
+                    print(f"Error in price update task: {str(e)}")
+                    if session is not None:
+                        session.rollback()
+        finally:
+            if session is not None:
+                session.close()
 
 
 def _should_update_cache(cache):
