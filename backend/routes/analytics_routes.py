@@ -34,6 +34,7 @@ def get_portfolio_risk(portfolio_id):
         # Calculate metrics
         var_data = risk_analyzer.calculate_dynamic_var(securities_data)
         credit_risk = calculate_credit_risk(securities_data)
+        # put the beta calculation on hold for right now.
         # beta = risk_analyzer.calculate_portfolio_beta(securities_data, portfolio.total_value)
 
         var_components = risk_analyzer.get_var_components(securities_data)

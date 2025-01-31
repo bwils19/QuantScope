@@ -1206,12 +1206,12 @@ button:hover {
 .dropdown-menu::before {
     content: "";
     position: absolute;
-    top: -8px; /* Position triangle above the menu */
-    left: 20px; /* Align triangle with the chevron */
+    top: -8px;
+    left: 20px;
     border-width: 0 8px 8px 8px;
     border-style: solid;
-    border-color: transparent transparent #fff transparent; /* White triangle */
-    z-index: 11; /* Ensure it is above the menu */
+    border-color: transparent transparent #fff transparent;
+    z-index: 11;
 }
 
 /* Dropdown Buttons */

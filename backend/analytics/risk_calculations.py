@@ -24,7 +24,8 @@ def calculate_credit_risk(securities_data):
 
 def calculate_portfolio_beta(self, securities_data, portfolio_value):
     """ Calculate portfolio beta as weighted average of individual betas.
-        This requires you to have a way to fetch each security's beta or compute it.
+        This requires a way to fetch each security's beta or compute it.
+        Putting this on hold until I get VaR incorporated completely
     """
     total_beta = 0
     for s in securities_data:
