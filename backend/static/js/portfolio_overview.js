@@ -1059,6 +1059,10 @@ async function createPortfolioFromFile(portfolioName) {
 async function handlePortfolioCreation(portfolioName) {
     console.log('Edited Preview Data:', editedPreviewData);
     try {
+        if (!portfolioName || portfolioName.trim() === '') {
+            elements.filePortfolioNameModal.style.display = 'block';
+            return;
+        }
         const createBtn = document.getElementById('createPortfolioBtn');
         const fileId = createBtn.dataset.fileId;
 
