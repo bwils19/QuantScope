@@ -463,7 +463,7 @@ def get_stock_data():
     if not ticker:
         return jsonify({"message": "Ticker is required"}), 400
 
-    # Mocked response - replace with a real API call
+    # mock data for now until implementation
     stock_data = {
         "ticker": ticker.upper(),
         "name": f"Mocked Name for {ticker.upper()}",
@@ -493,10 +493,10 @@ def create_portfolio():
         )
 
         db.session.add(portfolio)
-        db.session.flush()  # Get portfolio ID
+        db.session.flush()
 
         total_value = 0
-        total_cost = 0  # This will be our basis for unrealized gain/loss
+        total_cost = 0
 
         for stock in stocks:
             ticker = stock["ticker"]

@@ -2,6 +2,10 @@
 from datetime import datetime, timedelta
 import pytz
 from sqlalchemy import func, distinct
+from flask import current_app
+from flask import Flask
+from flask import has_app_context
+from sqlalchemy.orm import Session
 from backend import db
 from backend.models import Security, Portfolio, StockCache
 import requests
@@ -41,27 +45,27 @@ def is_market_open():
 
 
 def update_prices():
-    """Update prices for all unique securities twice daily"""
+    """Update prices for all unique securities twice daily."""
     if not is_market_open():
         return
 
-    # Use the current_app context to ensure everything is set
-    from flask import current_app
-    with current_app.app_context():
-        session = None
-        try:
-            session = db.session  # or a custom session with SessionLocal if needed
+    # Import inside the function to avoid circular dependency
+    from backend.app import create_app
 
-            # Your existing logic with session.begin() or explicit commits
-            with session.begin():
-                unique_tickers = session.query(distinct(Security.ticker)).all()
-                tickers = [t[0] for t in unique_tickers]
-                api_key = os.getenv('ALPHA_VANTAGE_KEY')
+    app = create_app()
+    with app.app_context():
+        session = db.session  # Get SQLAlchemy session
+        try:
+            # Fetch all unique tickers
+            unique_tickers = session.query(Security.ticker.distinct()).all()
+            tickers = [t[0] for t in unique_tickers]
+
+            api_key = os.getenv('ALPHA_VANTAGE_KEY')
 
             for ticker in tickers:
                 try:
                     # Check cache first
-                    cache = StockCache.query.filter_by(ticker=ticker).first()
+                    cache = session.query(StockCache).filter_by(ticker=ticker).first()
                     if cache and not _should_update_cache(cache):
                         continue
 
@@ -75,7 +79,7 @@ def update_prices():
                         current_price = float(quote['05. price'])
                         prev_close = float(quote['08. previous close'])
 
-                        # Update cache
+                        # Update cache entry
                         if not cache:
                             cache = StockCache(ticker=ticker)
 
@@ -89,12 +93,17 @@ def update_prices():
                     time.sleep(12)  # Rate limit compliance
 
                 except Exception as e:
-                    print(f"Error in price update task: {str(e)}")
-                    if session is not None:
-                        session.rollback()
+                    print(f"Error updating price for {ticker}: {e}")
+                    session.rollback()
+
+            # Commit changes after all updates
+            session.commit()
+
+        except Exception as e:
+            print(f"Critical error in update_prices: {e}")
+            session.rollback()
         finally:
-            if session is not None:
-                session.close()
+            session.close()
 
 
 def _should_update_cache(cache):

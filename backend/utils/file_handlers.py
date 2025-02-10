@@ -21,12 +21,21 @@ def is_date(value: Any) -> bool:
     """
     Check if a value can be parsed as a date
     """
+    print(pd.Timestamp.today())
+
     if pd.isna(value):
         return False
 
     try:
-        pd.to_datetime(str(value))
-        return True
+        if pd.to_datetime(str(value)):
+            # check if date is a future date
+            if pd.to_datetime(str(value)) > pd.Timestamp.today():
+                print("Date is a future date")
+                return False
+            else:
+                return True
+        else:
+            return False
     except (ValueError, TypeError):
         return False
 
@@ -69,7 +78,7 @@ def parse_portfolio_file(file_path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         df['ticker'] = df['ticker'].str.strip().str.upper()
         df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
 
-        invalid_tickers = df['ticker'].str.contains(r'[^A-Z\.]').fillna(True)
+        invalid_tickers = df['ticker'].str.contains(r'[^A-Z\.]', na=True).astype(bool)
         invalid_amounts = df['amount'].isna() | (df['amount'] <= 0)
 
         df.loc[invalid_tickers, 'validation_status'] = 'invalid'
@@ -240,7 +249,7 @@ def analyze_column_content(df, column_name):
         # case ratio, tickers tend to be uppercase (but not always... haha that's why we have length too!)
         'uppercase_ratio': sum(str(x).isupper() for x in sample_data) / len(sample_data),
         # what can be parsed as a date
-        'contains_date': sum(pd.to_datetime(pd.Series(sample_data), errors='coerce').notna()) / len(sample_data),
+        'contains_date': sum(pd.Series(sample_data).apply(try_parse_date).notna()) / len(sample_data),
         # values containing decimals.
         'decimal_ratio': sum('.' in str(x) for x in sample_data) / len(sample_data),
         # values that are whole numbers.
@@ -266,6 +275,16 @@ def analyze_column_content(df, column_name):
     }
 
     return {k: float(v) for k, v in scores.items()}
+
+
+def try_parse_date(value):
+    """Attempt to parse date in multiple formats."""
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d-%m-%Y", "%m-%d-%Y"):
+        try:
+            return pd.to_datetime(value, format=fmt)
+        except ValueError:
+            continue
+    return pd.NaT
 
 
 def get_name_similarity(column_name, reference_terms):

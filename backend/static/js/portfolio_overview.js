@@ -1306,6 +1306,11 @@ function displayFilePreview(data) {
                            editedPreviewData[rowIndex][field] = newValue;
                            editedPreviewData[rowIndex].validation_status = 'valid';
                            editedPreviewData[rowIndex].validation_message = '';
+                           // this will clear the error message in the UI
+                           const msgTd = tr.querySelector('td[data-field="validation_message"]');
+                           if (msgTd) {
+                               msgTd.textContent = '';
+                           }
                        }
                    } else {
                        const validation = cell.validate ?
@@ -1322,10 +1327,22 @@ function displayFilePreview(data) {
                            }
                            editedPreviewData[rowIndex].validation_status = 'valid';
                            editedPreviewData[rowIndex].validation_message = '';
+                           // this will clear the error message if the update is valid in the table preview
+                           const msgTd = tr.querySelector('td[data-field="validation_message"]');
+                           if (msgTd) {
+                               msgTd.textContent = '';
+                           }
+
                        } else {
                            this.classList.add('invalid');
                            editedPreviewData[rowIndex].validation_status = 'invalid';
                            editedPreviewData[rowIndex].validation_message = validation.message;
+
+                           // update the error message
+                           const msgTd = tr.querySelector('td[data-field="validation_message"]');
+                           if (msgTd) {
+                               msgTd.textContent = validation.message;
+                           }
                        }
                    }
                    updateRowValidation(tr);
