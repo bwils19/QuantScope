@@ -1270,83 +1270,90 @@ function displayFilePreview(data) {
                    }
                });
 
-               td.addEventListener('blur', async function() {
-                   const newValue = this.textContent.trim();
-                   const field = this.dataset.field;
-                   const required = this.dataset.required === 'true';
-                   const rowIndex = parseInt(tr.dataset.rowIndex);
+                td.addEventListener('blur', async function() {
+                const newValue = this.textContent.trim();
+                const field = this.dataset.field;
+                const required = this.dataset.required === 'true';
+                const rowIndex = parseInt(tr.dataset.rowIndex);
 
-                   if (field === 'ticker') {
-                       const validation = await validateTicker(newValue, required);
-                       if (!validation.isValid) {
-                           const companyName = editedPreviewData[rowIndex].name;
-                           if (companyName) {
-                               const suggestion = findMatchingTicker(companyName);
-                               if (suggestion) {
-                                   const useSymbol = confirm(
-                                       `Did you mean ${suggestion.symbol} for ${suggestion.name}?`
-                                   );
-                                   if (useSymbol) {
-                                       this.textContent = suggestion.symbol;
-                                       editedPreviewData[rowIndex].ticker = suggestion.symbol;
-                                       editedPreviewData[rowIndex].name = suggestion.name;
-                                       this.classList.remove('invalid');
-                                       editedPreviewData[rowIndex].validation_status = 'valid';
-                                       editedPreviewData[rowIndex].validation_message = '';
-                                       updateRowValidation(tr);
-                                       return;
-                                   }
-                               }
-                           }
-                           this.classList.add('invalid');
-                           editedPreviewData[rowIndex].validation_status = 'invalid';
-                           editedPreviewData[rowIndex].validation_message = validation.message;
-                       } else {
-                           this.classList.remove('invalid');
-                           editedPreviewData[rowIndex][field] = newValue;
-                           editedPreviewData[rowIndex].validation_status = 'valid';
-                           editedPreviewData[rowIndex].validation_message = '';
-                           // this will clear the error message in the UI
-                           const msgTd = tr.querySelector('td[data-field="validation_message"]');
-                           if (msgTd) {
-                               msgTd.textContent = '';
-                           }
-                       }
-                   } else {
-                       const validation = cell.validate ?
-                           await cell.validate(newValue, required) :
-                           { isValid: true, message: '' };
+                // Find the validation message cell
+                const validationMessageCell = tr.querySelector('td:nth-child(9)');
+                const validationStatusCell = tr.querySelector('td:nth-child(8)');
 
-                       if (validation.isValid) {
-                           this.classList.remove('invalid');
-                           if (field === 'purchase_price' || field === 'current_price') {
-                               this.textContent = `$${parseFloat(newValue).toLocaleString()}`;
-                               editedPreviewData[rowIndex][field] = parseFloat(newValue);
-                           } else {
-                               editedPreviewData[rowIndex][field] = newValue;
-                           }
-                           editedPreviewData[rowIndex].validation_status = 'valid';
-                           editedPreviewData[rowIndex].validation_message = '';
-                           // this will clear the error message if the update is valid in the table preview
-                           const msgTd = tr.querySelector('td[data-field="validation_message"]');
-                           if (msgTd) {
-                               msgTd.textContent = '';
-                           }
+                if (field === 'ticker') {
+                    const validation = await validateTicker(newValue, required);
+                    if (!validation.isValid) {
+                        const companyName = editedPreviewData[rowIndex].name;
+                        if (companyName) {
+                            const suggestion = findMatchingTicker(companyName);
+                            if (suggestion) {
+                                const useSymbol = confirm(
+                                    `Did you mean ${suggestion.symbol} for ${suggestion.name}?`
+                                );
+                                if (useSymbol) {
+                                    this.textContent = suggestion.symbol;
+                                    editedPreviewData[rowIndex].ticker = suggestion.symbol;
+                                    editedPreviewData[rowIndex].name = suggestion.name;
+                                    this.classList.remove('invalid');
+                                    tr.classList.remove('invalid');
+                                    tr.classList.add('valid');
+                                    editedPreviewData[rowIndex].validation_status = 'valid';
+                                    editedPreviewData[rowIndex].validation_message = '';
+                                    validationMessageCell.textContent = '';
+                                    validationStatusCell.textContent = 'valid';
+                                    updateRowValidation(tr);
+                                    return;
+                                }
+                            }
+                        }
+                        this.classList.add('invalid');
+                        tr.classList.remove('valid');
+                        tr.classList.add('invalid');
+                        editedPreviewData[rowIndex].validation_status = 'invalid';
+                        editedPreviewData[rowIndex].validation_message = validation.message;
+                        validationMessageCell.textContent = validation.message;
+                        validationStatusCell.textContent = 'invalid';
+                    } else {
+                        this.classList.remove('invalid');
+                        tr.classList.remove('invalid');
+                        tr.classList.add('valid');
+                        editedPreviewData[rowIndex].ticker = newValue;
+                        editedPreviewData[rowIndex].validation_status = 'valid';
+                        editedPreviewData[rowIndex].validation_message = '';
+                        validationMessageCell.textContent = '';
+                        validationStatusCell.textContent = 'valid';
+                    }
+                } else {
+                    const validation = cell.validate ?
+                        await cell.validate(newValue, required) :
+                        { isValid: true, message: '' };
 
-                       } else {
-                           this.classList.add('invalid');
-                           editedPreviewData[rowIndex].validation_status = 'invalid';
-                           editedPreviewData[rowIndex].validation_message = validation.message;
-
-                           // update the error message
-                           const msgTd = tr.querySelector('td[data-field="validation_message"]');
-                           if (msgTd) {
-                               msgTd.textContent = validation.message;
-                           }
-                       }
-                   }
-                   updateRowValidation(tr);
-               });
+                    if (validation.isValid) {
+                        this.classList.remove('invalid');
+                        tr.classList.remove('invalid');
+                        tr.classList.add('valid');
+                        if (field === 'purchase_price' || field === 'current_price') {
+                            this.textContent = `$${parseFloat(newValue).toLocaleString()}`;
+                            editedPreviewData[rowIndex][field] = parseFloat(newValue);
+                        } else {
+                            editedPreviewData[rowIndex][field] = newValue;
+                        }
+                        editedPreviewData[rowIndex].validation_status = 'valid';
+                        editedPreviewData[rowIndex].validation_message = '';
+                        validationMessageCell.textContent = '';
+                        validationStatusCell.textContent = 'valid';
+                    } else {
+                        this.classList.add('invalid');
+                        tr.classList.remove('valid');
+                        tr.classList.add('invalid');
+                        editedPreviewData[rowIndex].validation_status = 'invalid';
+                        editedPreviewData[rowIndex].validation_message = validation.message;
+                        validationMessageCell.textContent = validation.message;
+                        validationStatusCell.textContent = 'invalid';
+                    }
+                }
+                updateRowValidation(tr);
+            });
 
                td.addEventListener('keydown', function(e) {
                    if (e.key === 'Enter') {
