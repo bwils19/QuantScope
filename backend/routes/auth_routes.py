@@ -1005,3 +1005,222 @@ def risk_analysis_page():
         print("Traceback:")
         print(traceback.format_exc())
         return redirect(url_for('auth.portfolio_overview'))
+
+
+@auth_blueprint.route('/api/portfolio-composition/<view_type>', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def get_portfolio_composition(view_type):
+    portfolio_id = request.args.get('portfolio_id')
+    print(f"Received request for portfolio {portfolio_id}, view type {view_type}")  # Debug log
+
+    if not portfolio_id:
+        return jsonify({'error': 'Portfolio ID required'}), 400
+
+    try:
+        # Get portfolio data based on view type
+        composition_data = None
+
+        if view_type == 'sector':
+            composition_data = get_sector_composition(int(portfolio_id))
+        elif view_type == 'asset':
+            composition_data = get_asset_composition(int(portfolio_id))
+        elif view_type == 'currency':
+            composition_data = get_currency_composition(int(portfolio_id))
+        elif view_type == 'risk':
+            composition_data = get_risk_composition(int(portfolio_id))
+        else:
+            return jsonify({'error': 'Invalid view type'}), 400
+
+        if not composition_data:
+            return jsonify({'error': 'No data found'}), 404
+
+        return jsonify(composition_data)
+
+    except Exception as e:
+        print(f"Error in get_portfolio_composition: {str(e)}")  # Debug log
+        return jsonify({'error': str(e)}), 500
+
+
+def get_sector_composition(portfolio_id):
+    """Get sector-based composition of portfolio"""
+    try:
+        # Query to get all securities in the portfolio with their amounts
+        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
+
+        # Initialize sector totals
+        sector_totals = {}
+        total_value = 0
+
+        # Calculate value by sector
+        for security in securities:
+            if security.sector:  # Make sure sector exists
+                value = security.amount_owned * security.current_price
+                sector_totals[security.sector] = sector_totals.get(security.sector, 0) + value
+                total_value += value
+
+        # Convert to percentages
+        if total_value > 0:
+            sector_percentages = {
+                sector: (value / total_value) * 100
+                for sector, value in sector_totals.items()
+            }
+
+            # Sort by percentage descending
+            sorted_sectors = sorted(sector_percentages.items(), key=lambda x: x[1], reverse=True)
+
+            return {
+                'labels': [item[0] for item in sorted_sectors],
+                'values': [item[1] for item in sorted_sectors]
+            }
+
+        return {'labels': [], 'values': []}
+
+    except Exception as e:
+        print(f"Error in get_sector_composition: {str(e)}")
+        return {'labels': [], 'values': []}
+
+
+def get_asset_composition(portfolio_id):
+    """Get asset type-based composition of portfolio"""
+    try:
+        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
+
+        # Initialize asset type totals
+        asset_totals = {}
+        total_value = 0
+
+        # Calculate value by asset type
+        for security in securities:
+            value = security.amount_owned * security.current_price
+            # will want to add an asset_type field to this, but keeping with what i know
+            asset_type = categorize_asset_type(security)
+            asset_totals[asset_type] = asset_totals.get(asset_type, 0) + value
+            total_value += value
+
+        # Convert to percentages
+        if total_value > 0:
+            asset_percentages = {
+                asset: (value / total_value) * 100
+                for asset, value in asset_totals.items()
+            }
+
+            sorted_assets = sorted(asset_percentages.items(), key=lambda x: x[1], reverse=True)
+
+            return {
+                'labels': [item[0] for item in sorted_assets],
+                'values': [item[1] for item in sorted_assets]
+            }
+
+        return {'labels': [], 'values': []}
+
+    except Exception as e:
+        print(f"Error in get_asset_composition: {str(e)}")
+        return {'labels': [], 'values': []}
+
+
+def get_currency_composition(portfolio_id):
+    """Get currency-based composition of portfolio"""
+    try:
+        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
+
+        # Initialize currency totals
+        currency_totals = {}
+        total_value = 0
+
+        # Calculate value by currency
+        for security in securities:
+            value = security.amount_owned * security.current_price
+            # For now, assuming USD as default currency
+            # will want to add a currency field later on, default to USD for now
+            currency = 'USD'
+            currency_totals[currency] = currency_totals.get(currency, 0) + value
+            total_value += value
+
+        # Convert to percentages
+        if total_value > 0:
+            currency_percentages = {
+                currency: (value / total_value) * 100
+                for currency, value in currency_totals.items()
+            }
+
+            sorted_currencies = sorted(currency_percentages.items(), key=lambda x: x[1], reverse=True)
+
+            return {
+                'labels': [item[0] for item in sorted_currencies],
+                'values': [item[1] for item in sorted_currencies]
+            }
+
+        return {'labels': [], 'values': []}
+
+    except Exception as e:
+        print(f"Error in get_currency_composition: {str(e)}")
+        return {'labels': [], 'values': []}
+
+
+def get_risk_composition(portfolio_id):
+    """Get risk-based composition of portfolio"""
+    try:
+        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
+
+        # Initialize risk category totals
+        risk_totals = {}
+        total_value = 0
+
+        # Calculate value by risk category
+        for security in securities:
+            value = security.amount_owned * security.current_price
+            # Categorize risk based on beta or other metrics
+            risk_category = categorize_risk(security)
+            risk_totals[risk_category] = risk_totals.get(risk_category, 0) + value
+            total_value += value
+
+        # Convert to percentages
+        if total_value > 0:
+            risk_percentages = {
+                risk: (value / total_value) * 100
+                for risk, value in risk_totals.items()
+            }
+
+            sorted_risks = sorted(risk_percentages.items(), key=lambda x: x[1], reverse=True)
+
+            return {
+                'labels': [item[0] for item in sorted_risks],
+                'values': [item[1] for item in sorted_risks]
+            }
+
+        return {'labels': [], 'values': []}
+
+    except Exception as e:
+        print(f"Error in get_risk_composition: {str(e)}")
+        return {'labels': [], 'values': []}
+
+
+def categorize_asset_type(security):
+    """Helper function to categorize security by asset type"""
+    # super simple placeholder
+    ticker = security.ticker.upper()
+    if ticker.endswith('ETF'):
+        return 'ETF'
+    elif len(ticker) > 4:  # Simple heuristic for bonds/other securities
+        return 'Bond'
+    else:
+        return 'Stock'
+
+
+def categorize_risk(security):
+    """Helper function to categorize security by risk level"""
+    # This is a super simple beta example, will need to refine and make more sophisticated in the near future
+
+    try:
+        beta = float(security.beta) if hasattr(security, 'beta') and security.beta else 1.0
+
+        if beta < 0.5:
+            return 'Low Risk'
+        elif beta < 1.0:
+            return 'Moderate Risk'
+        elif beta < 1.5:
+            return 'High Risk'
+        else:
+            return 'Very High Risk'
+    except (ValueError, AttributeError):
+        return 'Uncategorized'

@@ -1813,7 +1813,7 @@ body.risk-analysis-page {
     text-transform: uppercase;
 }
 
-.metric-value {
+.metric-value-risk {
     font-size: 28px;
     font-weight: bold;
     color: #2c3e50;
@@ -1955,5 +1955,87 @@ body.risk-analysis-page {
 
     .chart-card.full-width {
         grid-column: auto;
+    }
+}
+
+/* Portfolio Composition Section Styles */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.view-selector {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+    color: #2c3e50;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.composition-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    align-items: center;
+    height: 400px;
+}
+
+.donut-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.composition-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+}
+
+.color-box {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.legend-item .label {
+    flex: 1;
+    color: #2c3e50;
+}
+
+.legend-item .value {
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .composition-grid {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .donut-container {
+        height: 300px;
+    }
+
+    .composition-legend {
+        max-height: 200px;
     }
 }

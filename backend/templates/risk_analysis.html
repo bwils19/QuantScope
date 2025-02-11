@@ -13,22 +13,22 @@
     <div class="metrics-grid">
         <div class="metric-card primary">
             <h3>Portfolio Value</h3>
-            <div id="totalValue" class="metric-value">$0.00</div>
+            <div id="totalValue" class="metric-value-risk">$0.00</div>
             <div class="metric-change" id="valueChange">+0.00% (24h)</div>
         </div>
         <div class="metric-card primary">
             <h3>Value at Risk (95%)</h3>
-            <div id="portfolioVar" class="metric-value">$0.00</div>
+            <div id="portfolioVar" class="metric-value-risk">$0.00</div>
             <div class="metric-context">Maximum likely loss over next day</div>
         </div>
         <div class="metric-card primary">
             <h3>Stress VaR</h3>
-            <div id="stressVar" class="metric-value">$0.00</div>
+            <div id="stressVar" class="metric-value-risk">$0.00</div>
             <div class="metric-context">Based on extreme market conditions</div>
         </div>
         <div class="metric-card primary">
             <h3>Portfolio Beta</h3>
-            <div id="portfolioBeta" class="metric-value">0.00</div>
+            <div id="portfolioBeta" class="metric-value-risk">0.00</div>
             <div class="metric-context">vs S&P 500</div>
         </div>
     </div>
@@ -37,6 +37,29 @@
     <div class="alert-section" id="riskAlerts">
         <!-- Alerts will be dynamically inserted here -->
     </div>
+
+    <div class="section-card">
+        <div class="section-header">
+            <h3>Portfolio Composition</h3>
+            <div class="section-controls">
+                <select id="compositionView" class="view-selector">
+                    <option value="sector">By Sector</option>
+                    <option value="asset">By Asset Type</option>
+                    <option value="currency">By Currency</option>
+                    <option value="risk">By Risk Contribution</option>
+                </select>
+            </div>
+        </div>
+        <div class="composition-grid">
+            <div class="donut-container">
+                <canvas id="compositionDonut"></canvas>
+            </div>
+            <div class="composition-legend" id="compositionLegend">
+                <!-- Legend will be dynamically populated -->
+            </div>
+        </div>
+    </div>
+
 
     <!-- Risk Breakdown Section -->
     <div class="section-card">
@@ -123,4 +146,84 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{{ url_for('static', filename='js/risk_analysis.js') }}"></script>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+// Initialize the donut chart
+function initCompositionChart(data) {
+    const ctx = document.getElementById('compositionDonut').getContext('2d');
+    const compositionChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                data: data.values,
+                backgroundColor: [
+                    '#2c3e50', '#34495e', '#6C7D93', '#95a5a6',
+                    '#3498db', '#2980b9', '#1abc9c', '#16a085',
+                    '#27ae60', '#2ecc71', '#f1c40f', '#f39c12'
+                ],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            return `${label}: ${value.toFixed(2)}%`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Create custom legend
+    const legend = document.getElementById('compositionLegend');
+    legend.innerHTML = data.labels.map((label, index) => `
+        <div class="legend-item">
+            <span class="color-box" style="background-color: ${compositionChart.data.datasets[0].backgroundColor[index]}"></span>
+            <span class="label">${label}</span>
+            <span class="value">${data.values[index].toFixed(2)}%</span>
+        </div>
+    `).join('');
+
+    return compositionChart;
+}
+
+// Handle view changes
+document.getElementById('compositionView').addEventListener('change', async (e) => {
+    const viewType = e.target.value;
+    try {
+        const response = await fetch(`/api/portfolio-composition/${viewType}`);
+        const data = await response.json();
+        updateCompositionChart(compositionChart, data);
+    } catch (error) {
+        console.error('Failed to update composition view:', error);
+    }
+});
+
+// Initial load
+window.addEventListener('load', async () => {
+    try {
+        const response = await fetch('/api/portfolio-composition/sector');
+        const data = await response.json();
+        const chart = initCompositionChart(data);
+    } catch (error) {
+        console.error('Failed to load composition data:', error);
+    }
+});
+</script>
 {% endblock %}
