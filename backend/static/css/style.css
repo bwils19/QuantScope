@@ -1720,8 +1720,8 @@ button:hover {
 }
 
 .risk-analysis-container {
-    max-width: 1000px;
-    margin: 80px auto 20px auto;  /* Top margin to clear the fixed header */
+    max-width: 1700px;
+    margin: 80px auto 20px auto;
     padding: 20px;
     background-color: #f9f9f9;
     border-radius: 8px;
@@ -1758,14 +1758,6 @@ body.risk-analysis-page {
     min-height: 100vh;
 }
 
-.risk-analysis-container {
-    max-width: 1000px;
-    margin: 80px auto 20px auto;
-    padding: 20px;
-    background-color: #f9f9f9;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
 
 .dashboard-card {
     display: flex;
