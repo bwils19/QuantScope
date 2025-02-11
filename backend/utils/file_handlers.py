@@ -319,7 +319,9 @@ def smart_detect_columns(df):
         'purchase_price': ['purchase price', 'cost basis', 'entry price', 'buying price', 'cost', 'price paid'],
         'current_price': ['current price', 'market price', 'last price', 'price', 'closing price'],
         'sector': ['sector', 'industry', 'sector classification', 'industry group', 'market_sector'],
-        'notes': ['notes', 'comments', 'description', 'memo', 'details', 'additional info', 'remarks']
+        'notes': ['notes', 'comments', 'description', 'memo', 'details', 'additional info', 'remarks'],
+        'company_name': ['company', 'name', 'company name', 'security name', 'description', 'company description',
+                         'issuer', 'company_name', 'security_name', 'stock_name']
     }
 
     detected_columns = {}

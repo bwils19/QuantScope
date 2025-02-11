@@ -1271,29 +1271,31 @@ function displayFilePreview(data) {
                });
 
                 td.addEventListener('blur', async function() {
-                const newValue = this.textContent.trim();
-                const field = this.dataset.field;
-                const required = this.dataset.required === 'true';
-                const rowIndex = parseInt(tr.dataset.rowIndex);
+                    const newValue = this.textContent.trim();
+                    const field = this.dataset.field;
+                    const required = this.dataset.required === 'true';
+                    const rowIndex = parseInt(tr.dataset.rowIndex);
 
-                // Find the validation message cell
-                const validationMessageCell = tr.querySelector('td:nth-child(9)');
-                const validationStatusCell = tr.querySelector('td:nth-child(8)');
+                    const validationMessageCell = tr.querySelector('td:nth-child(9)');
+                    const validationStatusCell = tr.querySelector('td:nth-child(8)');
 
-                if (field === 'ticker') {
-                    const validation = await validateTicker(newValue, required);
-                    if (!validation.isValid) {
-                        const companyName = editedPreviewData[rowIndex].name;
-                        if (companyName) {
-                            const suggestion = findMatchingTicker(companyName);
-                            if (suggestion) {
-                                const useSymbol = confirm(
-                                    `Did you mean ${suggestion.symbol} for ${suggestion.name}?`
-                                );
+                    if (field === 'ticker') {
+                        // Get company name if available
+                        const companyName = editedPreviewData[rowIndex].company_name || null;
+
+                        const validation = await validateTicker(newValue, required, companyName);
+
+                        if (!validation.isValid) {
+                            if (validation.suggestion) {
+                                const useSymbol = confirm(validation.message);
                                 if (useSymbol) {
-                                    this.textContent = suggestion.symbol;
-                                    editedPreviewData[rowIndex].ticker = suggestion.symbol;
-                                    editedPreviewData[rowIndex].name = suggestion.name;
+                                    this.textContent = validation.suggestion.symbol;
+                                    editedPreviewData[rowIndex].ticker = validation.suggestion.symbol;
+                                    if (!editedPreviewData[rowIndex].company_name) {
+                                        editedPreviewData[rowIndex].company_name = validation.suggestion.name;
+                                    }
+
+                                    // Clear validation errors
                                     this.classList.remove('invalid');
                                     tr.classList.remove('invalid');
                                     tr.classList.add('valid');
@@ -1305,55 +1307,58 @@ function displayFilePreview(data) {
                                     return;
                                 }
                             }
-                        }
-                        this.classList.add('invalid');
-                        tr.classList.remove('valid');
-                        tr.classList.add('invalid');
-                        editedPreviewData[rowIndex].validation_status = 'invalid';
-                        editedPreviewData[rowIndex].validation_message = validation.message;
-                        validationMessageCell.textContent = validation.message;
-                        validationStatusCell.textContent = 'invalid';
-                    } else {
-                        this.classList.remove('invalid');
-                        tr.classList.remove('invalid');
-                        tr.classList.add('valid');
-                        editedPreviewData[rowIndex].ticker = newValue;
-                        editedPreviewData[rowIndex].validation_status = 'valid';
-                        editedPreviewData[rowIndex].validation_message = '';
-                        validationMessageCell.textContent = '';
-                        validationStatusCell.textContent = 'valid';
-                    }
-                } else {
-                    const validation = cell.validate ?
-                        await cell.validate(newValue, required) :
-                        { isValid: true, message: '' };
 
-                    if (validation.isValid) {
-                        this.classList.remove('invalid');
-                        tr.classList.remove('invalid');
-                        tr.classList.add('valid');
-                        if (field === 'purchase_price' || field === 'current_price') {
-                            this.textContent = `$${parseFloat(newValue).toLocaleString()}`;
-                            editedPreviewData[rowIndex][field] = parseFloat(newValue);
+                            // Handle invalid case
+                            this.classList.add('invalid');
+                            tr.classList.remove('valid');
+                            tr.classList.add('invalid');
+                            editedPreviewData[rowIndex].validation_status = 'invalid';
+                            editedPreviewData[rowIndex].validation_message = validation.message;
+                            validationMessageCell.textContent = validation.message;
+                            validationStatusCell.textContent = 'invalid';
                         } else {
-                            editedPreviewData[rowIndex][field] = newValue;
+                            // Handle valid case
+                            this.classList.remove('invalid');
+                            tr.classList.remove('invalid');
+                            tr.classList.add('valid');
+                            editedPreviewData[rowIndex].ticker = newValue;
+                            editedPreviewData[rowIndex].validation_status = 'valid';
+                            editedPreviewData[rowIndex].validation_message = '';
+                            validationMessageCell.textContent = '';
+                            validationStatusCell.textContent = 'valid';
                         }
-                        editedPreviewData[rowIndex].validation_status = 'valid';
-                        editedPreviewData[rowIndex].validation_message = '';
-                        validationMessageCell.textContent = '';
-                        validationStatusCell.textContent = 'valid';
                     } else {
-                        this.classList.add('invalid');
-                        tr.classList.remove('valid');
-                        tr.classList.add('invalid');
-                        editedPreviewData[rowIndex].validation_status = 'invalid';
-                        editedPreviewData[rowIndex].validation_message = validation.message;
-                        validationMessageCell.textContent = validation.message;
-                        validationStatusCell.textContent = 'invalid';
+                        // Handle other fields (same as before)
+                        const validation = cell.validate ?
+                            await cell.validate(newValue, required) :
+                            { isValid: true, message: '' };
+
+                        if (validation.isValid) {
+                            this.classList.remove('invalid');
+                            tr.classList.remove('invalid');
+                            tr.classList.add('valid');
+                            if (field === 'purchase_price' || field === 'current_price') {
+                                this.textContent = `$${parseFloat(newValue).toLocaleString()}`;
+                                editedPreviewData[rowIndex][field] = parseFloat(newValue);
+                            } else {
+                                editedPreviewData[rowIndex][field] = newValue;
+                            }
+                            editedPreviewData[rowIndex].validation_status = 'valid';
+                            editedPreviewData[rowIndex].validation_message = '';
+                            validationMessageCell.textContent = '';
+                            validationStatusCell.textContent = 'valid';
+                        } else {
+                            this.classList.add('invalid');
+                            tr.classList.remove('valid');
+                            tr.classList.add('invalid');
+                            editedPreviewData[rowIndex].validation_status = 'invalid';
+                            editedPreviewData[rowIndex].validation_message = validation.message;
+                            validationMessageCell.textContent = validation.message;
+                            validationStatusCell.textContent = 'invalid';
+                        }
                     }
-                }
-                updateRowValidation(tr);
-            });
+                    updateRowValidation(tr);
+                });
 
                td.addEventListener('keydown', function(e) {
                    if (e.key === 'Enter') {
