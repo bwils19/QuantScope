@@ -1804,7 +1804,7 @@ body.risk-analysis-page {
     text-align: center;
 }
 
-.metric-value {
+.metric-value-risk {
     font-size: 28px;
     font-weight: 500;
     color: #2c3e50;

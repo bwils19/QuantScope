@@ -4,19 +4,18 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-print("Environment variables loaded")  # Debugging
+print("Environment variables loaded")
 
 stock_blueprint = Blueprint('stocks', __name__)
 
 ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_KEY')
-# print("Alpha Vantage API Key:", ALPHA_VANTAGE_API_KEY)
 
 
 @stock_blueprint.route('/stocks', methods=['POST'])
 def fetch_stock_data():
-    print("Received request on /stocks")  # Debugging
+    print("Received request on /stocks")
     data = request.json
-    print("Request data:", data)  # Debugging
+    print("Request data:", data)
 
     symbol = data.get('symbol')
     if not symbol:
@@ -25,7 +24,7 @@ def fetch_stock_data():
     # Fetch stock data from Alpha Vantage
     url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}&apikey={ALPHA_VANTAGE_API_KEY}"
     response = requests.get(url)
-    print(f"Alpha Vantage response for {symbol}: {response.status_code}")  # Debugging
+    print(f"Alpha Vantage response for {symbol}: {response.status_code}")
 
     stock_data = response.json()
     if "Time Series (Daily)" not in stock_data:
@@ -36,11 +35,11 @@ def fetch_stock_data():
     dates = list(time_series.keys())[:30]
     prices = [float(time_series[date]["4. close"]) for date in dates]
 
-    print(f"Parsed data for {symbol}: dates={dates}, prices={prices}")  # Debugging
+    print(f"Parsed data for {symbol}: dates={dates}, prices={prices}")
 
     return jsonify({
         "symbol": symbol,
-        "dates": dates[::-1],  # Reverse for chronological order
+        "dates": dates[::-1],  # chronological order
         "prices": prices[::-1]
     }), 200
 
@@ -49,7 +48,7 @@ def fetch_stock_data():
 def stock_suggestions():
     query = request.args.get('query')
     if not query:
-        return jsonify([])  # Return an empty list if no query is provided
+        return jsonify([])
 
     # API call to search by keywords (both ticker and company name)
     url = f"https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords={query}&apikey={ALPHA_VANTAGE_API_KEY}"
@@ -57,9 +56,8 @@ def stock_suggestions():
     data = response.json()
 
     if "bestMatches" not in data:
-        return jsonify([])  # Return an empty list if API fails or no results
+        return jsonify([])
 
-    # Extract relevant information from the API response
     suggestions = [
         {
             "symbol": match["1. symbol"],
