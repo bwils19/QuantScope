@@ -49,6 +49,64 @@ class RiskAnalytics:
     def __init__(self):
         self.market_data = None
 
+    def calculate_portfolio_risk(self, portfolio_id: int, securities: List[Dict]) -> Dict:
+        """Calculate comprehensive portfolio risk metrics"""
+        portfolio_value = sum(s['total_value'] for s in securities)
+
+        # Calculate VaR metrics
+        var_metrics = self.calculate_dynamic_var(securities)
+
+        # Calculate component risks
+        var_components = self.get_var_components(securities)
+
+        # Calculate portfolio beta
+        beta = self.calculate_portfolio_beta(securities, portfolio_value)
+
+        # Calculate credit risk
+        credit_risk = self.calculate_credit_risk(securities)
+
+        return {
+            "total_value": portfolio_value,
+            "beta": beta,
+            "var_metrics": var_metrics,
+            "var_components": var_components,
+            "credit_risk": credit_risk
+        }
+
+    def calculate_portfolio_beta(self, securities: List[Dict], portfolio_value: float) -> float:
+        """Calculate portfolio beta as weighted average of individual betas"""
+        if not portfolio_value:
+            return 0.0
+
+        total_beta = 0.0
+        for security in securities:
+            weight = security['total_value'] / portfolio_value
+            # For now using a simple beta of 1.0, but you could fetch real betas
+            beta = self._get_beta_for_ticker(security['ticker'])
+            total_beta += beta * weight
+
+        return total_beta
+
+    def calculate_credit_risk(self, securities: List[Dict]) -> Dict:
+        """Calculate portfolio credit risk metrics"""
+        total_cs01 = 0.0
+        total_value = sum(s['total_value'] for s in securities)
+
+        for security in securities:
+            # Simple placeholder - you might want to refine this based on security type
+            weight = security['total_value'] / total_value if total_value else 0
+            total_cs01 += weight * 0.0001  # 1bp sensitivity
+
+        return {
+            "cs01": total_cs01,
+            "total_exposure": total_value
+        }
+
+    def _get_beta_for_ticker(self, ticker: str) -> float:
+        """Get beta for a given ticker - placeholder for now"""
+        # You could enhance this to fetch real betas from your data source
+        return 1.0
+
     def calculate_dynamic_var(self, securities: List[Dict], confidence: float = 0.95) -> Dict:
         """Calculate VaR with dynamic market regime detection, accounting for purchase dates."""
         portfolio_value = sum(s['total_value'] for s in securities)

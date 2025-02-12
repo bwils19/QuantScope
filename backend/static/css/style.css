@@ -1793,7 +1793,7 @@ body.risk-analysis-page {
     margin-bottom: 30px;
 }
 
-.metric-card {
+.metric-card .metric-value{
     background-color: white;
     padding: 20px;
     border-radius: 8px;
@@ -1915,6 +1915,7 @@ body.risk-analysis-page {
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
 }
 
 .chart-card h3 {
@@ -1964,7 +1965,14 @@ body.risk-analysis-page {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
+}
+
+.section-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #2c3e50;
+    font-weight: 500;
 }
 
 .view-selector {
@@ -1980,14 +1988,19 @@ body.risk-analysis-page {
 .composition-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 30px;
+    gap: 20px;
     align-items: center;
     height: 400px;
 }
 
+/*.donut-container {*/
+/*    width: 100%;*/
+/*    height: 100%;*/
+/*    position: relative;*/
+/*}*/
+
 .donut-container {
-    width: 100%;
-    height: 100%;
+    height: 250px;
     position: relative;
 }
 
@@ -2013,6 +2026,7 @@ body.risk-analysis-page {
     width: 12px;
     height: 12px;
     border-radius: 2px;
+    margin-right: 12px;
 }
 
 .legend-item .label {
@@ -2024,6 +2038,17 @@ body.risk-analysis-page {
     font-weight: 500;
     color: #2c3e50;
 }
+
+.legend-text .label {
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.legend-text .value {
+    color: #6C7D93;
+    margin-left: 12px;
+}
+
 
 /* Responsive adjustments */
 @media (max-width: 768px) {

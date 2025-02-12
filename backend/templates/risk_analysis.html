@@ -9,137 +9,89 @@
         </div>
     </div>
 
-    <!-- Key Metrics Grid -->
+    <!-- Key Metrics Section -->
     <div class="metrics-grid">
-        <div class="metric-card primary">
+        <div class="metric-card">
             <h3>Portfolio Value</h3>
-            <div id="totalValue" class="metric-value-risk">$0.00</div>
-            <div class="metric-change" id="valueChange">+0.00% (24h)</div>
+            <div id="totalValue" class="metric-value">$0.00</div>
         </div>
-        <div class="metric-card primary">
-            <h3>Value at Risk (95%)</h3>
-            <div id="portfolioVar" class="metric-value-risk">$0.00</div>
-            <div class="metric-context">Maximum likely loss over next day</div>
-        </div>
-        <div class="metric-card primary">
-            <h3>Stress VaR</h3>
-            <div id="stressVar" class="metric-value-risk">$0.00</div>
-            <div class="metric-context">Based on extreme market conditions</div>
-        </div>
-        <div class="metric-card primary">
+        <div class="metric-card">
             <h3>Portfolio Beta</h3>
-            <div id="portfolioBeta" class="metric-value-risk">0.00</div>
-            <div class="metric-context">vs S&P 500</div>
+            <div id="portfolioBeta" class="metric-value">0.00</div>
         </div>
-    </div>
-
-    <!-- Alert Section -->
-    <div class="alert-section" id="riskAlerts">
-        <!-- Alerts will be dynamically inserted here -->
-    </div>
-
-    <div class="section-card">
-        <div class="section-header">
-            <h3>Portfolio Composition</h3>
-            <div class="section-controls">
-                <select id="compositionView" class="view-selector">
-                    <option value="sector">By Sector</option>
-                    <option value="asset">By Asset Type</option>
-                    <option value="currency">By Currency</option>
-                    <option value="risk">By Risk Contribution</option>
-                </select>
-            </div>
+        <div class="metric-card">
+            <h3>Value at Risk (95%)</h3>
+            <div id="portfolioVar" class="metric-value">$0.00</div>
         </div>
-        <div class="composition-grid">
-            <div class="donut-container">
-                <canvas id="compositionDonut"></canvas>
-            </div>
-            <div class="composition-legend" id="compositionLegend">
-                <!-- Legend will be dynamically populated -->
-            </div>
-        </div>
-    </div>
-
-
-    <!-- Risk Breakdown Section -->
-    <div class="section-card">
-        <h3>Risk Decomposition</h3>
-        <div class="risk-breakdown-grid">
-            <div class="breakdown-card expandable" onclick="showRiskDetails('market')">
-                <h4>Market Risk</h4>
-                <div id="marketRisk" class="breakdown-value">0.00%</div>
-                <div class="expand-icon">+</div>
-            </div>
-            <div class="breakdown-card expandable" onclick="showRiskDetails('credit')">
-                <h4>Credit Risk</h4>
-                <div id="creditRisk" class="breakdown-value">0.00%</div>
-                <div class="expand-icon">+</div>
-            </div>
-            <div class="breakdown-card expandable" onclick="showRiskDetails('interest')">
-                <h4>Interest Rate Risk</h4>
-                <div id="interestRisk" class="breakdown-value">0.00%</div>
-                <div class="expand-icon">+</div>
-            </div>
-            <div class="breakdown-card expandable" onclick="showRiskDetails('fx')">
-                <h4>FX Risk</h4>
-                <div id="fxRisk" class="breakdown-value">0.00%</div>
-                <div class="expand-icon">+</div>
-            </div>
+        <div class="metric-card">
+            <h3>Stress VaR</h3>
+            <div id="stressVar" class="metric-value">$0.00</div>
         </div>
     </div>
 
     <!-- Charts Grid -->
     <div class="charts-grid">
-        <div class="chart-card expandable">
-            <div class="chart-header" onclick="expandChart('varChart')">
-                <h3>VaR Distribution</h3>
-                <div class="expand-icon">+</div>
-            </div>
-            <div class="chart-context">Historical VaR distribution with current position</div>
+        <!-- VaR Analysis -->
+        <div class="chart-card">
+            <h3>VaR Analysis</h3>
             <div class="chart-container">
                 <canvas id="varChart"></canvas>
             </div>
-            <div class="chart-details hidden" id="varChartDetails">
-                <!-- Detailed analysis will be loaded here -->
+        </div>
+
+        <!-- Risk Heatmap -->
+        <div class="chart-card">
+            <h3>Risk Component Analysis</h3>
+            <div class="chart-container">
+                <canvas id="riskHeatmap"></canvas>
             </div>
         </div>
 
-        <div class="chart-card expandable">
-            <div class="chart-header" onclick="expandChart('sensitivityChart')">
-                <h3>Risk Factor Sensitivity</h3>
-                <div class="expand-icon">+</div>
+        <!-- Market Regime Distribution -->
+        <div class="chart-card">
+            <div class="section-header">
+                <h3>Market Regime Distribution</h3>
             </div>
-            <div class="chart-context">Portfolio sensitivity to market changes</div>
-            <div class="chart-container">
-                <canvas id="sensitivityChart"></canvas>
-            </div>
-            <div class="chart-details hidden" id="sensitivityChartDetails">
-                <!-- Detailed analysis will be loaded here -->
+            <div class="composition-grid">
+                <div class="donut-container">
+                    <canvas id="regimeChart"></canvas>
+                </div>
+                <div class="legend-container" id="regimeLegend">
+                    <!-- Legend will be dynamically populated -->
+                </div>
             </div>
         </div>
 
-        <div class="chart-card full-width expandable">
-            <div class="chart-header" onclick="expandChart('stressTestChart')">
-                <h3>Portfolio Stress Test Scenarios</h3>
-                <div class="expand-icon">+</div>
+        <!-- Portfolio Composition -->
+        <div class="chart-card">
+            <div class="section-header">
+                <h3>Portfolio Composition</h3>
+                <div class="section-controls">
+                    <select id="compositionView" class="view-selector">
+                        <option value="sector">By Sector</option>
+                        <option value="asset">By Asset Type</option>
+                        <option value="currency">By Currency</option>
+                        <option value="risk">By Risk Contribution</option>
+                    </select>
+                </div>
             </div>
-            <div class="chart-context">Impact of historical market events on current portfolio</div>
-            <div class="chart-container">
-                <canvas id="stressTestChart"></canvas>
-            </div>
-            <div class="chart-details hidden" id="stressTestChartDetails">
-                <!-- Detailed analysis will be loaded here -->
+            <div class="composition-grid">
+                <div class="donut-container">
+                    <canvas id="compositionDonut"></canvas>
+                </div>
+                <div class="composition-legend" id="compositionLegend">
+                    <!-- Legend will be dynamically populated -->
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Modal for detailed risk analysis -->
-<div id="riskDetailModal" class="modal">
-    <div class="modal-content">
-        <span class="close">&times;</span>
-        <h2 id="modalTitle"></h2>
-        <div id="modalContent"></div>
+    <!-- Modal for VaR Details -->
+    <div id="varDetailsModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="varDetailsContent"></div>
+        </div>
     </div>
 </div>
 
@@ -148,82 +100,82 @@
 <script src="{{ url_for('static', filename='js/risk_analysis.js') }}"></script>
 {% endblock %}
 
-{% block scripts %}
-{{ super() }}
-<script>
-// Initialize the donut chart
-function initCompositionChart(data) {
-    const ctx = document.getElementById('compositionDonut').getContext('2d');
-    const compositionChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                data: data.values,
-                backgroundColor: [
-                    '#2c3e50', '#34495e', '#6C7D93', '#95a5a6',
-                    '#3498db', '#2980b9', '#1abc9c', '#16a085',
-                    '#27ae60', '#2ecc71', '#f1c40f', '#f39c12'
-                ],
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '70%',
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const label = context.label || '';
-                            const value = context.parsed || 0;
-                            return `${label}: ${value.toFixed(2)}%`;
-                        }
-                    }
-                }
-            }
-        }
-    });
+<!--{% block scripts %}-->
+<!--{{ super() }}-->
+<!--<script>-->
+<!--// Initialize the donut chart-->
+<!--function initCompositionChart(data) {-->
+<!--    const ctx = document.getElementById('compositionDonut').getContext('2d');-->
+<!--    const compositionChart = new Chart(ctx, {-->
+<!--        type: 'doughnut',-->
+<!--        data: {-->
+<!--            labels: data.labels,-->
+<!--            datasets: [{-->
+<!--                data: data.values,-->
+<!--                backgroundColor: [-->
+<!--                    '#2c3e50', '#34495e', '#6C7D93', '#95a5a6',-->
+<!--                    '#3498db', '#2980b9', '#1abc9c', '#16a085',-->
+<!--                    '#27ae60', '#2ecc71', '#f1c40f', '#f39c12'-->
+<!--                ],-->
+<!--                borderWidth: 2,-->
+<!--                borderColor: '#fff'-->
+<!--            }]-->
+<!--        },-->
+<!--        options: {-->
+<!--            responsive: true,-->
+<!--            maintainAspectRatio: false,-->
+<!--            cutout: '70%',-->
+<!--            plugins: {-->
+<!--                legend: {-->
+<!--                    display: false-->
+<!--                },-->
+<!--                tooltip: {-->
+<!--                    callbacks: {-->
+<!--                        label: function(context) {-->
+<!--                            const label = context.label || '';-->
+<!--                            const value = context.parsed || 0;-->
+<!--                            return `${label}: ${value.toFixed(2)}%`;-->
+<!--                        }-->
+<!--                    }-->
+<!--                }-->
+<!--            }-->
+<!--        }-->
+<!--    });-->
 
-    // Create custom legend
-    const legend = document.getElementById('compositionLegend');
-    legend.innerHTML = data.labels.map((label, index) => `
-        <div class="legend-item">
-            <span class="color-box" style="background-color: ${compositionChart.data.datasets[0].backgroundColor[index]}"></span>
-            <span class="label">${label}</span>
-            <span class="value">${data.values[index].toFixed(2)}%</span>
-        </div>
-    `).join('');
+<!--    // Create custom legend-->
+<!--    const legend = document.getElementById('compositionLegend');-->
+<!--    legend.innerHTML = data.labels.map((label, index) => `-->
+<!--        <div class="legend-item">-->
+<!--            <span class="color-box" style="background-color: ${compositionChart.data.datasets[0].backgroundColor[index]}"></span>-->
+<!--            <span class="label">${label}</span>-->
+<!--            <span class="value">${data.values[index].toFixed(2)}%</span>-->
+<!--        </div>-->
+<!--    `).join('');-->
 
-    return compositionChart;
-}
+<!--    return compositionChart;-->
+<!--}-->
 
-// Handle view changes
-document.getElementById('compositionView').addEventListener('change', async (e) => {
-    const viewType = e.target.value;
-    try {
-        const response = await fetch(`/api/portfolio-composition/${viewType}`);
-        const data = await response.json();
-        updateCompositionChart(compositionChart, data);
-    } catch (error) {
-        console.error('Failed to update composition view:', error);
-    }
-});
+<!--// Handle view changes-->
+<!--document.getElementById('compositionView').addEventListener('change', async (e) => {-->
+<!--    const viewType = e.target.value;-->
+<!--    try {-->
+<!--        const response = await fetch(`/api/portfolio-composition/${viewType}`);-->
+<!--        const data = await response.json();-->
+<!--        updateCompositionChart(compositionChart, data);-->
+<!--    } catch (error) {-->
+<!--        console.error('Failed to update composition view:', error);-->
+<!--    }-->
+<!--});-->
 
-// Initial load
-window.addEventListener('load', async () => {
-    try {
-        const response = await fetch('/api/portfolio-composition/sector');
-        const data = await response.json();
-        const chart = initCompositionChart(data);
-    } catch (error) {
-        console.error('Failed to load composition data:', error);
-    }
-});
-</script>
-{% endblock %}
+<!--// Initial load-->
+<!--window.addEventListener('load', async () => {-->
+<!--    try {-->
+<!--        const response = await fetch('/api/portfolio-composition/sector');-->
+<!--        const data = await response.json();-->
+<!--        const chart = initCompositionChart(data);-->
+<!--    } catch (error) {-->
+<!--        console.error('Failed to load composition data:', error);-->
+<!--    }-->
+<!--});-->
+<!--</script>-->
+<!--{% endblock %}-->

@@ -36,10 +36,67 @@ function renderRiskDashboard(data) {
     renderRegimeChart(data.var_metrics.regime_distribution);
 }
 
+const chartPalette = {
+    // Core blues for main visualizations
+     blues: [
+        '#264653',  // Dark slate
+        '#2A6F97',  // Deep blue
+        '#2E8BC0',  // Ocean blue
+        '#3498DB',  // Bright blue
+        '#5B63B7',  // Blue violet
+        '#826FBA',  // Purple blue
+        '#A17EB3',  // Light purple
+        '#C490AC'   // Pale rose
+    ],
+
+    // Primary colors for main data visualization
+    primary: {
+        navy: '#2c3e50',      // Dark navy - primary
+        blue: '#34495e',      // Medium blue
+        grey: '#6C7D93',      // Professional grey
+        lightGrey: '#95a5a6'  // Light grey
+    },
+
+    // Secondary colors for contrasting data points
+    secondary: {
+        deepBlue: '#2980b9',    // Deep blue for important metrics
+        teal: '#1abc9c',        // Teal for secondary metrics
+        slate: '#7f8c8d',       // Slate for tertiary data
+        charcoal: '#2c3e50'     // Charcoal for text/labels
+    },
+
+    // Risk-specific colors
+    risk: {
+        normal: '#3498db',      // Primary blue for normal VaR
+        stress: '#2C3E50',      // Dark navy for stress VaR
+        expected: '#4B77BE'     // Medium blue for expected shortfall
+    },
+
+    // Market regime colors (using blues instead of green/red)
+    regime: {
+        normal: '#3498db',      // Primary blue for normal market
+        stress: '#6C7D93'       // Blue grey for stress market
+    },
+
+    // Accent colors for highlights and special cases
+    accent: {
+        highlight: '#4b7bec',   // Bright blue for highlights
+        warning: '#fed330',     // Muted yellow for warnings
+        danger: '#fc5c65'       // Controlled red for danger (keep for actual warnings)
+    },
+
+    // Background colors
+    background: {
+        card: '#ffffff',        // White for card backgrounds
+        main: '#f5f6fa',       // Light grey for main background
+        hover: '#fafbfc'       // Slight grey for hover states
+    }
+};
+
 function renderVarChart(varData) {
     const ctx = document.getElementById('varChart').getContext('2d');
     
-    new Chart(ctx, {
+     new Chart(ctx, {
         type: 'bar',
         data: {
             labels: ['Normal VaR', 'Stress VaR', 'Expected Shortfall'],
@@ -49,8 +106,13 @@ function renderVarChart(varData) {
                     Math.abs(varData.var_stress),
                     Math.abs(varData.cvar)
                 ],
-                backgroundColor: ['#3498db', '#e74c3c', '#9b59b6'],
-                borderRadius: 5
+                backgroundColor: [
+                    chartPalette.risk.normal,
+                    chartPalette.risk.stress,
+                    chartPalette.risk.expected
+                ],
+                borderRadius: 5,
+                borderWidth: 0
             }]
         },
         options: {
@@ -59,6 +121,12 @@ function renderVarChart(varData) {
             plugins: {
                 legend: { display: false },
                 tooltip: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    titleColor: '#2c3e50',
+                    bodyColor: '#2c3e50',
+                    borderColor: '#e2e8f0',
+                    borderWidth: 1,
+                    padding: 10,
                     callbacks: {
                         label: (context) => formatCurrency(context.raw)
                     }
@@ -67,14 +135,28 @@ function renderVarChart(varData) {
             scales: {
                 y: {
                     beginAtZero: true,
+                    grid: {
+                        drawBorder: false,
+                        color: '#e2e8f0'
+                    },
                     ticks: {
-                        callback: (value) => formatCurrency(value)
+                        callback: (value) => formatCurrency(value),
+                        font: {
+                            family: 'Arial',
+                            size: 12
+                        }
                     }
-                }
-            },
-            onClick: (event, elements) => {
-                if (elements.length > 0) {
-                    showVarDetails(elements[0].index, varData);
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: {
+                            family: 'Arial',
+                            size: 12
+                        }
+                    }
                 }
             }
         }
@@ -82,26 +164,70 @@ function renderVarChart(varData) {
 }
 
 function renderRiskHeatmap(components) {
-    const ctx = document.getElementById('riskHeatmap').getContext('2d');
+    const ctx = document.getElementById('riskHeatmap');
+    if (!ctx) {
+        console.error('Risk heatmap canvas not found');
+        return;
+    }
+
+    // Get the context and ensure it exists
+    const context = ctx.getContext('2d');
+    if (!context) {
+        console.error('Could not get 2d context for risk heatmap');
+        return;
+    }
+
+    // Calculate max values for scaling
     const maxContribution = Math.max(...components.map(c => Math.abs(c.var_contribution)));
-    
-    new Chart(ctx, {
+
+    new Chart(context, {
         type: 'bubble',
         data: {
             datasets: [{
                 data: components.map(c => ({
                     x: c.volatility,
                     y: Math.abs(c.var_contribution),
-                    r: (c.weight / maxContribution) * 20,
+                    r: (c.weight * 50) + 5, // Scale the radius, min size 5
                     ticker: c.ticker
                 })),
-                backgroundColor: components.map(c => 
+                backgroundColor: components.map(c =>
                     `rgba(52, 152, 219, ${Math.abs(c.var_contribution) / maxContribution})`
-                )
+                ),
+                borderColor: 'rgba(52, 152, 219, 0.8)',
+                borderWidth: 1
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Volatility (%)',
+                        font: {
+                            size: 12,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        callback: value => value.toFixed(2) + '%'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'VaR Contribution ($)',
+                        font: {
+                            size: 12,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        callback: value => formatCurrency(value)
+                    }
+                }
+            },
             plugins: {
                 tooltip: {
                     callbacks: {
@@ -110,27 +236,14 @@ function renderRiskHeatmap(components) {
                             return [
                                 `Ticker: ${data.ticker}`,
                                 `VaR Contribution: ${formatCurrency(data.y)}`,
-                                `Volatility: ${data.x.toFixed(2)}%`
+                                `Volatility: ${data.x.toFixed(2)}%`,
+                                `Portfolio Weight: ${(data.r / 50 * 100).toFixed(2)}%`
                             ];
                         }
                     }
-                }
-            },
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Volatility (%)'
-                    }
                 },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'VaR Contribution ($)'
-                    },
-                    ticks: {
-                        callback: (value) => formatCurrency(value)
-                    }
+                legend: {
+                    display: false
                 }
             }
         }
@@ -140,7 +253,7 @@ function renderRiskHeatmap(components) {
 function renderRegimeChart(regimeData) {
     const ctx = document.getElementById('regimeChart').getContext('2d');
     
-    new Chart(ctx, {
+    const regimeChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: ['Normal Market', 'Stress Market'],
@@ -149,13 +262,28 @@ function renderRegimeChart(regimeData) {
                     regimeData.normal * 100,
                     regimeData.stress * 100
                 ],
-                backgroundColor: ['#2ecc71', '#e74c3c']
+                backgroundColor: [
+                    '#2c3e50',  // Dark navy for normal market
+                    '#6C7D93'   // Professional grey for stress market
+                ],
+                borderWidth: 0,
+                cutout: '70%'
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
+                legend: {
+                    display: false  // We'll create custom legend to match portfolio composition
+                },
                 tooltip: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    titleColor: '#2c3e50',
+                    bodyColor: '#2c3e50',
+                    borderColor: '#e2e8f0',
+                    borderWidth: 1,
+                    padding: 10,
                     callbacks: {
                         label: (context) => `${context.label}: ${context.raw.toFixed(1)}%`
                     }
@@ -163,6 +291,20 @@ function renderRegimeChart(regimeData) {
             }
         }
     });
+
+    // Create custom legend to match portfolio composition style
+    const legendContainer = document.getElementById('regimeLegend');
+    if (legendContainer) {
+        legendContainer.innerHTML = regimeChart.data.labels.map((label, index) => `
+            <div class="legend-item">
+                <span class="color-box" style="background-color: ${regimeChart.data.datasets[0].backgroundColor[index]}"></span>
+                <div class="legend-text">
+                    <span class="label">${label}</span>
+                    <span class="value">${regimeChart.data.datasets[0].data[index].toFixed(1)}%</span>
+                </div>
+            </div>
+        `).join('');
+    }
 }
 
 function showVarDetails(index, varData) {
@@ -235,32 +377,32 @@ async function initializeCompositionChart() {
         const data = await response.json();
         console.log('Composition data:', data);  // Debug log
 
-        // Create the chart
-        const ctx = canvas.getContext('2d');
+        const ctx = document.getElementById('compositionDonut').getContext('2d');
         compositionChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: data.labels || [],
+                labels: data.labels,
                 datasets: [{
-                    data: data.values || [],
-                    backgroundColor: [
-                        '#2c3e50', '#34495e', '#6C7D93', '#95a5a6',
-                        '#3498db', '#2980b9', '#1abc9c', '#16a085',
-                        '#27ae60', '#2ecc71', '#f1c40f', '#f39c12'
-                    ],
-                    borderWidth: 2,
-                    borderColor: '#fff'
+                    data: data.values,
+                    backgroundColor: chartPalette.blues.slice(0, data.labels.length),
+                    borderWidth: 0,
+                    cutout: '70%'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                cutout: '70%',
                 plugins: {
                     legend: {
                         display: false
                     },
                     tooltip: {
+                        backgroundColor: chartPalette.background.card,
+                        titleColor: chartPalette.primary.navy,
+                        bodyColor: chartPalette.primary.navy,
+                        borderColor: chartPalette.primary.lightGrey,
+                        borderWidth: 1,
+                        padding: 10,
                         callbacks: {
                             label: function(context) {
                                 const label = context.label || '';
@@ -281,6 +423,39 @@ async function initializeCompositionChart() {
     }
 }
 
+// const sectorColors = [
+//     '#264653',  // Dark slate
+//     '#2A6F97',  // Deep blue
+//     '#2E8BC0',  // Ocean blue
+//     '#3498DB',  // Bright blue
+//     '#5B63B7',  // Blue violet
+//     '#826FBA',  // Purple blue
+//     '#A17EB3',  // Light purple
+//     '#C490AC'   // Pale rose
+// ];
+
+// const sectorColors = [
+//     '#1F4788',  // Deep navy
+//     '#2E5EA6',  // Royal blue
+//     '#3E75C4',  // Medium blue
+//     '#4E8BE2',  // Bright blue
+//     '#6BA3E8',  // Light blue
+//     '#88BCED',  // Pale blue
+//     '#A5D5F2',  // Ice blue
+//     '#C2E1F5'   // Very light blue
+// ];
+//
+// const sectorColors = [
+//     '#2C7FB8',  // Deep blue
+//     '#4BA4D1',  // Bright blue
+//     '#7FCDBB',  // Blue-green
+//     '#A6DBA0',  // Light teal
+//     '#D9F0D3',  // Pale teal
+//     '#1B4F72',  // Navy
+//     '#5499C7',  // Medium blue
+//     '#85C1E9'   // Light blue
+// ];
+
 // Update the legend
 function updateLegend(data) {
     const legend = document.getElementById('compositionLegend');
@@ -289,8 +464,10 @@ function updateLegend(data) {
     legend.innerHTML = data.labels.map((label, index) => `
         <div class="legend-item">
             <span class="color-box" style="background-color: ${compositionChart.data.datasets[0].backgroundColor[index]}"></span>
-            <span class="label">${label}</span>
-            <span class="value">${data.values[index].toFixed(2)}%</span>
+            <div class="legend-text">
+                <span class="label">${label}</span>
+                <span class="value">${data.values[index].toFixed(2)}%</span>
+            </div>
         </div>
     `).join('');
 }

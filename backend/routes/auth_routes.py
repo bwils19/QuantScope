@@ -11,6 +11,8 @@ from backend import bcrypt, db
 from backend.models import User, Portfolio, Security, StockCache
 from backend.models import PortfolioFiles
 
+from backend.analytics.risk_calculations import RiskAnalytics
+
 from contextlib import contextmanager
 from sqlalchemy.orm import Session
 
@@ -929,6 +931,9 @@ def rename_portfolio(portfolio_id):
 
 # this is the risk metrics page section --------------------------------------
 
+risk_analytics = RiskAnalytics()
+
+
 @auth_blueprint.route('/api/portfolio/<int:portfolio_id>/risk', methods=['GET'])
 @jwt_required(locations=["cookies"])
 def get_portfolio_risk(portfolio_id):
@@ -940,13 +945,23 @@ def get_portfolio_risk(portfolio_id):
         if not portfolio:
             return jsonify({"error": "Portfolio not found"}), 404
 
-        # Calculate or fetch risk metrics
-        risk_metrics = {
-            "portfolio_name": portfolio.name,
-            "total_value": portfolio.total_value,
-            "beta": 1.0,  # Placeholder - implement actual calculation
-            "var": 5.0,   # Placeholder - implement actual calculation
-        }
+        # Get securities for this portfolio
+        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
+
+        # Convert securities to list of dicts with required data
+        securities_data = [{
+            'ticker': s.ticker,
+            'total_value': s.amount_owned * s.current_price,
+            'amount_owned': s.amount_owned,
+            'current_price': s.current_price,
+            'purchase_date': s.purchase_date.strftime("%Y-%m-%d") if s.purchase_date else None
+        } for s in securities]
+
+        # Calculate risk metrics
+        risk_metrics = risk_analytics.calculate_portfolio_risk(portfolio_id, securities_data)
+
+        # Add portfolio name to response
+        risk_metrics["portfolio_name"] = portfolio.name
 
         return jsonify(risk_metrics)
 
