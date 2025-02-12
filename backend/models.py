@@ -70,6 +70,32 @@ class Security(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class SecurityHistoricalData(db.Model):
+    __tablename__ = 'security_historical_data'
+    __table_args__ = {'extend_existing': True}
+
+    id = db.Column(db.Integer, primary_key=True)
+    ticker = db.Column(db.String(20), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    open_price = db.Column(db.Float)
+    high_price = db.Column(db.Float)
+    low_price = db.Column(db.Float)
+    close_price = db.Column(db.Float)
+    adjusted_close = db.Column(db.Float)
+    volume = db.Column(db.BigInteger)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('ticker', 'date', name='uix_ticker_date'),
+        db.Index('idx_security_date', 'ticker', 'date')
+    )
+
+    security = db.relationship('Security',
+                               primaryjoin="SecurityHistoricalData.ticker==Security.ticker",
+                               foreign_keys=[ticker],
+                               backref=db.backref('historical_data', lazy='dynamic'))
+
+
 class StockCache(db.Model):
     __tablename__ = 'stock_cache'
     __table_args__ = {'extend_existing': True}

@@ -1,6 +1,7 @@
 # tasks.py
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime
 import time
 import pytz
@@ -10,6 +11,7 @@ from backend.models import Portfolio, Security, StockCache
 import os
 
 from backend.services.stock_service import update_prices, is_market_open
+from backend.services.historical_data_service import HistoricalDataService
 
 
 def update_portfolio_prices():
@@ -175,6 +177,22 @@ def init_scheduler(app):
         ),
         id='update_prices',
         name='Update security prices twice daily',
+        coalesce=True,
+        max_instances=1
+    )
+
+    # historical data pull
+    historical_data_service = HistoricalDataService()
+    scheduler.add_job(
+        func=historical_data_service.update_historical_data,
+        trigger=CronTrigger(
+            day_of_week='mon-fri',
+            hour='16',  # Run after market close to get close prices
+            minute='30',
+            timezone=pytz.timezone('America/New_York')
+        ),
+        id='update_historical_data',
+        name='Update historical price data',
         coalesce=True,
         max_instances=1
     )

@@ -6,6 +6,7 @@ from datetime import timedelta
 import os
 from dotenv import load_dotenv
 from backend.tasks import init_scheduler
+from backend.commands import load_historical_data
 
 from backend.models import User, Portfolio, Security
 
@@ -75,6 +76,8 @@ def create_app(test_config=None):
         app.register_blueprint(stock_blueprint)
         app.register_blueprint(analytics_blueprint, url_prefix='/analytics')
 
+        app.cli.add_command(load_historical_data)
+
     # Root route
     @app.route("/")
     def home():
@@ -104,6 +107,7 @@ def create_app(test_config=None):
     # Initialize scheduler if not in debug mode
     if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         scheduler = init_scheduler(app)
+        app.scheduler = scheduler
 
     return app
 
