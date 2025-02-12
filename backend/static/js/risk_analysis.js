@@ -21,18 +21,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function renderRiskDashboard(data) {
-    // Render top metrics
+    // Portfolio Value with 24h change
     document.getElementById('totalValue').textContent = formatCurrency(data.total_value);
-    document.getElementById('portfolioBeta').textContent = data.beta.toFixed(2);
-    document.getElementById('portfolioVar').textContent = formatCurrency(Math.abs(data.var_metrics.var_normal));
+    const changeValue = document.querySelector('.change-value');
+    if (data.value_change_24h) {
+        const changePercent = data.value_change_24h.toFixed(2);
+        changeValue.textContent = `${changePercent > 0 ? '+' : ''}${changePercent}%`;
+        changeValue.classList.add(changePercent > 0 ? 'positive' : 'negative');
+    }
 
-    // Render VaR distribution chart
+    // VaR with percentage context
+    document.getElementById('portfolioVar').textContent = formatCurrency(Math.abs(data.var_metrics.var_normal));
+    const varPercent = (Math.abs(data.var_metrics.var_normal) / data.total_value * 100).toFixed(2);
+    document.getElementById('varPercent').textContent = `${varPercent}%`;
+
+    // Stress VaR with confidence level
+    document.getElementById('stressVar').textContent = formatCurrency(Math.abs(data.var_metrics.var_stress));
+    document.getElementById('stressConfidence').textContent = '99%';  // Or fetch from data if variable
+
+    // Portfolio Beta with rolling period
+    document.getElementById('portfolioBeta').textContent = data.beta.toFixed(2);
+
+    // Render existing charts
     renderVarChart(data.var_metrics);
-    
-    // Render component risk heatmap
     renderRiskHeatmap(data.var_components);
-    
-    // Render regime distribution donut
     renderRegimeChart(data.var_metrics.regime_distribution);
 }
 

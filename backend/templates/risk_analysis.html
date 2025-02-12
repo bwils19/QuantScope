@@ -11,24 +11,37 @@
 
     <!-- Key Metrics Section -->
     <div class="metrics-grid">
-        <div class="metric-card">
-            <h3>Portfolio Value</h3>
-            <div id="totalValue" class="metric-value">$0.00</div>
-            <div class="metric-change" id="valueChange">+0.00% (24h)</div>
-        </div>
-        <div class="metric-card">
-            <h3>Portfolio Beta</h3>
-            <div id="portfolioBeta" class="metric-value">0.00</div>
-        </div>
-        <div class="metric-card">
-            <h3>Value at Risk (95%)</h3>
-            <div id="portfolioVar" class="metric-value">$0.00</div>
-        </div>
-        <div class="metric-card">
-            <h3>Stress VaR</h3>
-            <div id="stressVar" class="metric-value">$0.00</div>
+    <div class="metric-card primary">
+        <h3>Portfolio Value</h3>
+        <div id="totalValue" class="metric-value">$0.00</div>
+        <div class="metric-change" id="valueChange">
+            <span class="change-value">+0.00%</span>
+            <span class="change-period">(24h)</span>
         </div>
     </div>
+    <div class="metric-card primary">
+        <h3>Value at Risk (95%)</h3>
+        <div id="portfolioVar" class="metric-value">$0.00</div>
+        <div class="metric-context">
+            <span id="varPercent">0.00%</span> of portfolio value
+        </div>
+        <div class="metric-period">10-day horizon</div>
+    </div>
+    <div class="metric-card primary">
+        <h3>Stress VaR</h3>
+        <div id="stressVar" class="metric-value">$0.00</div>
+        <div class="metric-context">
+            Based on <span id="stressConfidence">99%</span> confidence
+        </div>
+        <div class="metric-period">Historical stress scenarios</div>
+    </div>
+    <div class="metric-card primary">
+        <h3>Portfolio Beta</h3>
+        <div id="portfolioBeta" class="metric-value">0.00</div>
+        <div class="metric-context">vs S&P 500</div>
+        <div class="metric-period">1-year rolling</div>
+    </div>
+</div>
 
     <!-- Charts Grid -->
     <div class="charts-grid">
