@@ -755,22 +755,22 @@ button:hover {
   display: inline-block;
 }
 
-/* The 3-dot icon button */
+/* The 3-dot icon button for the portfolio actions dropdown */
 .portfolio-dropdown-toggle {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 16px; /* Adjust icon size as needed */
+  font-size: 16px;
   padding: 8px;
-  color: #333; /* or your preferred icon color */
+  color: #333;
 }
 
 .portfolio-dropdown-toggle:hover {
-    background-color: transparent; /* Removes the dark overlay */
-    box-shadow: none; /* Removes shadow */
+    background-color: transparent;
+    box-shadow: #aaaaaa ;
 }
 
-/* The bubble menu itself */
+/* The dropdown menu itself */
 .portfolio-dropdown-menu {
   display: none;
   position: absolute;
@@ -785,17 +785,16 @@ button:hover {
   z-index: 999;
 }
 
-
 .portfolio-dropdown-menu::before {
   content: "";
   position: absolute;
-  top: 10px;        /* Adjust to move the pointer up/down */
-  left: -8px;      /* Because we want the pointer on the right side of the bubble */
+  top: 10px;
+  left: -8px;
   width: 0;
   height: 0;
   border-style: solid;
-  border-width: 8px 8px 8px 0; /* Triangular shape */
-  border-color: transparent #fff transparent transparent; /* Right-facing arrow */
+  border-width: 8px 8px 8px 0;
+  border-color: transparent #fff transparent transparent;
 }
 
 /* Style each button/item in the dropdown */
@@ -814,19 +813,18 @@ button:hover {
     transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Hover effect on each item */
+/* Hover effect on each item in the dropdown*/
 .portfolio-dropdown-menu button:hover {
   /*background-color: #f0f0f0;*/
     background-color: #f4f4f4;
     color: #2c3e50;
-    border-radius: 0;   /* might want to increase this */
+    border-radius: 0;   /* ...might want to increase this */
 }
 
 .portfolio-dropdown-container:hover .portfolio-dropdown-menu {
     display: none;
 }
 
-/* Optional: top and bottom corners on the first/last items */
 .portfolio-dropdown-menu button:first-child {
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
@@ -834,13 +832,6 @@ button:hover {
 .portfolio-dropdown-menu button:last-child {
   border-bottom-left-radius: 8px;
   border-bottom-right-radius: 8px;
-}
-
-/* Example "header" style if you want a label at the top of the dropdown */
-.dropdown-header {
-  padding: 8px 12px;
-  font-weight: bold;
-  color: #666;
 }
 
 .view-portfolio-btn {
@@ -1025,24 +1016,24 @@ button:hover {
 
 /* Modal overlay */
 .modal {
-    display: none; /* Hidden by default */
+    display: none;
     position: fixed;
-    z-index: 1000; /* Ensure it is above other elements */
+    z-index: 1000;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
-    overflow: auto; /* Enable scrolling for large modals */
-    background-color: rgba(0, 0, 0, 0.5); /* Transparent black background */
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.5);
 }
 
-/* Modal content box */
+/* modal content box */
 .modal-content {
     background-color: #fefefe;
-    margin: 10% auto; /* Centered vertically and horizontally */
-    padding: 20px 30px; /* Added horizontal padding for better alignment */
+    margin: 10% auto;
+    padding: 20px 30px;
     border: 1px solid #888;
-    width: 70%; /* Adjust width as needed */
+    width: 70%;
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     animation: fadeIn 0.3s ease-in-out;
@@ -1106,7 +1097,6 @@ button:hover {
     }
 }
 
-/* Style the dropdown container */
 .dropdown-container {
     position: relative;
     width: 300px;
@@ -1130,19 +1120,19 @@ button:hover {
     box-sizing: border-box;
 }
 
-/* General dropdown styling */
+
 .search-suggestions {
     list-style-type: none;
     margin: 0;
     padding: 0;
-    max-height: 200px; /* Limit height to prevent overflow */
+    max-height: 200px;
     overflow-y: auto;
     border: 1px solid #ccc;
     border-radius: 4px;
     background-color: #fff;
     position: absolute;
     z-index: 1000;
-    width: calc(100% - 10px); /* Match the input width */
+    width: calc(100% - 10px);
 }
 
 /* Each suggestion item */
