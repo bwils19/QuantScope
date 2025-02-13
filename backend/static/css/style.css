@@ -750,7 +750,6 @@ button:hover {
 
 /*Portfolio dropdown actions (Rename, View, Delete)*/
 
-/* Wraps the toggle button and positions the dropdown */
 .portfolio-dropdown-container {
   position: relative;
   display: inline-block;
@@ -764,6 +763,11 @@ button:hover {
   font-size: 16px; /* Adjust icon size as needed */
   padding: 8px;
   color: #333; /* or your preferred icon color */
+}
+
+.portfolio-dropdown-toggle:hover {
+    background-color: transparent; /* Removes the dark overlay */
+    box-shadow: none; /* Removes shadow */
 }
 
 /* The bubble menu itself */
@@ -838,18 +842,6 @@ button:hover {
   font-weight: bold;
   color: #666;
 }
-
-/* Example "footer" style if you want something like "Load More" at the bottom */
-.dropdown-footer {
-  padding: 8px 12px;
-  text-align: center;
-  color: #007BFF; /* or your brand color */
-  cursor: pointer;
-}
-.dropdown-footer:hover {
-  background-color: #f0f0f0;
-}
-
 
 .view-portfolio-btn {
     background-color: #6C7D93;
