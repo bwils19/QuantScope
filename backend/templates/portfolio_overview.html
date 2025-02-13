@@ -1,109 +1,140 @@
 {% extends "base.html" %}
-
 {% block content %}
 <body class="portfolio-overview-page">
-<div class="portfolio-overview-container">
+  <div class="portfolio-overview-container">
+
     <div class="portfolio-header">
-        <h3 class="page-title">Portfolio Dashboard</h3>
+      <h3 class="page-title">Portfolio Dashboard</h3>
     </div>
 
-    <!-- Portfolio Stats -->
     <div class="dashboard-card">
-        <div class="dashboard-stat">
-            <h3>TOTAL VALUE OF ALL PORTFOLIOS</h3>
-            <div class="stat-value">${{ "{:,.2f}".format(dashboard_stats.total_value) }}</div>
+      <div class="dashboard-stat">
+        <h3>TOTAL VALUE OF ALL PORTFOLIOS</h3>
+        <div class="stat-value">
+          ${{ "{:,.2f}".format(dashboard_stats.total_value) }}
         </div>
-        <div class="dashboard-stat">
-            <h3>VALUE CHANGE (TODAY)</h3>
-            <div class="stat-value {% if dashboard_stats.day_change < 0 %}negative{% else %}positive{% endif %}">
-                {% if dashboard_stats.day_change >= 0 %}+{% endif %}${{ "{:,.2f}".format(dashboard_stats.day_change) }}
-                ({% if dashboard_stats.day_change_pct >= 0 %}+{% endif %}{{ "%.2f"|format(dashboard_stats.day_change_pct) }}%)
-            </div>
+      </div>
+      <div class="dashboard-stat">
+        <h3>VALUE CHANGE (TODAY)</h3>
+        <div class="stat-value {% if dashboard_stats.day_change < 0 %}negative{% else %}positive{% endif %}">
+          {% if dashboard_stats.day_change >= 0 %}+{% endif %}
+          ${{ "{:,.2f}".format(dashboard_stats.day_change) }}
+          ({% if dashboard_stats.day_change_pct >= 0 %}+{% endif %}
+           {{ "%.2f"|format(dashboard_stats.day_change_pct) }}%)
         </div>
-        <div class="dashboard-stat">
-            <h3>TOTAL GAIN/LOSS</h3>
-            <div class="stat-value {% if dashboard_stats.total_gain < 0 %}negative{% else %}positive{% endif %}">
-                {% if dashboard_stats.total_gain >= 0 %}+{% endif %}${{ "{:,.2f}".format(dashboard_stats.total_gain) }}
-                ({% if dashboard_stats.total_gain_pct >= 0 %}+{% endif %}{{ "%.2f"|format(dashboard_stats.total_gain_pct) }}%)
-            </div>
+      </div>
+      <div class="dashboard-stat">
+        <h3>TOTAL GAIN/LOSS</h3>
+        <div class="stat-value {% if dashboard_stats.total_gain < 0 %}negative{% else %}positive{% endif %}">
+          {% if dashboard_stats.total_gain >= 0 %}+{% endif %}
+          ${{ "{:,.2f}".format(dashboard_stats.total_gain) }}
+          ({% if dashboard_stats.total_gain_pct >= 0 %}+{% endif %}
+           {{ "%.2f"|format(dashboard_stats.total_gain_pct) }}%)
         </div>
+      </div>
     </div>
 
-<div class="portfolio-list-container">
-    <div class="portfolio-header">
+    <div class="portfolio-list-container">
+      <div class="portfolio-header">
         <h3 class="page-title">Portfolios</h3>
         <button class="new-portfolio-btn">New Portfolio</button>
-    </div>
+      </div>
 
-    <div id="portfolio-list">
+      <div id="portfolio-list">
         {% if portfolios|length == 0 %}
-        <div class="dashboard-card">
+          <div class="dashboard-card">
             <div class="dashboard-stat">
-                <h3>You have not created any portfolios yet</h3>
+              <h3>You have not created any portfolios yet</h3>
             </div>
-        </div>
+          </div>
         {% else %}
-        {% for portfolio in portfolios %}
-        <div class="portfolio-item" data-id="{{ portfolio.id }}">
-            <div class="portfolio-item-header">
+          {% for portfolio in portfolios %}
+            <div class="portfolio-item" data-id="{{ portfolio.id }}">
+              <div class="portfolio-item-header">
                 <h4>{{ portfolio.name }}</h4>
-                <div class="portfolio-actions">
+                  <div class="header-actions">
+                <button
+                  class="risk-analysis-btn"
+                  onclick="location.href='{{ url_for('auth.risk_analysis_page', portfolio_id=portfolio.id) }}'">
+                  <i class="fas fa-chart-line"></i> Risk Analysis
+                </button>
+
+                <div class="portfolio-dropdown-container">
+                  <button class="portfolio-dropdown-toggle">
+                    <i class="fas fa-ellipsis-v"></i>
+                  </button>
+                  <div class="portfolio-dropdown-menu">
                     <button class="rename-portfolio-btn" data-id="{{ portfolio.id }}">Rename</button>
                     <button class="view-portfolio-btn" data-id="{{ portfolio.id }}">View</button>
                     <button class="delete-portfolio-btn" data-id="{{ portfolio.id }}">Delete</button>
-                    <button
-                        class="risk-analysis-btn"
-                        onclick="location.href='{{ url_for('auth.risk_analysis_page', portfolio_id=portfolio.id) }}'">
-                        <i class="fas fa-chart-line"></i> Risk Analysis
-                    </button>
+                  </div>
                 </div>
+              </div>
+              </div>
+
+              <!-- Metrics grid -->
+              <div class="portfolio-metrics-grid">
+                <div class="metric-item">
+                  <span class="metric-label">Holdings</span>
+                  <span class="metric-value">{{ portfolio.total_holdings }}</span>
+                </div>
+                <div class="metric-item">
+                  <span class="metric-label">Total Value</span>
+                  <span class="metric-value">
+                    ${{ "{:,.2f}".format(portfolio.total_value|default(0)) }}
+                  </span>
+                </div>
+                <div class="metric-item">
+                  <span class="metric-label">Day Change</span>
+                  <span class="metric-value {% if portfolio.day_change > 0 %}positive{% elif portfolio.day_change < 0 %}negative{% endif %}">
+                    ${{ "{:,.2f}".format(portfolio.day_change|default(0)) }}
+                    ({{ "%.2f"|format(portfolio.day_change_pct|default(0)) }}%)
+                  </span>
+                </div>
+                <div class="metric-item">
+                  <span class="metric-label">Total Gain/Loss</span>
+                  <span class="metric-value {% if portfolio.total_gain > 0 %}positive{% elif portfolio.total_gain < 0 %}negative{% endif %}">
+                    ${{ "{:,.2f}".format(portfolio.total_gain|default(0)) }}
+                    ({{ "%.2f"|format(portfolio.total_gain_pct|default(0)) }}%)
+                  </span>
+                </div>
+                <div class="metric-item">
+                  <span class="metric-label">Total Return</span>
+                  <span class="metric-value {% if portfolio.total_return > 0 %}positive{% elif portfolio.total_return < 0 %}negative{% endif %}">
+                    ${{ "%.2f"|format(portfolio.total_return|default(0)) }}
+                    ({{ "%.2f"|format(portfolio.total_return_pct|default(0)) }}%)
+                  </span>
+                </div>
+                <div class="metric-item">
+                  <span class="metric-label">Created</span>
+                  <span class="metric-value">
+                    {{ portfolio.created_at.strftime('%Y-%m-%d') }}
+                  </span>
+                </div>
+              </div>
             </div>
-
-            <div class="portfolio-metrics-grid">
-                <div class="metric-item">
-                    <span class="metric-label">Holdings</span>
-                    <span class="metric-value">{{ portfolio.total_holdings }}</span>
-                </div>
-
-                <div class="metric-item">
-                    <span class="metric-label">Total Value</span>
-                    <span class="metric-value">${{ "{:,.2f}".format(portfolio.total_value|default(0)) }}</span>
-                </div>
-
-                <div class="metric-item">
-                    <span class="metric-label">Day Change</span>
-                    <span class="metric-value {% if portfolio.day_change > 0 %}positive{% elif portfolio.day_change < 0 %}negative{% endif %}">
-                       ${{ "{:,.2f}".format(portfolio.day_change|default(0)) }}
-                        ({{ "%.2f"|format(portfolio.day_change_pct|default(0)) }}%)
-                    </span>
-                </div>
-
-                <div class="metric-item">
-                    <span class="metric-label">Total Gain/Loss</span>
-                    <span class="metric-value {% if portfolio.total_gain > 0 %}positive{% elif portfolio.total_gain < 0 %}negative{% endif %}">
-                        ${{ "{:,.2f}".format(portfolio.total_gain|default(0)) }}
-                        ({{ "%.2f"|format(portfolio.total_gain_pct|default(0)) }}%)
-                    </span>
-                </div>
-
-                <div class="metric-item">
-                    <span class="metric-label">Total Return</span>
-                    <span class="metric-value {% if portfolio.total_return > 0 %}positive{% elif portfolio.total_return < 0 %}negative{% endif %}">
-                        ${{ "%.2f"|format(portfolio.total_return|default(0)) }}
-                        ({{ "%.2f"|format(portfolio.total_return_pct|default(0)) }}%)
-                    </span>
-                </div>
-
-                <div class="metric-item">
-                    <span class="metric-label">Created</span>
-                    <span class="metric-value">{{ portfolio.created_at.strftime('%Y-%m-%d') }}</span>
-                </div>
-            </div>
-        </div>
-        {% endfor %}
+            <!-- END single portfolio item -->
+          {% endfor %}
         {% endif %}
+      </div>
     </div>
-</div>
+    <!-- End .portfolio-list-container -->
+
+    <!-- Optionally, watchlist can also go inside the same container -->
+    <div class="portfolio-watchlist-container">
+      <div class="portfolio-header">
+        <h3 class="page-title">Watchlist</h3>
+        <button class="new-portfolio-btn">Add Watchlist</button>
+      </div>
+      <div class="dashboard-card">
+        <div class="dashboard-stat">
+          <h3>You have no watchlists</h3>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
 
 <div id="newPortfolioModal" class="modal hidden">
     <div class="modal-content">
@@ -274,61 +305,6 @@
         <p id="errorMessage">An error occurred!</p>
     </div>
 </div>
-
-<div class="portfolio-watchlist-container">
-    <div class="portfolio-header">
-        <h3 class="page-title">Watchlist</h3>
-        <button class="new-portfolio-btn">Add Watchlist</button>
-    </div>
-    <div class="dashboard-card">
-        <div class="dashboard-stat">
-            <h3>You have no watchlists</h3>
-        </div>
-    </div>
-</div>
-
-<!--<div class="portfolio-uploaded-files-container">-->
-<!--    <div class="portfolio-header">-->
-<!--        <h3 class="page-title">Saved Datasets</h3>-->
-<!--        <button class="new-file-btn">Upload File</button>-->
-<!--        <input type="file" id="fileInput" style="display: none;" />-->
-<!--    </div>-->
-
-<!--    <div class="uploaded-files-section">-->
-<!--        {% if uploaded_files|length > 0 %}-->
-<!--        <table class="uploaded-files-table">-->
-<!--            <thead>-->
-<!--                <tr>-->
-<!--                    <th>Select</th>-->
-<!--                    <th>File Name</th>-->
-<!--                    <th>Date Uploaded</th>-->
-<!--                    <th>Last Updated</th>-->
-<!--                    <th>Uploaded By</th>-->
-<!--                    <th>Actions</th>-->
-<!--                </tr>-->
-<!--            </thead>-->
-<!--            <tbody>-->
-<!--                {% for file in uploaded_files %}-->
-<!--                <tr>-->
-<!--                    <td><input type="radio" name="selected_file" value="{{ file.id }}"></td>-->
-<!--                    <td>{{ file.filename }}</td>-->
-<!--                    <td>{{ file.uploaded_at }}</td>-->
-<!--                    <td>{{ file.updated_at }}</td>-->
-<!--                    <td>{{ file.uploaded_by }}</td>-->
-<!--                    <td>-->
-<!--                        <button class="create-portfolio-btn btn-small" data-file-id="{{ file.id }}">Create Portfolio</button>-->
-<!--                        <button class="edit-file-btn btn-small" data-file-id="{{ file.id }}">Edit</button>-->
-<!--                        <button class="delete-file-btn btn-small" data-file-id="{{ file.id }}">Delete</button>-->
-<!--                    </td>-->
-<!--                </tr>-->
-<!--                {% endfor %}-->
-<!--            </tbody>-->
-<!--        </table>-->
-<!--        {% else %}-->
-<!--        <div class="no-files-message">You have not uploaded any files.</div>-->
-<!--        {% endif %}-->
-<!--    </div>-->
-<!--</div>-->
 
 <div id="deleteConfirmModal" class="modal hidden">
     <div class="modal-content">

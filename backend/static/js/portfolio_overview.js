@@ -154,6 +154,41 @@ async function fetchStockData(symbol) {
 }
 
 function setupPortfolioActions() {
+    document.querySelectorAll('.portfolio-dropdown-toggle').forEach(toggle => {
+        toggle.addEventListener('click', function (e) {
+            e.stopPropagation();
+            const menu = this.nextElementSibling;
+
+            // Toggle dropdown visibility
+            const isVisible = menu.style.display === 'block';
+            document.querySelectorAll('.portfolio-dropdown-menu').forEach(otherMenu => {
+                otherMenu.style.display = 'none'; // Close other menus
+            });
+            menu.style.display = isVisible ? 'none' : 'block'; // Toggle this menu
+        });
+    });
+
+    // Hide dropdown if clicking anywhere else
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.portfolio-dropdown-menu').forEach(menu => {
+            menu.style.display = 'none';
+        });
+    });
+
+    // Prevent dropdown from closing when clicking inside it
+    document.querySelectorAll('.portfolio-dropdown-menu').forEach(menu => {
+        menu.addEventListener('click', e => {
+            e.stopPropagation();
+        });
+    });
+
+    // Close the dropdown when mouse leaves the container
+    document.querySelectorAll('.portfolio-dropdown-container').forEach(container => {
+        const menu = container.querySelector('.portfolio-dropdown-menu');
+        container.addEventListener('mouseleave', () => {
+            menu.style.display = 'none';
+        });
+    });
 
     // Setup delete buttons
     document.querySelectorAll('.delete-portfolio-btn').forEach(button => {
@@ -172,9 +207,8 @@ function setupPortfolioActions() {
     });
 
     // Delete confirmation handlers
-        elements.confirmDeleteBtn.addEventListener('click', async () => {
+    elements.confirmDeleteBtn.addEventListener('click', async () => {
         try {
-            // Get CSRF token
             const csrfToken = document.cookie
                 .split('; ')
                 .find(row => row.startsWith('csrf_access_token='))
@@ -191,17 +225,13 @@ function setupPortfolioActions() {
 
             if (response.ok) {
                 elements.deleteConfirmModal.style.display = "none";
-                // Remove the portfolio card from the UI
                 const portfolioCard = document.querySelector(`.portfolio-item[data-id="${currentPortfolioId}"]`);
                 if (portfolioCard) {
                     portfolioCard.remove();
                 }
-
-                // Show success message
                 elements.successMessage.textContent = "Portfolio deleted successfully";
                 elements.successModal.style.display = "block";
 
-                // Reload the page after a short delay
                 setTimeout(() => {
                     location.reload();
                 }, 1500);
@@ -228,6 +258,8 @@ function setupPortfolioActions() {
             elements.portfolioDetailsModal.style.display = "none";
         }
     });
+
+    // Setup rename functionality
     document.querySelectorAll('.rename-portfolio-btn').forEach(button => {
         button.addEventListener('click', (e) => {
             const portfolioId = e.target.dataset.id;
@@ -235,13 +267,11 @@ function setupPortfolioActions() {
             const titleElement = portfolioCard.querySelector('h4');
             const currentName = titleElement.textContent;
 
-            // Create input field
             const input = document.createElement('input');
             input.type = 'text';
             input.value = currentName;
             input.className = 'rename-input';
 
-            // Create save and cancel buttons
             const saveBtn = document.createElement('button');
             saveBtn.textContent = 'Save';
             saveBtn.className = 'rename-save-btn';
@@ -250,19 +280,16 @@ function setupPortfolioActions() {
             cancelBtn.textContent = 'Cancel';
             cancelBtn.className = 'rename-cancel-btn';
 
-            // Create container for the input and buttons
             const container = document.createElement('div');
             container.className = 'rename-container';
             container.appendChild(input);
             container.appendChild(saveBtn);
             container.appendChild(cancelBtn);
 
-            // Replace title with input
             titleElement.replaceWith(container);
             input.focus();
             input.select();
 
-            // Handle save
             saveBtn.addEventListener('click', async () => {
                 const newName = input.value.trim();
                 if (newName && newName !== currentName) {
@@ -279,19 +306,16 @@ function setupPortfolioActions() {
                 }
             });
 
-            // Handle cancel
             cancelBtn.addEventListener('click', () => {
                 container.replaceWith(titleElement);
             });
 
-            // Handle Enter key
             input.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     saveBtn.click();
                 }
             });
 
-            // Handle Escape key
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
                     cancelBtn.click();

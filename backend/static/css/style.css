@@ -645,6 +645,7 @@ button:hover {
 
 /* Dashboard Card */
 .dashboard-card {
+    max-width: 1000px;
     display: flex;
     justify-content: space-around;
     background-color: #f4f4f4;
@@ -697,22 +698,6 @@ button:hover {
     gap: 15px;
 }
 
-/*.portfolio-item {*/
-/*    display: flex;*/
-/*    justify-content: space-between;*/
-/*    background-color: white;*/
-/*    padding: 15px;*/
-/*    border-radius: 8px;*/
-/*    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);*/
-/*}*/
-
-/*.portfolio-item h4 {*/
-/*    font-size: 18px;*/
-/*    font-weight: bold;*/
-/*    margin-bottom: 10px;*/
-/*}*/
-
-
 /*new stuff -----------------------------------------*/
 .portfolio-item {
     background: white;
@@ -737,6 +722,12 @@ button:hover {
     border-bottom: 1px solid #eee;
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .portfolio-item-header h4 {
     font-size: 1.4em;
     color: #2c3e50;
@@ -756,6 +747,109 @@ button:hover {
     font-size: 0.9em;
     transition: background-color 0.2s ease;
 }
+
+/*Portfolio dropdown actions (Rename, View, Delete)*/
+
+/* Wraps the toggle button and positions the dropdown */
+.portfolio-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* The 3-dot icon button */
+.portfolio-dropdown-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px; /* Adjust icon size as needed */
+  padding: 8px;
+  color: #333; /* or your preferred icon color */
+}
+
+/* The bubble menu itself */
+.portfolio-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 160%;
+  left: 100%;
+  transform: translateY(-50%);
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  padding: 8px 0;
+  z-index: 999;
+}
+
+
+.portfolio-dropdown-menu::before {
+  content: "";
+  position: absolute;
+  top: 10px;        /* Adjust to move the pointer up/down */
+  left: -8px;      /* Because we want the pointer on the right side of the bubble */
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 8px 8px 8px 0; /* Triangular shape */
+  border-color: transparent #fff transparent transparent; /* Right-facing arrow */
+}
+
+/* Style each button/item in the dropdown */
+.portfolio-dropdown-menu button {
+    display: flex;
+    align-items: center;
+    width: 95%;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+    box-sizing: border-box;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Hover effect on each item */
+.portfolio-dropdown-menu button:hover {
+  /*background-color: #f0f0f0;*/
+    background-color: #f4f4f4;
+    color: #2c3e50;
+    border-radius: 0;   /* might want to increase this */
+}
+
+.portfolio-dropdown-container:hover .portfolio-dropdown-menu {
+    display: none;
+}
+
+/* Optional: top and bottom corners on the first/last items */
+.portfolio-dropdown-menu button:first-child {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+.portfolio-dropdown-menu button:last-child {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+/* Example "header" style if you want a label at the top of the dropdown */
+.dropdown-header {
+  padding: 8px 12px;
+  font-weight: bold;
+  color: #666;
+}
+
+/* Example "footer" style if you want something like "Load More" at the bottom */
+.dropdown-footer {
+  padding: 8px 12px;
+  text-align: center;
+  color: #007BFF; /* or your brand color */
+  cursor: pointer;
+}
+.dropdown-footer:hover {
+  background-color: #f0f0f0;
+}
+
 
 .view-portfolio-btn {
     background-color: #6C7D93;
@@ -1685,7 +1779,6 @@ button:hover {
     cursor: pointer;
 }
 
-
 /*Risk page specific style*/
 .page-header {
     display: flex;
@@ -1756,33 +1849,6 @@ body.risk-analysis-page {
     margin: 0;
     padding: 0;
     min-height: 100vh;
-}
-
-
-.dashboard-card {
-    display: flex;
-    justify-content: space-around;
-    background-color: #f4f4f4;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 30px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-}
-
-
-.dashboard-stat {
-    text-align: center;
-}
-
-.dashboard-stat h3 {
-    font-size: 16px;
-    margin-bottom: 10px;
-    color: #555;
-}
-
-.stat-value {
-    font-size: 24px;
-    font-weight: bold;
 }
 
 /* Enhanced metrics grid styling */
