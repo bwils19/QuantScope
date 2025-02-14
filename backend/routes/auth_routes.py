@@ -19,7 +19,6 @@ from sqlalchemy.orm import Session
 import os
 from werkzeug.utils import secure_filename
 
-# Create a blueprint for authentication routes
 from backend.tasks import is_market_open
 from backend.utils.file_handlers import parse_portfolio_file, format_preview_data
 from requests.adapters import HTTPAdapter
@@ -72,7 +71,6 @@ def signup_page():
     return render_template("signup.html")
 
 
-# Handle JWT exceptions globally within this blueprint
 @auth_blueprint.before_app_request
 def check_jwt():
     """Verify JWT token for protected routes"""
@@ -102,10 +100,17 @@ def check_jwt():
 def signup():
     data = request.form
 
+    # these two checks need to generate a user-facing error message.
+
     # Check if the email already exists
     existing_user = User.query.filter_by(email=data['email']).first()
     if existing_user:
         return jsonify({'message': 'Email already in use. Please use a different email.'}), 400
+
+    # check if a username is already taken
+    existing_user = User.query.filter_by(username=data['username']).first()
+    if existing_user:
+        return jsonify({'message': 'Username already in use. Please select a different username.'}), 400
 
     # Hash the password
     hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
@@ -150,7 +155,7 @@ def login():
                 httponly=True,
                 secure=True,  # Require HTTPS
                 samesite='Lax',
-                max_age=7200  # 2 hours
+                max_age=7200  # will log out after 2 hours
             )
             response.set_cookie(
                 'csrf_access_token',
@@ -201,6 +206,7 @@ def dashboard():
         return redirect(url_for('auth.login_page'))
 
 
+# I think the session_scope is causing problems in the updating. need to come back and revisit this.
 @contextmanager
 def session_scope():
     """Provide a transactional scope around a series of operations."""
@@ -361,7 +367,6 @@ def delete_portfolio(portfolio_id):
         if not portfolio:
             return jsonify({"message": "Portfolio not found"}), 404
 
-        # Delete related securities first (if cascade isn't set up)
         Security.query.filter_by(portfolio_id=portfolio_id).delete()
 
         # Delete the portfolio
@@ -539,7 +544,7 @@ def create_portfolio():
                 value_change=float(stock['valueChange']),
                 value_change_pct=float(price_data['changePercent']),
                 total_gain=current_value - cost_basis,  # Add this
-                total_gain_pct=((current_value / cost_basis) - 1) * 100  # Add this
+                total_gain_pct=((current_value / cost_basis) - 1) * 100
             )
 
             total_value += current_value
@@ -817,7 +822,7 @@ def update_portfolio(portfolio_id):
             print("Processing change:", change)
             security_id = change.get('security_id')
 
-            if change.get('new'):  # Handle new securities
+            if change.get('new'):
                 print("Adding new security:", change)
                 security = Security(
                     portfolio_id=portfolio_id,
@@ -834,13 +839,13 @@ def update_portfolio(portfolio_id):
                 db.session.add(security)
                 print("New security added to session")
 
-            else:  # Handle existing securities
+            else:
                 security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
                 if security:
                     if change.get('deleted'):
                         db.session.delete(security)
                     elif 'amount' in change:
-                        # Your existing update logic for amount changes
+
                         pass
 
         # Update portfolio totals
@@ -873,9 +878,9 @@ def update_portfolio(portfolio_id):
             "total_value": portfolio.total_value,
             "total_holdings": portfolio.total_holdings,
             "day_change": portfolio.day_change,
-            "day_change_pct": portfolio.day_change_pct,  # Added
-            "total_gain": portfolio.total_gain,  # Added
-            "total_gain_pct": portfolio.total_gain_pct  # Added
+            "day_change_pct": portfolio.day_change_pct,
+            "total_gain": portfolio.total_gain,
+            "total_gain_pct": portfolio.total_gain_pct
         })
 
         return jsonify({
@@ -1026,7 +1031,7 @@ def risk_analysis_page():
 @jwt_required(locations=["cookies"])
 def get_portfolio_composition(view_type):
     portfolio_id = request.args.get('portfolio_id')
-    print(f"Received request for portfolio {portfolio_id}, view type {view_type}")  # Debug log
+    print(f"Received request for portfolio {portfolio_id}, view type {view_type}")
 
     if not portfolio_id:
         return jsonify({'error': 'Portfolio ID required'}), 400
@@ -1145,8 +1150,7 @@ def get_currency_composition(portfolio_id):
         # Calculate value by currency
         for security in securities:
             value = security.amount_owned * security.current_price
-            # For now, assuming USD as default currency
-            # will want to add a currency field later on, default to USD for now
+            # For now, assuming USD as default currency will want to add a currency field later on
             currency = 'USD'
             currency_totals[currency] = currency_totals.get(currency, 0) + value
             total_value += value
@@ -1212,7 +1216,7 @@ def get_risk_composition(portfolio_id):
 
 def categorize_asset_type(security):
     """Helper function to categorize security by asset type"""
-    # super simple placeholder
+    # super simple placeholder - just trying to get the skeleton of the risk analysis page up
     ticker = security.ticker.upper()
     if ticker.endswith('ETF'):
         return 'ETF'

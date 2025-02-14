@@ -84,13 +84,13 @@ const chartPalette = {
         expected: '#4B77BE'     // Medium blue for expected shortfall
     },
 
-    // Market regime colors (using blues instead of green/red)
+    // market regime data
     regime: {
         normal: '#3498db',      // Primary blue for normal market
         stress: '#6C7D93'       // Blue grey for stress market
     },
 
-    // Accent colors for highlights and special cases
+    // Accent colors
     accent: {
         highlight: '#4b7bec',   // Bright blue for highlights
         warning: '#fed330',     // Muted yellow for warnings
@@ -287,7 +287,7 @@ function renderRegimeChart(regimeData) {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: false  // We'll create custom legend to match portfolio composition
+                    display: false
                 },
                 tooltip: {
                     backgroundColor: 'rgba(255, 255, 255, 0.9)',
@@ -378,16 +378,16 @@ async function initializeCompositionChart() {
 
         // Fetch initial composition data
         const response = await fetch(`/auth/api/portfolio-composition/sector?portfolio_id=${portfolioId}`);
-        console.log('API Response status:', response.status);  // Debug log
+        console.log('API Response status:', response.status);
 
         if (!response.ok) {
             const text = await response.text();
-            console.error('API Error response:', text);  // Debug log
+            console.error('API Error response:', text);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
-        console.log('Composition data:', data);  // Debug log
+        console.log('Composition data:', data);
 
         const ctx = document.getElementById('compositionDonut').getContext('2d');
         compositionChart = new Chart(ctx, {
@@ -434,6 +434,8 @@ async function initializeCompositionChart() {
         console.error('Failed to initialize composition chart:', error);
     }
 }
+
+// i want to keep these color palettes here in case is start to hate the one i chose haha
 
 // const sectorColors = [
 //     '#264653',  // Dark slate

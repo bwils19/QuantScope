@@ -12,14 +12,13 @@ from backend.models import User, Portfolio, Security
 
 
 def create_app(test_config=None):
-    # Load environment variables
+    # load environment variables
     load_dotenv()
 
-    # Initialize Flask app
     app = Flask(__name__)
 
     if test_config is None:
-        # Set app configurations
+
         upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
         os.makedirs(upload_folder, exist_ok=True)
         app.config['UPLOAD_FOLDER'] = upload_folder
@@ -112,7 +111,6 @@ def create_app(test_config=None):
     return app
 
 
-# Create the application instance
 app = create_app()
 
 if __name__ == "__main__":

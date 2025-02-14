@@ -29,8 +29,6 @@ def calculate_portfolio_beta(self, securities_data, portfolio_value):
     """
     total_beta = 0
     for s in securities_data:
-        # You'd need each security's beta from some source
-        # e.g., yahoo finance or your own historical regression
         # For now, let's pretend we have a function get_beta(ticker)
         beta_of_security = self._get_beta_for_ticker(s['ticker'])
         weight = s['total_value'] / portfolio_value if portfolio_value else 0

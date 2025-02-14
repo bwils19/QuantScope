@@ -1996,6 +1996,12 @@ body.risk-analysis-page {
 }
 
 /* Enhanced chart styling */
+
+.chart-container {
+    height: 300px;
+    position: relative;
+}
+
 .charts-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -2022,10 +2028,6 @@ body.risk-analysis-page {
     margin-bottom: 15px;
 }
 
-.chart-container {
-    height: 300px;
-    position: relative;
-}
 
 .chart-card.full-width {
     grid-column: 1 / -1;
@@ -2039,6 +2041,10 @@ body.risk-analysis-page {
 
     .risk-breakdown-grid {
         grid-template-columns: repeat(2, 1fr);
+    }
+     .charts-grid {
+        grid-template-columns: repeat(1, 1fr); /
+        gap: 20px;
     }
 }
 

@@ -6,7 +6,7 @@ from backend.services.historical_data_service import HistoricalDataService
 import asyncio
 import time
 
-app = create_app()  # Create the app instance
+app = create_app()
 
 with app.app_context():
     print("Database URI:", app.config['SQLALCHEMY_DATABASE_URI'])
@@ -18,7 +18,7 @@ with app.app_context():
 
     if 'security_historical_data' not in existing_tables:
         print("\nCreating historical data table...")
-        # Create only the new table without affecting others
+        # Create the new historical data table
         SecurityHistoricalData.__table__.create(db.engine)
         print("Historical data table created.")
     else:
@@ -57,7 +57,7 @@ with app.app_context():
             asyncio.run(service.update_historical_data())
             print(f"Successfully processed {ticker}")
 
-            # Alpha Vantage rate limiting
+            # Alpha Vantage rate limiting - i don't think this is necessary but gonna do it anyway
             if i < len(new_tickers):  # Don't wait after the last ticker
                 print("Waiting 3 seconds for API rate limit...")
                 time.sleep(3)
@@ -68,7 +68,7 @@ with app.app_context():
 
     print("\nHistorical data initialization complete!")
 
-    # Verify the data
+    # Verify data
     counts = db.session.query(
         SecurityHistoricalData.ticker,
         db.func.count(SecurityHistoricalData.id)

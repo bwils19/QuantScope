@@ -114,18 +114,18 @@ def update_portfolio_prices():
                     else:
                         print(f"No quote data received for {ticker}")
 
-                    # Respect API rate limits
-                    time.sleep(12)  # Alpha Vantage free tier limit is 5 calls per minute
+                    # API rate limits
+                    time.sleep(3)  # Alpha Vantage free tier limit is 5 calls per minute - upgraded to premium tho
 
                 except Exception as e:
                     print(f"Error updating (TASKS.PY SCRIPT) {ticker}: {str(e)}")
                     continue
 
             # Update portfolio totals with explicit transaction
-            with session.begin_nested():  # Create a savepoint
+            with session.begin_nested():
                 portfolios = Portfolio.query.all()
                 for portfolio in portfolios:
-                    print(f"Updating portfolio {portfolio.name}")  # Debug log
+                    print(f"Updating portfolio {portfolio.name}")
                     securities = portfolio.securities
                     old_total = portfolio.total_value
 

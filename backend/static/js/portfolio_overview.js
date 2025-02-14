@@ -116,7 +116,6 @@ async function fetchStockData(symbol) {
                 latestTradingDay: quote['07. latest trading day']
             };
 
-            // Get CSRF token from cookie
             const csrfToken = document.cookie
                 .split('; ')
                 .find(row => row.startsWith('csrf_access_token='))
@@ -361,11 +360,11 @@ async function loadPortfolioDetails(portfolioId) {
 
         const data = await response.json();
         elements.securitiesTableBody.innerHTML = '';
-        currentPortfolio = portfolioId;  // Set the current portfolio ID
+        currentPortfolio = portfolioId;  // Set  current portfolio ID
 
         data.securities.forEach(security => {
             const row = document.createElement('tr');
-            row.dataset.securityId = security.id;  // Add security ID to the row
+            row.dataset.securityId = security.id;  // add security ID to the row
 
             // Format percentages with null checks
             const valueChangePct = security.value_change_pct != null
@@ -1196,48 +1195,6 @@ async function handleFileUpload(event) {
         showError(error.message || "Failed to process file");
     }
 }
-
-// function displayFilePreview(data) {
-//     // Update summary statistics
-//     document.getElementById('totalRows').textContent = data.summary.total_rows;
-//     document.getElementById('validRows').textContent = data.summary.valid_rows;
-//     document.getElementById('invalidRows').textContent = data.summary.invalid_rows;
-//     document.getElementById('totalAmount').textContent = new Intl.NumberFormat('en-US').format(data.summary.total_amount);
-//
-//     // Populate preview table
-//     const tableBody = document.querySelector('#previewTable tbody');
-//     tableBody.innerHTML = '';
-//
-//     data.preview_data.forEach(row => {
-//         const tr = document.createElement('tr');
-//         tr.className = row.validation_status;
-//
-//         tr.innerHTML = `
-//            <td>${row.ticker}</td>
-//             <td>${row.amount}</td>
-//             <td>${row.purchase_date}</td>
-//             <td>${row.purchase_price ? `$${row.purchase_price.toLocaleString()}` : ''}</td>
-//             <td>${row.current_price ? `$${row.current_price.toLocaleString()}` : ''}</td>
-//             <td>${row.sector}</td>
-//             <td>${row.notes}</td>
-//             <td>${row.validation_status}</td>
-//             <td>${row.validation_message}</td>
-//         `;
-//
-//         tableBody.appendChild(tr);
-//     });
-//
-//     // Show preview section and handle create button
-//     document.getElementById('filePreviewSection').classList.remove('hidden');
-//     const createBtn = document.getElementById('createPortfolioBtn');
-//     createBtn.disabled = data.summary.invalid_rows > 0;
-//
-//     if (createBtn.disabled) {
-//         createBtn.title = 'Please fix validation errors before creating portfolio';
-//     } else {
-//         createBtn.title = 'Create portfolio with validated data';
-//     }
-// }
 
 function displayFilePreview(data) {
    document.getElementById('totalRows').textContent = data.summary.total_rows;
