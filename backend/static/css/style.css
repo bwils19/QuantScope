@@ -2172,3 +2172,8 @@ body.risk-analysis-page {
     margin-top: 20px;
     font-style: italic;
 }
+
+.metric-card .data-timestamp {
+    font-size: 0.7rem;
+    margin-top: 0.25rem;
+}

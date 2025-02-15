@@ -3,6 +3,8 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, render_template, redirect, url_for
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import func
+
 from backend.models import User, Portfolio, Security, HistoricalDataUpdateLog, SecurityHistoricalData
 from backend.analytics.risk_calculations import RiskAnalytics, calculate_credit_risk
 from backend import db
@@ -42,6 +44,10 @@ def get_portfolio_risk(portfolio_id):
 
         var_components = risk_analyzer.get_var_components(securities_data)
 
+        latest_update = db.session.query(
+            func.max(SecurityHistoricalData.updated_at)
+        ).scalar()
+
         return jsonify({
             'portfolio_name': portfolio.name,
             'total_value': portfolio.total_value,
@@ -49,7 +55,9 @@ def get_portfolio_risk(portfolio_id):
             'credit_risk': credit_risk,
             'beta': 0.0,  # beta,
             'var_components': var_components,
-            'securities': securities_data
+            'securities': securities_data,
+            'latest_update': latest_update.strftime('%Y-%m-%d %H:%M:%S') if latest_update else None
+
         })
 
     except Exception as e:

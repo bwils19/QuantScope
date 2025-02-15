@@ -30,6 +30,18 @@ function renderRiskDashboard(data) {
         changeValue.classList.add(changePercent > 0 ? 'positive' : 'negative');
     }
 
+    // add the timestamp to the portfolio value card
+    if (data.latest_update) {
+        document.getElementById('portfolioTimestamp').textContent =
+            `Latest Update: ${data.latest_update}`;
+    }
+
+    // Add timestamp to page footer
+    if (data.latest_update) {
+        document.getElementById('pageTimestamp').textContent =
+            `Data as of: ${data.latest_update}`;
+    }
+
     // VaR with percentage context
     document.getElementById('portfolioVar').textContent = formatCurrency(Math.abs(data.var_metrics.var_normal));
     const varPercent = (Math.abs(data.var_metrics.var_normal) / data.total_value * 100).toFixed(2);
