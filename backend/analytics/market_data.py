@@ -1,67 +1,84 @@
-# backend/analytics/market_data.py
-
-import requests
-import numpy as np
-from typing import Dict, List
+from typing import Dict, List, Tuple, Any
 import random
-import os
-
+from backend import db
+from backend.models import SecurityHistoricalData
+from datetime import datetime, timedelta, date
 
 import os
 import requests
 import datetime
-from typing import List, Tuple
 
 
-def fetch_historical_prices(ticker: str) -> List[Tuple[datetime.datetime, float]]:
+def fetch_historical_prices(ticker: str) -> List[Tuple[Any, float]]:
     """
-    Fetch historical price data from Alpha Vantage (if available),
-    otherwise return dummy data in the format [(date, price), (date, price), ...].
+    Fetch historical price data from our database, with API fallback for recent data
     """
+    print(f"Starting fetch for {ticker}")
     try:
-        api_key = os.getenv('ALPHA_VANTAGE_KEY')
-        endpoint = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={ticker}&apikey={api_key}'
-        response = requests.get(endpoint)
-        data = response.json()
+        historical_data = db.session.query(
+            SecurityHistoricalData
+        ).filter_by(
+            ticker=ticker
+        ).order_by(
+            SecurityHistoricalData.date.desc()
+        ).all()
 
-        # Check if the API response contains the "Time Series (Daily)" key
-        if 'Time Series (Daily)' not in data:
-            print(f"Alpha Vantage response missing 'Time Series (Daily)' for {ticker}, using dummy data.")
-            return generate_dummy_data()
+        if not historical_data:
+            print(f"No historical data found in database for {ticker}")
+            return []
 
-        # Parse the time series data into a list of (datetime, close_price)
-        daily_data = data['Time Series (Daily)']
-        historical_data = []
-        for date_str, daily_info in daily_data.items():
-            date_dt = datetime.datetime.strptime(date_str, "%Y-%m-%d")
-            close_price = float(daily_info['4. close'])
-            historical_data.append((date_dt, close_price))
+        # Convert to list of (date, price) tuples
+        price_data = [(data.date, float(data.close_price))
+                      for data in historical_data
+                      if data.close_price is not None]
 
-        # Sort data by ascending date
-        historical_data.sort(key=lambda x: x[0])
-        return historical_data
+        # Check if we need more recent data
+        if price_data:
+            latest_date = price_data[0][0]
+            today = date.today()
+
+            if latest_date < today - timedelta(days=1):
+                try:
+                    api_key = os.getenv('ALPHA_VANTAGE_KEY')
+                    endpoint = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={ticker}&apikey={api_key}'
+                    response = requests.get(endpoint)
+                    data = response.json()
+
+                    if 'Time Series (Daily)' in data:
+                        daily_data = data['Time Series (Daily)']
+                        recent_data = []
+
+                        for date_str, daily_info in daily_data.items():
+                            date_dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+                            if date_dt > latest_date:
+                                close_price = float(daily_info['4. close'])
+                                recent_data.append((date_dt, close_price))
+
+                        price_data.extend(recent_data)
+                        price_data.sort(key=lambda x: x[0])
+
+                except Exception as e:
+                    print(f"Error fetching recent data from API for {ticker}: {str(e)}")
+
+        return price_data
 
     except Exception as e:
         print(f"Error fetching historical prices for {ticker}: {str(e)}")
-        # Fallback to dummy data on error
-        return generate_dummy_data()
+        return []
 
 
 def generate_dummy_data(num_days: int = 252) -> List[Tuple[datetime.datetime, float]]:
-    """
-    Generate a list of (date, price) tuples for testing or fallback.
-    Currently, this returns `num_days` points of 100.0 for each day (including weekends).
-    """
+    """Generate dummy price data for testing"""
     today = datetime.datetime.now()
     dummy_data = []
+    base_price = 100.0
+
     for i in range(num_days):
         day = today - datetime.timedelta(days=i)
-        if day.weekday() < 5:
-            dummy_data.append((day, 100.0))
-
-        base_price = 100.0
-        price_variation = random.uniform(-0.5, 0.5)  # small daily random change
-        dummy_data.append((day, base_price + price_variation))
+        if day.weekday() < 5:  # Only weekdays
+            price_variation = random.uniform(-0.5, 0.5)
+            dummy_data.append((day, base_price + price_variation))
+            base_price += price_variation  # Allow for price drift
 
     # Sort ascending by date
     dummy_data.sort(key=lambda x: x[0])

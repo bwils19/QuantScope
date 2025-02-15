@@ -1,5 +1,3 @@
-// static/js/risk_analysis.js
-
 let compositionChart = null;
 const portfolioId = new URLSearchParams(window.location.search).get('portfolio_id');
 

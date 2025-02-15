@@ -1,7 +1,7 @@
 from datetime import datetime
 
 import numpy as np
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple, Any
 from .market_data import fetch_historical_prices
 
 
@@ -46,21 +46,24 @@ def _get_beta_for_ticker(self, ticker):
 class RiskAnalytics:
     def __init__(self):
         self.market_data = None
+        self.RISK_FREE_RATE = 0.05  # 5% annual rate - should be fetched from market data
+        self.VAR_HORIZON = 10  # 10-day VaR
+        self.TRADING_DAYS = 252  # Number of trading days in a year
 
     def calculate_portfolio_risk(self, portfolio_id: int, securities: List[Dict]) -> Dict:
         """Calculate comprehensive portfolio risk metrics"""
         portfolio_value = sum(s['total_value'] for s in securities)
 
-        # Calculate VaR metrics
+        # Calculate VaR metrics with scaling
         var_metrics = self.calculate_dynamic_var(securities)
 
-        # Calculate component risks
+        # Calculate component risks with correlation adjustments
         var_components = self.get_var_components(securities)
 
-        # Calculate portfolio beta
+        # Calculate portfolio beta against market index
         beta = self.calculate_portfolio_beta(securities, portfolio_value)
 
-        # Calculate credit risk
+        # Calculate credit risk metrics
         credit_risk = self.calculate_credit_risk(securities)
 
         return {
@@ -106,23 +109,27 @@ class RiskAnalytics:
         return 1.0
 
     def calculate_dynamic_var(self, securities: List[Dict], confidence: float = 0.95) -> Dict:
-        """Calculate VaR with dynamic market regime detection, accounting for purchase dates."""
+        """
+        Calculate VaR with dynamic market regime detection and proper time scaling.
+
+        Parameters:
+        - securities: List of security dictionaries
+        - confidence: Confidence level (default 95%)
+
+        Returns:
+        - Dictionary containing VaR metrics and regime information
+        """
         portfolio_value = sum(s['total_value'] for s in securities)
 
-        # Handle empty portfolio
         if not portfolio_value or not securities:
-            return {
-                "var_normal": 0,
-                "var_stress": 0,
-                "cvar": 0,
-                "regime_distribution": {"normal": 1, "stress": 0}
-            }
+            return self._get_default_var_metrics(portfolio_value)
 
         historical_returns = []
+        weights = []
 
         for security in securities:
             try:
-                # Fetch prices and align to purchase date
+                # Get historical prices aligned with purchase date
                 prices = fetch_historical_prices(security['ticker'])
                 purchase_date = datetime.strptime(security['purchase_date'], "%Y-%m-%d")
                 filtered_prices = [price for date, price in prices if date >= purchase_date]
@@ -133,84 +140,219 @@ class RiskAnalytics:
                 returns = self._calculate_daily_returns(filtered_prices)
 
                 if len(returns) > 0:
-                    # Dynamically adjust weight for valid periods
                     weight = security['total_value'] / portfolio_value
-                    weighted_returns = returns * weight
-                    historical_returns.append(weighted_returns)
+                    weights.append(weight)
+                    historical_returns.append(returns)
             except Exception as e:
                 print(f"Error processing {security['ticker']}: {str(e)}")
                 continue
 
         if not historical_returns:
-            return {
-                "var_normal": portfolio_value * 0.05,  # Conservative estimate
-                "var_stress": portfolio_value * 0.08,
-                "cvar": portfolio_value * 0.10,
-                "regime_distribution": {"normal": 1, "stress": 0}
-            }
+            return self._get_default_var_metrics(portfolio_value)
 
-        # Combine weighted returns to simulate portfolio behavior
-        portfolio_returns = np.sum(historical_returns, axis=0)
+        # Align return series lengths
+        min_length = min(len(returns) for returns in historical_returns)
+        historical_returns = [returns[:min_length] for returns in historical_returns]
 
-        if len(portfolio_returns) > 0:
-            var_normal_conf = 0.95
-            var_stress_conf = 0.99  # i could up this to 0.995 for more extreme stress. this is good for now...
+        # Convert to numpy array for calculations
+        returns_array = np.array(historical_returns)
+        weights_array = np.array(weights)
 
-            var_normal = np.percentile(portfolio_returns, (1 - var_normal_conf) * 100)
-            var_stress = np.percentile(portfolio_returns, (1 - var_stress_conf) * 100)
-            tail_returns = portfolio_returns[portfolio_returns <= var_normal]
-            cvar = np.mean(tail_returns) if len(tail_returns) > 0 else var_normal
-        else:
-            var_normal = -0.05
-            var_stress = -0.08
-            cvar = -0.10
+        # Calculate portfolio returns considering correlations
+        portfolio_returns = np.sum(returns_array * weights_array[:, np.newaxis], axis=0)
+
+        # Detect market regime
+        regime_probs = self._detect_market_regime(portfolio_returns)
+
+        # Calculate VaR metrics with time scaling
+        var_metrics = self._calculate_var_metrics(
+            portfolio_returns,
+            portfolio_value,
+            regime_probs
+        )
+
+        return var_metrics
+
+    def _detect_market_regime(self, returns: np.ndarray) -> Dict[str, float]:
+        """
+        Detect market regime using volatility clustering.
+        Returns probability of being in normal vs stress regime.
+        """
+        if len(returns) < 30:  # Need minimum sample size
+            return {"normal": 0.8, "stress": 0.2}
+
+        # Calculate rolling volatility
+        rolling_vol = self._calculate_rolling_volatility(returns, window=20)
+
+        # Define stress threshold as 1.5 standard deviations above mean
+        vol_mean = np.mean(rolling_vol)
+        vol_std = np.std(rolling_vol)
+        stress_threshold = vol_mean + 1.5 * vol_std
+
+        # Calculate regime probabilities
+        stress_days = np.sum(rolling_vol > stress_threshold)
+        total_days = len(rolling_vol)
+
+        stress_prob = stress_days / total_days
+        normal_prob = 1 - stress_prob
 
         return {
-            "var_normal": var_normal * portfolio_value,
-            "var_stress": var_stress * portfolio_value,
+            "normal": normal_prob,
+            "stress": stress_prob
+        }
+
+    def _calculate_var_metrics(
+            self,
+            returns: np.ndarray,
+            portfolio_value: float,
+            regime_probs: Dict[str, float]
+    ) -> Dict:
+        """
+        Calculate VaR metrics with proper time scaling and regime mixing.
+        """
+        # Parameters
+        var_normal_conf = 0.95
+        var_stress_conf = 0.99
+
+        # Calculate regime-specific VaRs
+        normal_var = np.percentile(returns, (1 - var_normal_conf) * 100)
+        stress_var = np.percentile(returns, (1 - var_stress_conf) * 100)
+
+        # Scale to chosen horizon using square root of time rule
+        scaling_factor = np.sqrt(self.VAR_HORIZON)
+        normal_var_scaled = normal_var * scaling_factor
+        stress_var_scaled = stress_var * scaling_factor
+
+        # Calculate Expected Shortfall (CVaR)
+        tail_returns = returns[returns <= normal_var]
+        cvar = np.mean(tail_returns) * scaling_factor if len(tail_returns) > 0 else normal_var_scaled
+
+        # Adjust for portfolio value
+        return {
+            "var_normal": normal_var_scaled * portfolio_value,
+            "var_stress": stress_var_scaled * portfolio_value,
             "cvar": cvar * portfolio_value,
-            "regime_distribution": {
-                "normal": 0.8,
-                "stress": 0.2
-            }
+            "regime_distribution": regime_probs,
+            "confidence_levels": {
+                "normal": var_normal_conf,
+                "stress": var_stress_conf
+            },
+            "horizon_days": self.VAR_HORIZON
         }
 
     def get_var_components(self, securities: List[Dict]) -> List[Dict]:
+        """Calculate individual security contributions to portfolio VaR"""
         components = []
         portfolio_value = sum(s['total_value'] for s in securities)
 
         for security in securities:
-            # Fetch (date, price) pairs
-            all_data = fetch_historical_prices(security['ticker'])
-            # Extract just the price floats
-            price_series = [p for (d, p) in all_data]
+            try:
+                # Fetch (date, price) pairs
+                price_data = fetch_historical_prices(security['ticker'])
+                # Calculate returns using the modified method
+                returns = self._calculate_daily_returns(price_data)
 
-            returns = self._calculate_daily_returns(price_series)
+                if len(returns) > 0:
+                    # Calculate VaR for component
+                    var_95 = np.percentile(returns, 5)
+                    var_contrib = var_95 * security['total_value']
+                    weight = security['total_value'] / portfolio_value if portfolio_value else 0
+                    volatility = np.std(returns) * np.sqrt(252) if len(returns) > 0 else 0
 
-            if len(returns) == 0:
-                # handle the case where there's no usable data? - need to figure that out.
-                # for now set var_contrib = 0
-                var_contrib = 0
-            else:
-                # 5th percentile of returns (which is the same as 95% confidence if you interpret negative tail)
-                var_contrib = np.percentile(returns, 5) * security['total_value']
+                    components.append({
+                        "ticker": security['ticker'],
+                        "var_contribution": var_contrib,
+                        "weight": weight,
+                        "volatility": volatility * 100  # Convert to percentage
+                    })
+                else:
+                    print(f"No valid returns data for {security['ticker']}")
 
-            components.append({
-                "ticker": security['ticker'],
-                "var_contribution": var_contrib,
-                "weight": security['total_value'] / portfolio_value if portfolio_value else 0,
-                "volatility": np.std(returns) * np.sqrt(252) if len(returns) > 0 else 0
-            })
+            except Exception as e:
+                print(f"Error processing {security['ticker']}: {str(e)}")
+                continue
 
         return components
 
+    def _calculate_marginal_var(
+            self,
+            security_returns: np.ndarray,
+            all_returns: np.ndarray,
+            weights: np.ndarray,
+            correlations: np.ndarray,
+            portfolio_value: float
+    ) -> float:
+        """
+        Calculate marginal VaR contribution for a security,
+        considering correlations with other portfolio components.
+        """
+        # Calculate portfolio returns
+        portfolio_returns = np.sum(all_returns * weights[:, np.newaxis], axis=0)
+
+        # Calculate VaR at 95% confidence
+        var_95 = np.percentile(portfolio_returns, 5)
+
+        # Calculate component VaR
+        beta_i = np.sum(correlations * weights)
+        marginal_var = beta_i * var_95 * portfolio_value
+
+        return marginal_var
+
     @staticmethod
-    def _calculate_daily_returns(prices: np.ndarray) -> np.ndarray:
-        """Calculate daily returns from price series"""
-        if len(prices) < 2:
+    def _calculate_daily_returns(price_data: List[Tuple[Any, float]]) -> np.ndarray:
+        """Calculate logarithmic daily returns from price series"""
+        try:
+            if not price_data:
+                print("No price data provided")
+                return np.array([])
+
+            print(f"Processing {len(price_data)} price points")
+
+            # Extract just the prices from the (date, price) tuples
+            prices = np.array([price for _, price in price_data], dtype=float)
+
+            if len(prices) < 2:
+                print("Insufficient price data for returns calculation")
+                return np.array([])
+
+            # Calculate log returns
+            returns = np.log(prices[1:] / prices[:-1])
+            # Remove infinite values and NaNs
+            returns = returns[np.isfinite(returns)]
+
+            print(f"Calculated {len(returns)} valid returns")
+            return returns
+
+        except Exception as e:
+            print(f"Error calculating returns: {str(e)}")
+            print(f"Price data sample: {price_data[:5] if price_data else 'None'}")
             return np.array([])
-        # Calculate percentage returns: (P_t - P_t-1) / P_t-1
-        returns = np.diff(prices) / prices[:-1]
-        # Remove infinite values and NaNs
-        returns = returns[np.isfinite(returns)]
-        return returns
+
+    @staticmethod
+    def _calculate_rolling_volatility(returns: np.ndarray, window: int = 20) -> np.ndarray:
+        """Calculate rolling volatility of returns"""
+        if len(returns) < window:
+            return np.array([])
+
+        rolling_vol = np.array([
+            np.std(returns[i:i + window])
+            for i in range(len(returns) - window + 1)
+        ])
+
+        return rolling_vol
+
+    def _get_default_var_metrics(self, portfolio_value: float) -> Dict:
+        """Return default VaR metrics for edge cases"""
+        return {
+            "var_normal": portfolio_value * 0.05,  # Conservative 5% estimate
+            "var_stress": portfolio_value * 0.08,  # More conservative stress estimate
+            "cvar": portfolio_value * 0.10,  # Even more conservative tail risk
+            "regime_distribution": {"normal": 1, "stress": 0},
+            "confidence_levels": {
+                "normal": 0.95,
+                "stress": 0.99
+            },
+            "horizon_days": self.VAR_HORIZON
+        }
+
+
