@@ -371,9 +371,10 @@ async function loadPortfolioDetails(portfolioId) {
                 ? `(${security.value_change_pct.toFixed(2)}%)`
                 : '(0.00%)';
 
-            const totalGainPct = security.total_gain_pct != null
-                ? `(${security.total_gain_pct.toFixed(2)}%)`
-                : '(0.00%)';
+            // commenting this out for now because i want to get rid of the unrealised G/L in the view
+            // const totalGainPct = security.total_gain_pct != null
+            //     ? `(${security.total_gain_pct.toFixed(2)}%)`
+            //     : '(0.00%)';
 
             row.innerHTML = `
                 <td>${security.name} (${security.ticker})</td>
@@ -384,10 +385,8 @@ async function loadPortfolioDetails(portfolioId) {
                     ${formatCurrency(security.value_change || 0)}
                     ${valueChangePct}
                 </td>
-                <td class="${(security.total_gain || 0) >= 0 ? 'positive' : 'negative'}">
-                    ${formatCurrency(security.total_gain || 0)}
-                    ${totalGainPct}
-                </td>
+                <td>${formatCurrency(security.latest_close || 0)}</td>
+                <td>${security.latest_close_date || 'N/A'}</td>
                 <td class="action-buttons hidden"></td>
             `;
             elements.securitiesTableBody.appendChild(row);

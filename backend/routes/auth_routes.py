@@ -9,7 +9,7 @@ from flask_jwt_extended.exceptions import NoAuthorizationError
 from flask_jwt_extended import decode_token
 from flask_jwt_extended import get_csrf_token
 from backend import bcrypt, db
-from backend.models import User, Portfolio, Security, StockCache
+from backend.models import User, Portfolio, Security, StockCache, SecurityHistoricalData
 from backend.models import PortfolioFiles
 
 from backend.analytics.risk_calculations import RiskAnalytics
@@ -289,8 +289,25 @@ def portfolio_overview():
             tickers = [t[0] for t in unique_tickers]
 
             # Get all cached prices for these tickers
-            cached_prices = StockCache.query.filter(StockCache.ticker.in_(tickers)).all()
-            price_map = {cache.ticker: cache for cache in cached_prices}
+            # cached_prices = StockCache.query.filter(StockCache.ticker.in_(tickers)).all()
+            # price_map = {cache.ticker: cache for cache in cached_prices}
+
+            latest_prices = {}
+            for ticker in tickers:
+                latest_price = db.session.query(
+                    SecurityHistoricalData
+                ).filter(
+                    SecurityHistoricalData.ticker == ticker
+                ).order_by(
+                    SecurityHistoricalData.date.desc()
+                ).first()
+
+                if latest_price:
+                    latest_prices[ticker] = {
+                        'current_price': latest_price.close_price,
+                        'previous_close': latest_price.close_price,
+                        'date': latest_price.date
+                    }
 
             # Update portfolio securities with cached prices
             for portfolio in portfolios:
@@ -299,19 +316,29 @@ def portfolio_overview():
                 total_cost = 0
 
                 for security in portfolio.securities:
-                    cached_data = price_map.get(security.ticker)
-                    if cached_data:
-                        security.current_price = cached_data.current_price
-                        security.total_value = security.amount_owned * cached_data.current_price
-                        security.value_change = security.amount_owned * (
-                                    cached_data.current_price - cached_data.previous_close)
+                    latest_data = latest_prices.get(security.ticker)
+                    if latest_data:
+                        security.current_price = latest_data['current_price']
+                        security.total_value = security.amount_owned * latest_data['current_price']
 
-                        # Safe division for percentages
-                        if security.total_value != security.value_change:
+                        # Calculate day change using historical data
+                        previous_day_data = db.session.query(
+                            SecurityHistoricalData
+                        ).filter(
+                            SecurityHistoricalData.ticker == security.ticker,
+                            SecurityHistoricalData.date < latest_data['date']
+                        ).order_by(
+                            SecurityHistoricalData.date.desc()
+                        ).first()
+
+                        if previous_day_data:
+                            security.value_change = security.amount_owned * (
+                                    latest_data['current_price'] - previous_day_data.close_price
+                            )
                             base_value = security.total_value - security.value_change
-                            security.value_change_pct = (
-                                                                    security.value_change / base_value) * 100 if base_value != 0 else 0
+                            security.value_change_pct = (security.value_change / base_value) * 100 if base_value != 0 else 0
                         else:
+                            security.value_change = 0
                             security.value_change_pct = 0
 
                         # Calculate total gain
@@ -326,16 +353,6 @@ def portfolio_overview():
                         portfolio_total_value += security.total_value
                         portfolio_day_change += security.value_change
                         total_cost += position_cost
-
-                # Update portfolio metrics
-                portfolio.total_value = portfolio_total_value
-                portfolio.day_change = portfolio_day_change
-
-                if portfolio_total_value != portfolio_day_change:
-                    base_value = portfolio_total_value - portfolio_day_change
-                    portfolio.day_change_pct = (portfolio_day_change / base_value) * 100 if base_value != 0 else 0
-                else:
-                    portfolio.day_change_pct = 0
 
                 portfolio.total_gain = portfolio_total_value - total_cost
                 portfolio.total_gain_pct = ((portfolio_total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
@@ -612,17 +629,31 @@ def get_portfolio_securities(portfolio_id):
             return jsonify({"message": "Portfolio not found"}), 404
 
         securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
-        securities_data = [{
-            'ticker': s.ticker,
-            'name': s.name,
-            'amount_owned': s.amount_owned,
-            'current_price': s.current_price,
-            'total_value': s.total_value,
-            'value_change': s.value_change,
-            'value_change_pct': s.value_change_pct,
-            'total_gain': s.total_gain,
-            'total_gain_pct': s.total_gain_pct
-        } for s in securities]
+        securities_data = []
+
+        for s in securities:
+            # Get latest close price from historical data
+            latest_price_data = (
+                db.session.query(SecurityHistoricalData)
+                .filter_by(ticker=s.ticker)
+                .order_by(SecurityHistoricalData.date.desc())
+                .first()
+            )
+
+            latest_close = latest_price_data.close_price if latest_price_data else s.current_price
+            latest_close_date = latest_price_data.date if latest_price_data else None
+
+            securities_data.append({
+                'ticker': s.ticker,
+                'name': s.name,
+                'amount_owned': s.amount_owned,
+                'current_price': s.current_price,
+                'total_value': s.total_value,
+                'value_change': s.value_change,
+                'value_change_pct': s.value_change_pct,
+                'latest_close': latest_close,
+                'latest_close_date': latest_close_date.strftime('%Y-%m-%d') if latest_close_date else None
+            })
 
         return jsonify({
             'portfolio_id': portfolio_id,
