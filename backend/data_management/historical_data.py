@@ -2,6 +2,9 @@
 import datetime
 from typing import List
 from backend import db
+from backend.data_management.data_validation import HistoricalDataValidator
+from backend.models import SecurityHistoricalData
+from backend.utils.batch_processing import process_historical_data_batch
 
 
 async def initial_data_load(tickers: List[str]):

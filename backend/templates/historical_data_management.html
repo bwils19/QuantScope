@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="historical-data-container">
+    <div class="header-section">
+        <h2 class="page-title">Historical Data Management</h2>
+    </div>
+
+    <div class="control-section">
+        <div class="card">
+            <h3>Manual Update</h3>
+            <button id="triggerUpdate" class="trigger-btn">
+                Trigger Historical Update
+            </button>
+            <div id="updateStatus" class="status-message hidden"></div>
+        </div>
+    </div>
+
+    <div class="recent-updates-section">
+        <div class="card">
+            <h3>Recent Updates</h3>
+            <div class="updates-table-container">
+                <table id="updatesTable">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Tickers Updated</th>
+                            <th>Records Added</th>
+                            <th>Status</th>
+                            <th>Error</th>
+                        </tr>
+                    </thead>
+                    <tbody id="updatesTableBody">
+
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.historical-data-container {
+    max-width: 1200px;
+    margin: 80px auto 20px;
+    padding: 20px;
+}
+
+.card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.control-section {
+    margin-bottom: 30px;
+}
+
+.trigger-btn {
+    background-color: #6C7D93;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.trigger-btn:hover {
+    background-color: #2c3e50;
+}
+
+.status-message {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.status-message.success {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-message.error {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.updates-table-container {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+th {
+    background-color: #f8f9fa;
+    font-weight: 500;
+}
+
+.hidden {
+    display: none;
+}
+</style>
+
+<script>
+const triggerBtn = document.getElementById('triggerUpdate');
+const statusDiv = document.getElementById('updateStatus');
+const updatesTableBody = document.getElementById('updatesTableBody');
+
+function getFetchConfig(method = 'GET') {
+    // Get CSRF token from cookie
+    const csrfToken = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('csrf_access_token='))
+        ?.split('=')[1];
+
+    return {
+        method: method,
+        credentials: 'include',  // Important for cookies
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken
+        }
+    };
+}
+
+// Define loadRecentUpdates function first
+async function loadRecentUpdates() {
+    try {
+        const response = await fetch('/analytics/historical-update-status', {
+            ...getFetchConfig('GET')
+        });
+
+        if (response.status === 401) {
+            console.log('Session expired, redirecting to login...');
+            window.location.href = '/auth/login';
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const updates = await response.json();
+
+        updatesTableBody.innerHTML = updates.map(update => `
+            <tr>
+                <td>${new Date(update.update_time).toLocaleString()}</td>
+                <td>${update.tickers_updated || 0}</td>
+                <td>${update.records_added || 0}</td>
+                <td>${update.status}</td>
+                <td>${update.error || '-'}</td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('Failed to load updates:', error);
+        if (!statusDiv.classList.contains('error')) {
+            statusDiv.textContent = `Error loading updates: ${error.message}`;
+            statusDiv.classList.add('error');
+        }
+    }
+}
+
+// Update trigger button handler
+triggerBtn.addEventListener('click', async function() {
+    // Disable button and show status
+    triggerBtn.disabled = true;
+    statusDiv.className = 'status-message';
+    statusDiv.textContent = 'Triggering update...';
+    statusDiv.classList.remove('hidden');
+
+    try {
+        console.log('Sending update trigger request...');
+
+        const response = await fetch('/analytics/trigger-historical-update', {
+            ...getFetchConfig('POST')
+        });
+
+        console.log('Response status:', response.status);
+
+        if (response.status === 401) {
+            console.log('Session expired, redirecting to login...');
+            window.location.href = '/auth/login';
+            return;
+        }
+
+        const data = await response.json();
+        console.log('Response data:', data);
+
+        if (response.ok) {
+            statusDiv.textContent = `Update triggered successfully! (${new Date().toLocaleTimeString()})`;
+            statusDiv.classList.add('success');
+            // Reload the updates table after a short delay
+            setTimeout(loadRecentUpdates, 1000);
+        } else {
+            throw new Error(data.error || data.msg || `Server error: ${response.status}`);
+        }
+    } catch (error) {
+        console.error('Error details:', error);
+        statusDiv.textContent = `Error: ${error.message}`;
+        statusDiv.classList.add('error');
+    } finally {
+        // Re-enable the button
+        triggerBtn.disabled = false;
+    }
+});
+
+// Check session status periodically
+function checkSession() {
+    if (!document.cookie.includes('access_token_cookie')) {
+        console.log('Session expired, redirecting to login...');
+        window.location.href = '/auth/login';
+    }
+}
+
+// Initial load - wait for DOM to be ready
+document.addEventListener('DOMContentLoaded', () => {
+    if (triggerBtn && statusDiv && updatesTableBody) {
+        loadRecentUpdates();
+        // Check session every minute
+        setInterval(checkSession, 60000);
+    } else {
+        console.error('Required elements not found:', {
+            triggerBtn: !!triggerBtn,
+            statusDiv: !!statusDiv,
+            updatesTableBody: !!updatesTableBody
+        });
+    }
+});
+</script>
+{% endblock %}

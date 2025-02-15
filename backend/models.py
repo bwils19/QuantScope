@@ -128,3 +128,16 @@ class PortfolioFiles(db.Model):
     uploaded_by = db.Column(db.String(255), nullable=False)
 
     user = db.relationship('User', backref=db.backref('portfolio_files', lazy=True))
+
+
+# log the historical updates so i can keep track of when this works and not.
+class HistoricalDataUpdateLog(db.Model):
+    __tablename__ = 'historical_data_update_log'
+    __table_args__ = {'extend_existing': True}
+
+    id = db.Column(db.Integer, primary_key=True)
+    update_time = db.Column(db.DateTime, default=datetime.utcnow)
+    tickers_updated = db.Column(db.Integer)
+    records_added = db.Column(db.Integer)
+    status = db.Column(db.String(50))
+    error = db.Column(db.Text, nullable=True)

@@ -2,13 +2,17 @@ from flask import Flask, redirect, url_for, jsonify, make_response
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from flask_migrate import Migrate
 from backend import db, bcrypt, jwt
-from datetime import timedelta
+from datetime import timedelta, datetime
 import os
 from dotenv import load_dotenv
 from backend.tasks import init_scheduler
 from backend.commands import load_historical_data
+from backend.services.email_service import mail
+
+from flask_mail import Mail, Message
 
 from backend.models import User, Portfolio, Security
+mail = Mail()
 
 
 def create_app(test_config=None):
@@ -28,6 +32,13 @@ def create_app(test_config=None):
         app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
         app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
         app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')
+
+        app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+        app.config['MAIL_PORT'] = 587
+        app.config['MAIL_USE_TLS'] = True
+        app.config['MAIL_USERNAME'] = os.getenv('EMAIL_USER')
+        app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASSWORD')
+        mail.init_app(app)
     else:
         # Load test config if passed in
         app.config.update(test_config)
@@ -109,6 +120,33 @@ def create_app(test_config=None):
         app.scheduler = scheduler
 
     return app
+
+
+def send_update_notification(status, details):
+    try:
+        msg = Message(
+            f"Historical Data Update {status}",
+            sender=app.config['MAIL_USERNAME'],
+            recipients=[os.getenv('ADMIN_EMAIL')]  # Your notification email
+        )
+
+        msg.body = f"""
+        Historical Data Update {status}
+        
+        Time: {datetime.now()}
+        Details: {details}
+        
+        Tickers Updated: {details.get('tickers_updated', 0)}
+        Records Added: {details.get('records_added', 0)}
+        Status: {details.get('status', 'Unknown')}
+        
+        Error (if any): {details.get('error', 'None')}
+        """
+
+        mail.send(msg)
+        print(f"Notification email sent: {status}")
+    except Exception as e:
+        print(f"Failed to send email notification: {e}")
 
 
 app = create_app()

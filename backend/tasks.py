@@ -171,7 +171,7 @@ def init_scheduler(app):
         func=update_prices,
         trigger=CronTrigger(
             day_of_week='mon-fri',
-            hour='9,13',  # Run at market open (9:30 AM) and mid-day (1 PM)
+            hour='9,13',  # market open 9:30 AM and mid-day 1 PM
             minute='30',
             timezone=pytz.timezone('America/New_York')
         ),
@@ -187,7 +187,7 @@ def init_scheduler(app):
         func=historical_data_service.update_historical_data,
         trigger=CronTrigger(
             day_of_week='mon-fri',
-            hour='16',  # Run after market close to get close prices
+            hour='16',  # Run after the market closes to get close prices
             minute='30',
             timezone=pytz.timezone('America/New_York')
         ),

@@ -3,7 +3,8 @@ import time
 
 import requests
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, make_response, current_app, send_file
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity, verify_jwt_in_request
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity, verify_jwt_in_request, \
+    set_access_cookies
 from flask_jwt_extended.exceptions import NoAuthorizationError
 from flask_jwt_extended import decode_token
 from flask_jwt_extended import get_csrf_token
@@ -80,7 +81,8 @@ def check_jwt():
         "auth.signup_page",
         "auth.signup",
         "auth.login",
-        "auth.logout"
+        "auth.logout",
+        "auth.refresh"
     ]
 
     if request.endpoint and "auth." in request.endpoint:
@@ -192,6 +194,24 @@ def logout():
     response.delete_cookie('access_token_cookie')
     response.delete_cookie('csrf_access_token')
     return response
+
+
+@auth_blueprint.route('/refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def refresh():
+    try:
+        # Create new access token
+        access_token = create_access_token(identity=get_jwt_identity())
+
+        response = jsonify({'msg': 'Token refreshed successfully'})
+
+        # Set the JWT cookies in the response
+        set_access_cookies(response, access_token)
+
+        return response, 200
+
+    except Exception as e:
+        return jsonify({'msg': 'Token refresh failed', 'error': str(e)}), 401
 
 
 @auth_blueprint.route('/dashboard', methods=['GET'])

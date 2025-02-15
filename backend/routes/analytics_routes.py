@@ -1,8 +1,12 @@
-from flask import Blueprint, jsonify
+import asyncio
+from datetime import datetime
+
+from flask import Blueprint, jsonify, render_template, redirect, url_for
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from backend.models import User, Portfolio, Security  # Use absolute imports
+from backend.models import User, Portfolio, Security, HistoricalDataUpdateLog, SecurityHistoricalData
 from backend.analytics.risk_calculations import RiskAnalytics, calculate_credit_risk
 from backend import db
+from backend.services.historical_data_service import HistoricalDataService
 
 analytics_blueprint = Blueprint('analytics', __name__)
 
@@ -12,7 +16,6 @@ analytics_blueprint = Blueprint('analytics', __name__)
 def get_portfolio_risk(portfolio_id):
 
     try:
-
         current_user_email = get_jwt_identity()
         user = User.query.filter_by(email=current_user_email).first()
         portfolio = Portfolio.query.filter_by(id=portfolio_id, user_id=user.id).first()
@@ -34,7 +37,7 @@ def get_portfolio_risk(portfolio_id):
         # Calculate metrics
         var_data = risk_analyzer.calculate_dynamic_var(securities_data)
         credit_risk = calculate_credit_risk(securities_data)
-        # put the beta calculation on hold for right now.
+        # putting the beta calculation on hold for right now.
         # beta = risk_analyzer.calculate_portfolio_beta(securities_data, portfolio.total_value)
 
         var_components = risk_analyzer.get_var_components(securities_data)
@@ -52,3 +55,98 @@ def get_portfolio_risk(portfolio_id):
     except Exception as e:
         print(f"Error calculating risk metrics: {str(e)}")
         return jsonify({"error": "Failed to calculate risk metrics"}), 500
+
+
+@analytics_blueprint.route('/trigger-historical-update', methods=['POST'])
+@jwt_required(locations=["cookies"])
+def trigger_historical_update():
+    log_entry = None
+    try:
+        current_user_email = get_jwt_identity()
+        print(f"Historical update triggered by user: {current_user_email}")
+
+        # Create log entry
+        log_entry = HistoricalDataUpdateLog(
+            status='started',
+            tickers_updated=0,
+            records_added=0
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        print(f"Created log entry with ID: {log_entry.id}")
+
+        service = HistoricalDataService()
+        result = service.update_historical_data()
+
+        if result['success']:
+            log_entry.status = 'completed'
+            log_entry.tickers_updated = result['tickers_updated']
+            log_entry.records_added = result['records_added']
+            db.session.commit()
+
+            return jsonify({
+                "message": "Historical data update completed successfully",
+                "triggered_by": current_user_email,
+                "timestamp": datetime.utcnow().isoformat(),
+                "tickers_updated": result['tickers_updated'],
+                "records_added": result['records_added']
+            }), 200
+        else:
+            log_entry.status = 'failed'
+            log_entry.error = result.get('error', 'Update process failed')
+            db.session.commit()
+            return jsonify({
+                "error": result.get('error', 'Update process failed'),
+                "timestamp": datetime.utcnow().isoformat()
+            }), 500
+
+    except Exception as e:
+        print(f"Error in trigger_historical_update: {str(e)}")
+        if log_entry:
+            log_entry.status = 'failed'
+            log_entry.error = str(e)
+            db.session.commit()
+        return jsonify({
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }), 500
+
+
+# log the historical updates table
+@analytics_blueprint.route('/historical-update-status', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def get_historical_update_status():
+    try:
+        recent_updates = HistoricalDataUpdateLog.query \
+            .order_by(HistoricalDataUpdateLog.update_time.desc()) \
+            .limit(5) \
+            .all()
+
+        updates = [{
+            'update_time': update.update_time.isoformat(),
+            'tickers_updated': update.tickers_updated,
+            'records_added': update.records_added,
+            'status': update.status,
+            'error': update.error
+        } for update in recent_updates]
+
+        return jsonify(updates), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@analytics_blueprint.route('/historical-data-management', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def historical_data_management():
+    # Get current user
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+
+    if not user:
+        return redirect(url_for('auth.login_page'))
+
+    return render_template(
+        'historical_data_management.html',
+        user={"first_name": user.first_name, "email": user.email}
+    )
+
