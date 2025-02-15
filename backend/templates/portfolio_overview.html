@@ -360,6 +360,12 @@
 </div>
 </div>
 
+  {% if latest_update %}
+<div class="data-timestamp">
+    Latest Update: {{ latest_update.strftime('%Y-%m-%d %H:%M:%S') }}
+</div>
+{% endif %}
+
 <script src="{{ url_for('static', filename='js/portfolio_overview.js') }}"></script>
 </body>
 {% endblock %}

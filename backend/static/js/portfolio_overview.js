@@ -398,6 +398,19 @@ async function loadPortfolioDetails(portfolioId) {
         elements.editPortfolioBtn.textContent = 'Edit Portfolio';
         editedSecurities.clear();
 
+        const modalContent = elements.portfolioDetailsModal.querySelector('.modal-content');
+        const existingTimestamp = modalContent.querySelector('.data-timestamp');
+        if (existingTimestamp) {
+            existingTimestamp.remove();
+        }
+
+        if (data.latest_update) {
+            const timestamp = document.createElement('div');
+            timestamp.className = 'data-timestamp';
+            timestamp.textContent = `Latest Update: ${data.latest_update}`;
+            modalContent.appendChild(timestamp);
+        }
+
         elements.portfolioDetailsModal.style.display = "block";
     } catch (error) {
         console.error('Error loading portfolio details:', error);

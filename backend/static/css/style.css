@@ -2163,3 +2163,12 @@ body.risk-analysis-page {
         max-height: 200px;
     }
 }
+
+.data-timestamp {
+    font-size: 0.8rem;
+    color: #666;
+    text-align: center;
+    padding: 10px;
+    margin-top: 20px;
+    font-style: italic;
+}

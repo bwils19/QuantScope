@@ -8,6 +8,8 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_j
 from flask_jwt_extended.exceptions import NoAuthorizationError
 from flask_jwt_extended import decode_token
 from flask_jwt_extended import get_csrf_token
+from sqlalchemy import func
+
 from backend import bcrypt, db
 from backend.models import User, Portfolio, Security, StockCache, SecurityHistoricalData
 from backend.models import PortfolioFiles
@@ -370,6 +372,10 @@ def portfolio_overview():
             else:
                 total_day_change_pct = 0
 
+            latest_update = db.session.query(
+                func.max(SecurityHistoricalData.updated_at)
+            ).scalar()
+
             return render_template(
                 'portfolio_overview.html',
                 body_class='portfolio-overview-page',
@@ -381,7 +387,8 @@ def portfolio_overview():
                     'day_change_pct': total_day_change_pct,
                     'total_gain': total_total_gain,
                     'total_gain_pct': total_total_gain_pct
-                }
+                },
+                latest_update=latest_update
             )
 
     except Exception as e:
@@ -655,9 +662,14 @@ def get_portfolio_securities(portfolio_id):
                 'latest_close_date': latest_close_date.strftime('%Y-%m-%d') if latest_close_date else None
             })
 
+        latest_update = db.session.query(
+            func.max(SecurityHistoricalData.updated_at)
+        ).scalar()
+
         return jsonify({
             'portfolio_id': portfolio_id,
-            'securities': securities_data
+            'securities': securities_data,
+            'latest_update': latest_update.strftime('%Y-%m-%d %H:%M:%S') if latest_update else None
         }), 200
 
     except Exception as e:
