@@ -424,13 +424,63 @@ def portfolio_overview():
                     'total_gain': total_total_gain,
                     'total_gain_pct': total_total_gain_pct
                 },
-                latest_update=latest_update
+                latest_update=latest_update,
+                watchlist=watchlist_data
             )
 
     except Exception as e:
         print(f"Error in portfolio-overview: {e}")
         db.session.rollback()
         return redirect(url_for("auth.login_page"))
+
+
+@auth_blueprint.route('/security-historical/<symbol>', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def get_security_historical(symbol):
+    try:
+        # Get latest 90 days of data matching your schema
+        historical_data = (
+            db.session.query(SecurityHistoricalData)
+            .filter_by(ticker=symbol)
+            .order_by(SecurityHistoricalData.date.desc())
+            .limit(90)
+            .all()
+        )
+
+        if not historical_data:
+            return jsonify({"message": "No historical data found"}), 404
+
+        # Format data using your actual column names
+        data = {
+            'dates': [record.date.strftime('%Y-%m-%d') for record in reversed(historical_data)],
+            'prices': [float(record.close_price) for record in reversed(historical_data)],
+            'open_prices': [float(record.open_price) for record in reversed(historical_data)],
+            'high_prices': [float(record.high_price) for record in reversed(historical_data)],
+            'low_prices': [float(record.low_price) for record in reversed(historical_data)],
+            'adjusted_closes': [float(record.adjusted_close) for record in reversed(historical_data)],
+            'volumes': [int(record.volume) for record in reversed(historical_data)]
+        }
+
+        # Get the latest price and previous day's price for calculations
+        latest = historical_data[0]
+        previous = historical_data[1] if len(historical_data) > 1 else None
+
+        if latest and previous:
+            data['current_price'] = float(latest.close_price)
+            data['previous_close'] = float(previous.close_price)
+            data['day_change'] = data['current_price'] - data['previous_close']
+            data['day_change_pct'] = (data['day_change'] / data['previous_close']) * 100
+        else:
+            data['current_price'] = float(latest.close_price) if latest else None
+            data['previous_close'] = None
+            data['day_change'] = None
+            data['day_change_pct'] = None
+
+        return jsonify(data), 200
+
+    except Exception as e:
+        print(f"Error fetching historical data: {e}")
+        return jsonify({"message": "Failed to fetch historical data"}), 500
 
 
 @auth_blueprint.route('/portfolio/<int:portfolio_id>', methods=['DELETE'])

@@ -2181,38 +2181,51 @@ body.risk-analysis-page {
 /*watchlist styles*/
 .watchlist-card {
     background: white;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-radius: 12px;
+    /*box-shadow: 0 1px 3px rgba(0,0,0,0.1);*/
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     margin-bottom: 1rem;
-    padding: 1rem;
+    padding: 1.25rem;
+    transition: all 0.2s ease;
+}
+
+.watchlist-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
 .watchlist-card-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    margin-bottom: 0.75rem;
 }
 
 .security-info {
-    flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
 }
 
 .security-symbol {
-    font-size: 1.2rem;
-    font-weight: bold;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #2d3748;
     margin: 0;
-    color: #333;
 }
 
 .security-name {
-    font-size: 0.9rem;
-    color: #666;
-    margin: 0.2rem 0;
+    font-size: 0.875rem;
+    color: #718096;
+    margin: 0;
 }
 
 .security-exchange {
-    font-size: 0.8rem;
-    color: #888;
+    font-size: 0.75rem;
+    color: #a0aec0;
+    padding: 0.25rem 0.5rem;
+    background: #f7fafc;
+    border-radius: 4px;
+    margin: 0;
 }
 
 .security-prices {
@@ -2220,48 +2233,68 @@ body.risk-analysis-page {
 }
 
 .current-price {
-    font-size: 1.1rem;
-    font-weight: bold;
-    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin: 0 0 0.25rem 0;
 }
 
 .day-change {
-    font-size: 0.9rem;
-    margin: 0.2rem 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
 }
 
 .day-change.positive {
-    color: #22c55e;
+    color: #48bb78;
+    background: #f0fff4;
 }
 
 .day-change.negative {
-    color: #ef4444;
+    color: #f56565;
+    background: #fff5f5;
 }
 
 .watchlist-card-actions {
     display: flex;
-    justify-content: center;
-    gap: 1rem;
-    margin-top: 0.5rem;
-    border-top: 1px solid #eee;
-    padding-top: 0.5rem;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #edf2f7;
 }
 
-.toggle-chart-btn, .remove-security-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
+.toggle-chart-btn {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
     padding: 0.5rem;
-    transition: opacity 0.2s;
+    border: none;
+    background: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.remove-security-btn {
+    padding: 0.5rem;
+    border: none;
+    background: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
 .toggle-chart-btn:hover, .remove-security-btn:hover {
-    opacity: 0.7;
+    background: #f7fafc;
 }
 
 .chart-container {
     margin-top: 1rem;
     height: 250px;
+    border-top: 1px solid #edf2f7;
+    padding-top: 1rem;
 }
 
 .chart-container.hidden {

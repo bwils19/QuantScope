@@ -2011,24 +2011,50 @@ async function handleWatchlistSearch(event) {
 
 async function addToWatchlist(security) {
     try {
-        const response = await fetch('/auth/watchlist', {  // Update endpoint to match your route
+        // Get CSRF token from cookie
+        const csrfToken = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrf_access_token='))
+            ?.split('=')[1];
+
+        // First, add to watchlist in database
+        const response = await fetch('/auth/watchlist', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            },
+            credentials: 'include',
             body: JSON.stringify({
-                ticker: security.symbol,  // Changed from symbol to ticker
+                ticker: security.symbol,
                 name: security.name,
                 exchange: security.exchange
-            }),
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to add to watchlist');
+        }
+
+        const watchlistData = await response.json();
+
+        // Get historical data from SecurityHistoricalData
+        const historicalResponse = await fetch(`/auth/security-historical/${security.symbol}`, {
             credentials: 'include'
         });
 
-        const stockData = await fetch('/stocks', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol: security.symbol })
-        });
-
-        const priceData = await stockData.json();
+        let priceData;
+        if (historicalResponse.ok) {
+            priceData = await historicalResponse.json();
+        } else {
+            // Only if no historical data exists, fetch from AlphaVantage
+            const stockDataResponse = await fetch('/stocks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol: security.symbol })
+            });
+            priceData = await stockDataResponse.json();
+        }
 
         // Store stock data for charts
         watchlistStockData[security.symbol] = {
@@ -2038,6 +2064,7 @@ async function addToWatchlist(security) {
 
         // Add to watchlist with correct property names
         watchlistItems.push({
+            id: watchlistData.id,
             ticker: security.symbol,
             name: security.name,
             exchange: security.exchange,
@@ -2048,13 +2075,13 @@ async function addToWatchlist(security) {
                 priceData.prices[priceData.prices.length - 2] * 100)
         });
 
-        // Update display
         renderWatchlistItems();
 
         // Clear and hide search
-        document.getElementById('watchlistSearchInput').value = '';
-        document.getElementById('watchlistSearchContainer').classList.add('hidden');
-        document.getElementById('watchlistSearchSuggestions').classList.add('hidden');
+        elements.watchlistSearchInput.value = '';
+        elements.watchlistSearchContainer.classList.add('hidden');
+        elements.watchlistSearchSuggestions.classList.add('hidden');
+
     } catch (error) {
         console.error('Error adding to watchlist:', error);
         showError('Failed to add security to watchlist');
@@ -2081,30 +2108,30 @@ function renderWatchlistItems(data = null) {
         const dayChangeClass = item.day_change >= 0 ? 'positive' : 'negative';
 
         card.innerHTML = `
-            <div class="watchlist-card-header">
-                <div class="security-info">
-                    <h4 class="security-symbol">${item.ticker}</h4>
-                    <p class="security-name">${item.name}</p>
-                    <p class="security-exchange">${item.exchange}</p>
-                </div>
-                <div class="security-prices">
-                    <p class="current-price">${formatCurrency(item.current_price || 0)}</p>
-                    <p class="day-change ${dayChangeClass}">
-                        ${item.day_change >= 0 ? '+' : ''}${formatCurrency(item.day_change || 0)}
-                        (${item.day_change_pct?.toFixed(2) || '0.00'}%)
-                    </p>
-                </div>
+        <div class="watchlist-card-header">
+            <div class="security-info">
+                <h4 class="security-symbol">${item.ticker}</h4>
+                <p class="security-name">${item.name}</p>
+                <p class="security-exchange">${item.exchange || 'NYSE'}</p>
             </div>
-            <div class="watchlist-card-actions">
-                <button class="toggle-chart-btn" data-symbol="${item.ticker}">
-                    <img src="/static/images/chevron-down.svg" alt="Toggle chart" class="chevron-icon">
-                </button>
-                <button class="remove-security-btn" data-symbol="${item.ticker}">
-                    <i class="fas fa-times"></i>
-                </button>
+            <div class="security-prices">
+                <p class="current-price">${formatCurrency(item.current_price || 0)}</p>
+                <span class="day-change ${item.day_change >= 0 ? 'positive' : 'negative'}">
+                    ${item.day_change >= 0 ? '+' : ''}${formatCurrency(item.day_change || 0)}
+                    (${(item.day_change_pct || 0).toFixed(2)}%)
+                </span>
             </div>
-            <div class="chart-container hidden" id="chart-${item.ticker}"></div>
-        `;
+        </div>
+        <div class="watchlist-card-actions">
+            <button class="toggle-chart-btn" data-symbol="${item.ticker}">
+                <img src="/static/images/chevron-down.svg" alt="Toggle chart" class="chevron-icon">
+            </button>
+            <button class="remove-security-btn" data-symbol="${item.ticker}">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="chart-container hidden" id="chart-${item.ticker}"></div>
+    `;
 
         watchlistContainer.appendChild(card);
 
@@ -2144,96 +2171,121 @@ function renderWatchlistItems(data = null) {
     });
 }
 
-function renderWatchlistChart(symbol, container) {
-    const data = watchlistStockData[symbol];
-    if (!data) return;
+async function renderWatchlistChart(symbol, container) {
+    try {
+        // If we don't have the data stored, fetch it
+        if (!watchlistStockData[symbol]) {
+            const historicalResponse = await fetch(`/auth/security-historical/${symbol}`, {
+                credentials: 'include'
+            });
 
-    const chartConfig = {
-        type: 'line',
-        data: {
-            labels: data.dates,
-            datasets: [{
-                label: `${symbol} Closing Prices`,
-                data: data.prices,
-                borderColor: 'rgba(108, 125, 147, 1)',
-                borderWidth: 2,
-                fill: true,
-                backgroundColor: function(context) {
-                    const chart = context.chart;
-                    const { ctx, chartArea } = chart;
-                    if (!chartArea) return null;
-
-                    const gradient = ctx.createLinearGradient(
-                        0,
-                        chart.scales.y.getPixelForValue(Math.max(...data.prices)),
-                        0,
-                        chart.chartArea.bottom
-                    );
-                    gradient.addColorStop(0, 'rgba(108, 125, 147, 0.8)');
-                    gradient.addColorStop(1, 'rgba(108, 125, 147, 0.1)');
-                    return gradient;
-                }
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                tooltip: {
-                    intersect: false,
-                    mode: 'index',
-                },
-            },
-            scales: {
-                x: { title: { display: true, text: 'Date' } },
-                y: { title: { display: true, text: 'Price (USD)' } }
-            },
-            interaction: {
-                intersect: false,
-                mode: 'nearest'
+            if (historicalResponse.ok) {
+                const priceData = await historicalResponse.json();
+                watchlistStockData[symbol] = {
+                    dates: priceData.dates,
+                    prices: priceData.prices
+                };
+            } else {
+                throw new Error('Failed to fetch historical data');
             }
         }
-    };
 
-    const canvas = document.createElement('canvas');
-    canvas.style.height = '250px';
-    container.innerHTML = '';
-    container.appendChild(canvas);
+        const data = watchlistStockData[symbol];
+        if (!data) return;
 
-    new Chart(canvas, chartConfig);
+        const chartConfig = {
+            type: 'line',
+            data: {
+                labels: data.dates,
+                datasets: [{
+                    label: `${symbol} Closing Prices`,
+                    data: data.prices,
+                    borderColor: 'rgba(108, 125, 147, 1)',
+                    borderWidth: 2,
+                    fill: true,
+                    backgroundColor: function(context) {
+                        const chart = context.chart;
+                        const { ctx, chartArea } = chart;
+                        if (!chartArea) return null;
+
+                        const gradient = ctx.createLinearGradient(
+                            0,
+                            chart.scales.y.getPixelForValue(Math.max(...data.prices)),
+                            0,
+                            chart.chartArea.bottom
+                        );
+                        gradient.addColorStop(0, 'rgba(108, 125, 147, 0.8)');
+                        gradient.addColorStop(1, 'rgba(108, 125, 147, 0.1)');
+                        return gradient;
+                    },
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
+                    pointBackgroundColor: 'rgba(108, 125, 147, 1)',
+                    tension: 0.2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        intersect: false,
+                        mode: 'index',
+                    },
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Date' } },
+                    y: { title: { display: true, text: 'Price (USD)' } }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'nearest'
+                }
+            }
+        };
+
+        const canvas = document.createElement('canvas');
+        canvas.style.height = '250px';
+        container.innerHTML = '';
+        container.appendChild(canvas);
+
+        new Chart(canvas, chartConfig);
+    } catch (error) {
+        console.error('Error rendering watchlist chart:', error);
+        container.innerHTML = '<div class="chart-error">Failed to load chart data</div>';
+    }
 }
 
 
 // Initialize
     async function init() {
         try {
-            // Load securities data - might need to refresh this list periodically, not sure how often it changes
+            // Load securities data
             const response = await fetch("/static/data/symbols.json");
             if (!response.ok) throw new Error("Failed to load securities data");
             securitiesData = await response.json();
 
+            // Get watchlist data from the embedded script
             const watchlistDataElement = document.getElementById('watchlist-data');
             if (watchlistDataElement) {
                 try {
                     const watchlistData = JSON.parse(watchlistDataElement.textContent);
+                    console.log("Initial watchlist data:", watchlistData); // Debug log
                     renderWatchlistItems(watchlistData);
                 } catch (e) {
                     console.error('Error parsing watchlist data:', e);
-                    renderWatchlistItems([]); // Initialize with empty array if parsing fails
+                    renderWatchlistItems([]);
                 }
             } else {
-                renderWatchlistItems([]); // Initialize with empty array if element not found
+                console.log("No watchlist data element found"); // Debug log
+                renderWatchlistItems([]);
             }
+
 
             // Setup all event handlers
             setupEventListeners();
-
-            // Initialize view
-            elements.tableHeader.style.display = "none";
-
-            // set up watchlist
             setupWatchlistHandlers();
-            // renderWatchlistItems();
+            elements.tableHeader.style.display = "none";
 
         } catch (error) {
             console.error("Initialization error:", error);
