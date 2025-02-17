@@ -121,7 +121,7 @@ class PortfolioFiles(db.Model):
     __tablename__ = 'portfolio_files'
     __table_args__ = {'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # Updated to match users table
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     filename = db.Column(db.String(255), nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
@@ -141,3 +141,17 @@ class HistoricalDataUpdateLog(db.Model):
     records_added = db.Column(db.Integer)
     status = db.Column(db.String(50))
     error = db.Column(db.Text, nullable=True)
+
+
+class Watchlist(db.Model):
+    __tablename__ = 'watchlists'
+    __table_args__ = {'extend_existing': True}
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    ticker = db.Column(db.String(20), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    exchange = db.Column(db.String(50))
+    added_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationship with User
+    user = db.relationship('User', backref=db.backref('watchlist_items', lazy=True))

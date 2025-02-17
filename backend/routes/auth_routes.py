@@ -11,7 +11,7 @@ from flask_jwt_extended import get_csrf_token
 from sqlalchemy import func
 
 from backend import bcrypt, db
-from backend.models import User, Portfolio, Security, StockCache, SecurityHistoricalData
+from backend.models import User, Portfolio, Security, StockCache, SecurityHistoricalData, Watchlist
 from backend.models import PortfolioFiles
 
 from backend.analytics.risk_calculations import RiskAnalytics
@@ -375,6 +375,42 @@ def portfolio_overview():
             latest_update = db.session.query(
                 func.max(SecurityHistoricalData.updated_at)
             ).scalar()
+
+            # watchlist_items = Watchlist.query.filter_by(user_id=user.id).all()
+            watchlist_data = []
+            if user:
+                watchlist_items = Watchlist.query.filter_by(user_id=user.id).all()
+                for item in watchlist_items:
+                    # Get latest price data
+                    latest_price_data = (
+                        db.session.query(SecurityHistoricalData)
+                        .filter_by(ticker=item.ticker)
+                        .order_by(SecurityHistoricalData.date.desc())
+                        .first()
+                    )
+
+                    previous_day_data = (
+                        db.session.query(SecurityHistoricalData)
+                        .filter_by(ticker=item.ticker)
+                        .order_by(SecurityHistoricalData.date.desc())
+                        .offset(1)
+                        .first()
+                    )
+
+                    current_price = latest_price_data.close_price if latest_price_data else None
+                    previous_close = previous_day_data.close_price if previous_day_data else None
+
+                    watchlist_data.append({
+                        'id': item.id,
+                        'ticker': item.ticker,
+                        'name': item.name,
+                        'exchange': item.exchange,
+                        'current_price': current_price,
+                        'day_change': (current_price - previous_close) if current_price and previous_close else None,
+                        'day_change_pct': ((current_price - previous_close) / previous_close * 100)
+                        if current_price and previous_close else None,
+                        'latest_update': latest_price_data.date if latest_price_data else None
+                    })
 
             return render_template(
                 'portfolio_overview.html',
@@ -1306,3 +1342,117 @@ def categorize_risk(security):
             return 'Very High Risk'
     except (ValueError, AttributeError):
         return 'Uncategorized'
+
+
+#  watchlist routes
+@auth_blueprint.route('/watchlist', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def get_watchlist():
+    try:
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        watchlist_items = Watchlist.query.filter_by(user_id=user.id).all()
+        items = []
+
+        for item in watchlist_items:
+            # Get latest price data
+            latest_price_data = (
+                db.session.query(SecurityHistoricalData)
+                .filter_by(ticker=item.ticker)
+                .order_by(SecurityHistoricalData.date.desc())
+                .first()
+            )
+
+            current_price = latest_price_data.close_price if latest_price_data else None
+            previous_close = (
+                db.session.query(SecurityHistoricalData)
+                .filter_by(ticker=item.ticker)
+                .order_by(SecurityHistoricalData.date.desc())
+                .offset(1)
+                .first()
+            )
+
+            items.append({
+                'id': item.id,
+                'ticker': item.ticker,
+                'name': item.name,
+                'exchange': item.exchange,
+                'current_price': current_price,
+                'day_change': (
+                            current_price - previous_close.close_price) if current_price and previous_close else None,
+                'day_change_pct': ((current_price - previous_close.close_price) / previous_close.close_price * 100)
+                if current_price and previous_close else None
+            })
+
+        return jsonify(items), 200
+
+    except Exception as e:
+        print(f"Error fetching watchlist: {e}")
+        return jsonify({"message": "Failed to fetch watchlist"}), 500
+
+
+@auth_blueprint.route('/watchlist', methods=['POST'])
+@jwt_required(locations=["cookies"])
+def add_to_watchlist():
+    try:
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        data = request.json
+        ticker = data.get('ticker')
+        name = data.get('name')
+        exchange = data.get('exchange')
+
+        # Check if already in watchlist
+        existing = Watchlist.query.filter_by(user_id=user.id, ticker=ticker).first()
+        if existing:
+            return jsonify({"message": "Security already in watchlist"}), 400
+
+        watchlist_item = Watchlist(
+            user_id=user.id,
+            ticker=ticker,
+            name=name,
+            exchange=exchange
+        )
+
+        db.session.add(watchlist_item)
+        db.session.commit()
+
+        return jsonify({
+            "message": "Added to watchlist successfully",
+            "id": watchlist_item.id
+        }), 201
+
+    except Exception as e:
+        print(f"Error adding to watchlist: {e}")
+        db.session.rollback()
+        return jsonify({"message": "Failed to add to watchlist"}), 500
+
+
+@auth_blueprint.route('/watchlist/<int:item_id>', methods=['DELETE'])
+@jwt_required(locations=["cookies"])
+def remove_from_watchlist(item_id):
+    try:
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        watchlist_item = Watchlist.query.filter_by(id=item_id, user_id=user.id).first()
+        if not watchlist_item:
+            return jsonify({"message": "Watchlist item not found"}), 404
+
+        db.session.delete(watchlist_item)
+        db.session.commit()
+
+        return jsonify({"message": "Removed from watchlist successfully"}), 200
+
+    except Exception as e:
+        print(f"Error removing from watchlist: {e}")
+        db.session.rollback()
+        return jsonify({"message": "Failed to remove from watchlist"}), 500

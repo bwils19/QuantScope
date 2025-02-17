@@ -13,6 +13,9 @@ let selectedEditSecurity = null;
 let editedPreviewData = [];
 const MAX_NAME_SIMILARITY = 0.8;
 
+let watchlistItems = [];
+let watchlistStockData = {};
+
 // Cache DOM elements
 const elements = {
     portfolioList: document.getElementById("portfolio-list"),
@@ -63,6 +66,13 @@ const elements = {
     editAddSecurityBtn: document.getElementById('editAddSecurityBtn'),
     savePortfolioChangesBtn: document.getElementById('savePortfolioChangesBtn'),
     cancelEditModeBtn: document.getElementById('cancelEditModeBtn'),
+
+    // watchlist
+    watchlistSearchInput: document.getElementById('watchlistSearchInput'),
+    watchlistSearchSuggestions: document.getElementById('watchlistSearchSuggestions'),
+    watchlistSearchContainer: document.getElementById('watchlistSearchContainer'),
+    watchlistSecurities: document.querySelector('.watchlist-securities'),
+    addToWatchlistBtn: document.querySelector('.add-to-watchlist-btn'),
 
 };
 
@@ -1933,6 +1943,267 @@ function navigateToRiskAnalysis(portfolioId) {
   window.location.href = `/risk-analysis?portfolio_id=${portfolioId}`;
 }
 
+
+// watchlist
+function setupWatchlistHandlers() {
+    const addToWatchlistBtn = document.querySelector('.add-to-watchlist-btn');
+    const watchlistContainer = document.querySelector('.watchlist-securities');
+    const watchlistSearchContainer = document.getElementById('watchlistSearchContainer');
+
+    if (addToWatchlistBtn) {
+        addToWatchlistBtn.addEventListener('click', () => {
+            watchlistSearchContainer.classList.remove('hidden');
+        });
+    }
+
+    // Setup search input handlers
+    const watchlistSearchInput = document.getElementById('watchlistSearchInput');
+    const watchlistSearchSuggestions = document.getElementById('watchlistSearchSuggestions');
+
+    if (watchlistSearchInput) {
+        watchlistSearchInput.addEventListener('input', handleWatchlistSearch);
+        watchlistSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                watchlistSearchContainer.classList.add('hidden');
+            }
+        });
+    }
+
+    // Close search when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!watchlistSearchContainer.contains(e.target) &&
+            !addToWatchlistBtn.contains(e.target)) {
+            watchlistSearchContainer.classList.add('hidden');
+        }
+    });
+}
+
+async function handleWatchlistSearch(event) {
+    const query = event.target.value.trim();
+    const suggestionsList = document.getElementById('watchlistSearchSuggestions');
+
+    if (query.length < 2) {
+        suggestionsList.innerHTML = '';
+        suggestionsList.classList.add('hidden');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/stocks/suggestions?query=${encodeURIComponent(query)}`);
+        const suggestions = await response.json();
+
+        suggestionsList.innerHTML = '';
+        suggestions.forEach(security => {
+            if (!watchlistItems.some(item => item.symbol === security.symbol)) {
+                const li = document.createElement('li');
+                li.className = 'watchlist-suggestion-item';
+                li.innerHTML = `${security.symbol} - ${security.name}`;
+                li.addEventListener('click', () => addToWatchlist(security));
+                suggestionsList.appendChild(li);
+            }
+        });
+
+        suggestionsList.classList.toggle('hidden', suggestions.length === 0);
+    } catch (error) {
+        console.error('Error fetching suggestions:', error);
+    }
+}
+
+async function addToWatchlist(security) {
+    try {
+        const response = await fetch('/auth/watchlist', {  // Update endpoint to match your route
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ticker: security.symbol,  // Changed from symbol to ticker
+                name: security.name,
+                exchange: security.exchange
+            }),
+            credentials: 'include'
+        });
+
+        const stockData = await fetch('/stocks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol: security.symbol })
+        });
+
+        const priceData = await stockData.json();
+
+        // Store stock data for charts
+        watchlistStockData[security.symbol] = {
+            dates: priceData.dates.slice(-90),
+            prices: priceData.prices.slice(-90)
+        };
+
+        // Add to watchlist with correct property names
+        watchlistItems.push({
+            ticker: security.symbol,
+            name: security.name,
+            exchange: security.exchange,
+            current_price: priceData.prices[priceData.prices.length - 1],
+            previous_close: priceData.prices[priceData.prices.length - 2],
+            day_change: (priceData.prices[priceData.prices.length - 1] - priceData.prices[priceData.prices.length - 2]),
+            day_change_pct: ((priceData.prices[priceData.prices.length - 1] - priceData.prices[priceData.prices.length - 2]) /
+                priceData.prices[priceData.prices.length - 2] * 100)
+        });
+
+        // Update display
+        renderWatchlistItems();
+
+        // Clear and hide search
+        document.getElementById('watchlistSearchInput').value = '';
+        document.getElementById('watchlistSearchContainer').classList.add('hidden');
+        document.getElementById('watchlistSearchSuggestions').classList.add('hidden');
+    } catch (error) {
+        console.error('Error adding to watchlist:', error);
+        showError('Failed to add security to watchlist');
+    }
+}
+
+function renderWatchlistItems(data = null) {
+    if (data) {
+        watchlistItems = data;
+    }
+
+    const watchlistContainer = document.querySelector('.watchlist-securities');
+    watchlistContainer.innerHTML = '';
+
+    if (watchlistItems.length === 0) {
+        watchlistContainer.innerHTML = '<div class="empty-watchlist">No securities in watchlist</div>';
+        return;
+    }
+
+    watchlistItems.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'watchlist-card';
+
+        const dayChangeClass = item.day_change >= 0 ? 'positive' : 'negative';
+
+        card.innerHTML = `
+            <div class="watchlist-card-header">
+                <div class="security-info">
+                    <h4 class="security-symbol">${item.ticker}</h4>
+                    <p class="security-name">${item.name}</p>
+                    <p class="security-exchange">${item.exchange}</p>
+                </div>
+                <div class="security-prices">
+                    <p class="current-price">${formatCurrency(item.current_price || 0)}</p>
+                    <p class="day-change ${dayChangeClass}">
+                        ${item.day_change >= 0 ? '+' : ''}${formatCurrency(item.day_change || 0)}
+                        (${item.day_change_pct?.toFixed(2) || '0.00'}%)
+                    </p>
+                </div>
+            </div>
+            <div class="watchlist-card-actions">
+                <button class="toggle-chart-btn" data-symbol="${item.ticker}">
+                    <img src="/static/images/chevron-down.svg" alt="Toggle chart" class="chevron-icon">
+                </button>
+                <button class="remove-security-btn" data-symbol="${item.ticker}">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="chart-container hidden" id="chart-${item.ticker}"></div>
+        `;
+
+        watchlistContainer.appendChild(card);
+
+        // Add event listeners
+        const toggleBtn = card.querySelector('.toggle-chart-btn');
+        const removeBtn = card.querySelector('.remove-security-btn');
+        const chartContainer = card.querySelector('.chart-container');
+
+        toggleBtn.addEventListener('click', () => {
+            const chevron = toggleBtn.querySelector('.chevron-icon');
+            chartContainer.classList.toggle('hidden');
+            chevron.style.transform = chartContainer.classList.contains('hidden') ?
+                'rotate(0deg)' : 'rotate(180deg)';
+
+            if (!chartContainer.classList.contains('hidden')) {
+                renderWatchlistChart(item.ticker, chartContainer);
+            }
+        });
+
+        removeBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch(`/auth/watchlist/${item.id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    watchlistItems = watchlistItems.filter(security => security.id !== item.id);
+                    renderWatchlistItems();
+                } else {
+                    throw new Error('Failed to remove from watchlist');
+                }
+            } catch (error) {
+                showError('Failed to remove from watchlist');
+            }
+        });
+    });
+}
+
+function renderWatchlistChart(symbol, container) {
+    const data = watchlistStockData[symbol];
+    if (!data) return;
+
+    const chartConfig = {
+        type: 'line',
+        data: {
+            labels: data.dates,
+            datasets: [{
+                label: `${symbol} Closing Prices`,
+                data: data.prices,
+                borderColor: 'rgba(108, 125, 147, 1)',
+                borderWidth: 2,
+                fill: true,
+                backgroundColor: function(context) {
+                    const chart = context.chart;
+                    const { ctx, chartArea } = chart;
+                    if (!chartArea) return null;
+
+                    const gradient = ctx.createLinearGradient(
+                        0,
+                        chart.scales.y.getPixelForValue(Math.max(...data.prices)),
+                        0,
+                        chart.chartArea.bottom
+                    );
+                    gradient.addColorStop(0, 'rgba(108, 125, 147, 0.8)');
+                    gradient.addColorStop(1, 'rgba(108, 125, 147, 0.1)');
+                    return gradient;
+                }
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    intersect: false,
+                    mode: 'index',
+                },
+            },
+            scales: {
+                x: { title: { display: true, text: 'Date' } },
+                y: { title: { display: true, text: 'Price (USD)' } }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'nearest'
+            }
+        }
+    };
+
+    const canvas = document.createElement('canvas');
+    canvas.style.height = '250px';
+    container.innerHTML = '';
+    container.appendChild(canvas);
+
+    new Chart(canvas, chartConfig);
+}
+
+
 // Initialize
     async function init() {
         try {
@@ -1941,11 +2212,28 @@ function navigateToRiskAnalysis(portfolioId) {
             if (!response.ok) throw new Error("Failed to load securities data");
             securitiesData = await response.json();
 
+            const watchlistDataElement = document.getElementById('watchlist-data');
+            if (watchlistDataElement) {
+                try {
+                    const watchlistData = JSON.parse(watchlistDataElement.textContent);
+                    renderWatchlistItems(watchlistData);
+                } catch (e) {
+                    console.error('Error parsing watchlist data:', e);
+                    renderWatchlistItems([]); // Initialize with empty array if parsing fails
+                }
+            } else {
+                renderWatchlistItems([]); // Initialize with empty array if element not found
+            }
+
             // Setup all event handlers
             setupEventListeners();
 
             // Initialize view
             elements.tableHeader.style.display = "none";
+
+            // set up watchlist
+            setupWatchlistHandlers();
+            // renderWatchlistItems();
 
         } catch (error) {
             console.error("Initialization error:", error);
@@ -1955,4 +2243,12 @@ function navigateToRiskAnalysis(portfolioId) {
     }
 
 // Start the application when DOM is ready
-    document.addEventListener("DOMContentLoaded", init);
+    // document.addEventListener("DOMContentLoaded", init);
+
+document.addEventListener("DOMContentLoaded", () => {
+    init().catch(error => {
+        console.error("Error during initialization:", error);
+        elements.errorMessage.textContent = "Failed to initialize application";
+        elements.errorModal.style.display = "block";
+    });
+});

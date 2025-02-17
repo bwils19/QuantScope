@@ -1,7 +1,7 @@
 from backend.app import create_app
 from backend import db
 from backend.models import User, Security, Portfolio, SecurityHistoricalData
-from sqlalchemy import inspect, text, MetaData, Table, Column, Integer, DateTime, String, Text
+from sqlalchemy import inspect, text, MetaData, Table, Column, Integer, DateTime, String, Text, ForeignKey
 from backend.services.historical_data_service import HistoricalDataService
 from datetime import datetime
 import asyncio
@@ -17,7 +17,36 @@ with app.app_context():
     inspector = inspect(db.engine)
     existing_tables = inspector.get_table_names()
 
-    # Check for and/or create historical data update log table
+    # Add Watchlist table if it doesn't exist
+    if 'watchlists' not in existing_tables:
+        print("\nCreating watchlist table...")
+        metadata = MetaData()
+
+        # Define the watchlist table
+        watchlist_table = Table(
+            'watchlists',
+            metadata,
+            Column('id', Integer, primary_key=True),
+            Column('user_id', Integer, ForeignKey('users.id'), nullable=False),
+            Column('ticker', String(20), nullable=False),
+            Column('name', String(200), nullable=False),
+            Column('exchange', String(50)),
+            Column('added_at', DateTime, default=datetime.utcnow)
+        )
+
+        # Create only the watchlist table
+        watchlist_table.create(db.engine)
+        print("Watchlist table created successfully.")
+
+        # Verify watchlist table schema
+        print("\nVerifying watchlist table columns:")
+        watchlist_columns = inspector.get_columns('watchlists')
+        for column in watchlist_columns:
+            print(f"  - {column['name']}: {column['type']}")
+    else:
+        print("\nWatchlist table already exists.")
+
+    # Your existing code for other tables...
     if 'historical_data_update_log' not in existing_tables:
         print("\nCreating historical data update log table...")
         metadata = MetaData()
@@ -46,7 +75,6 @@ with app.app_context():
     for column in log_columns:
         print(f"  - {column['name']}: {column['type']}")
 
-    # Your existing code continues here...
     if 'security_historical_data' not in existing_tables:
         print("\nCreating historical data table...")
         SecurityHistoricalData.__table__.create(db.engine)

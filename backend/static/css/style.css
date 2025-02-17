@@ -2177,3 +2177,154 @@ body.risk-analysis-page {
     font-size: 0.7rem;
     margin-top: 0.25rem;
 }
+
+/*watchlist styles*/
+.watchlist-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
+    padding: 1rem;
+}
+
+.watchlist-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.security-info {
+    flex: 1;
+}
+
+.security-symbol {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin: 0;
+    color: #333;
+}
+
+.security-name {
+    font-size: 0.9rem;
+    color: #666;
+    margin: 0.2rem 0;
+}
+
+.security-exchange {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.security-prices {
+    text-align: right;
+}
+
+.current-price {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin: 0;
+}
+
+.day-change {
+    font-size: 0.9rem;
+    margin: 0.2rem 0;
+}
+
+.day-change.positive {
+    color: #22c55e;
+}
+
+.day-change.negative {
+    color: #ef4444;
+}
+
+.watchlist-card-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    border-top: 1px solid #eee;
+    padding-top: 0.5rem;
+}
+
+.toggle-chart-btn, .remove-security-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    transition: opacity 0.2s;
+}
+
+.toggle-chart-btn:hover, .remove-security-btn:hover {
+    opacity: 0.7;
+}
+
+.chart-container {
+    margin-top: 1rem;
+    height: 250px;
+}
+
+.chart-container.hidden {
+    display: none;
+}
+
+.watchlist-search-container {
+    position: relative;
+    margin-bottom: 1rem;
+}
+
+.watchlist-suggestion-item {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+}
+
+.watchlist-suggestion-item:hover {
+    background-color: #f3f4f6;
+}
+
+.empty-watchlist {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+    background: white;
+    border-radius: 8px;
+    margin-top: 1rem;
+}
+
+.add-to-watchlist-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #6C7D93;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.add-to-watchlist-btn:hover {
+    background-color: #2c3e50;
+}
+
+.chevron-icon {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.2s;
+}
+
+.remove-icon {
+    width: 16px;
+    height: 16px;
+    color: #666;
+}
+
+.remove-security-btn .fa-times {
+    color: #666;
+    font-size: 1rem;
+}
+
+.remove-security-btn:hover .fa-times {
+    color: #ef4444;
+}

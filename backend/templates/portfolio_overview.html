@@ -118,17 +118,36 @@
     </div>
 
     <div class="portfolio-watchlist-container">
-      <div class="portfolio-header">
-        <h3 class="page-title">Watchlist</h3>
-        <button class="new-portfolio-btn">Add Watchlist</button>
-      </div>
-      <div class="dashboard-card">
-        <div class="dashboard-stat">
-          <h3>You have no watchlists</h3>
+        <div class="portfolio-header">
+            <h3 class="page-title">Watchlist</h3>
+            <button class="add-to-watchlist-btn">
+                <i class="fas fa-plus"></i>
+                Add to Watchlist
+            </button>
         </div>
-      </div>
-    </div>
 
+        <div id="watchlistSearchContainer" class="watchlist-search-container hidden">
+            <input type="text"
+                   id="watchlistSearchInput"
+                   class="input-box"
+                   placeholder="Search for securities..."
+                   autocomplete="off"/>
+            <ul id="watchlistSearchSuggestions" class="search-suggestions hidden"></ul>
+        </div>
+
+        <div class="watchlist-securities">
+            <!-- Watchlist items will be rendered here -->
+            <div class="empty-watchlist">No securities in watchlist</div>
+        </div>
+
+        <script id="watchlist-data" type="application/json">
+            {% if watchlist %}
+                {{ watchlist | tojson | safe }}
+            {% else %}
+                []
+            {% endif %}
+        </script>
+    </div>
   </div>
 
 
