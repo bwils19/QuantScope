@@ -166,37 +166,61 @@ def get_portfolio_composition(portfolio_id, view_type):
     try:
         current_user_email = get_jwt_identity()
         user = User.query.filter_by(email=current_user_email).first()
+        portfolio = Portfolio.query.filter_by(id=portfolio_id, user_id=user.id).first()
 
-        # Join with metadata table to get the composition data, since i built historical table first...
-        query = db.session.query(
-            Security,
-            SecurityMetadata
-        ).join(
-            SecurityMetadata,
-            Security.ticker == SecurityMetadata.ticker
-        ).filter(
-            Security.portfolio_id == portfolio_id
-        )
+        if not portfolio:
+            return jsonify({"error": "Portfolio not found"}), 404
 
-        securities = query.all()
-        total_value = sum(s[0].total_value for s in securities)
+        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
 
+        # Join with metadata to get sector, asset type, etc.
+        composition_data = []
+        total_value = 0
+
+        for security in securities:
+            metadata = SecurityMetadata.query.filter_by(ticker=security.ticker).first()
+            if metadata:
+                composition_data.append({
+                    'ticker': security.ticker,
+                    'value': security.total_value,
+                    'sector': metadata.sector or 'Unknown',
+                    'asset_type': metadata.asset_type or 'Unknown',
+                    'currency': metadata.currency or 'USD'
+                })
+                total_value += security.total_value
+
+        # Group and calculate percentages based on view type
+        groups = {}
         if view_type == 'sector':
-            groups = {}
-            for security, metadata in securities:
-                sector = metadata.sector or 'Unknown'
-                groups[sector] = groups.get(sector, 0) + security.total_value
-        elif view_type == 'asset_type':
-            # Similar grouping for asset type
-            pass
+            for item in composition_data:
+                sector = item['sector']
+                groups[sector] = groups.get(sector, 0) + item['value']
+        elif view_type == 'asset':
+            for item in composition_data:
+                asset_type = item['asset_type']
+                groups[asset_type] = groups.get(asset_type, 0) + item['value']
         elif view_type == 'currency':
-            # Similar grouping for currency
-            pass
+            for item in composition_data:
+                currency = item['currency']
+                groups[currency] = groups.get(currency, 0) + item['value']
         elif view_type == 'risk':
             # Use existing risk components data
-            return get_risk_composition(portfolio_id)
+            risk_analyzer = RiskAnalytics()
+            var_components = risk_analyzer.get_var_components(securities)
+            total_var = sum(abs(comp['var_contribution']) for comp in var_components)
 
-        # Calculate percentages
+            for comp in var_components:
+                risk_category = 'High Risk' if abs(comp['volatility']) > 20 else 'Medium Risk' if abs(
+                    comp['volatility']) > 10 else 'Low Risk'
+                groups[risk_category] = groups.get(risk_category, 0) + abs(comp['var_contribution'])
+
+            # Convert to percentages
+            return jsonify({
+                'labels': list(groups.keys()),
+                'values': [abs(value) / total_var * 100 for value in groups.values()]
+            })
+
+        # Calculate percentages for non-risk views
         composition = {
             'labels': list(groups.keys()),
             'values': [value / total_value * 100 for value in groups.values()]

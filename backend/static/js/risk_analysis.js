@@ -362,32 +362,27 @@ function formatCurrency(value) {
     }).format(value);
 }
 
-function showError(message) {
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'error-message';
-    errorDiv.textContent = message;
-    document.querySelector('.risk-analysis-container').prepend(errorDiv);
-}
-
 async function initializeCompositionChart() {
     try {
-        console.log('Initializing composition chart for portfolio:', portfolioId);  // Debug log
+        console.log('Initializing composition chart for portfolio:', portfolioId);
 
-        // First check if the canvas element exists
         const canvas = document.getElementById('compositionDonut');
         if (!canvas) {
             console.error('Composition donut canvas not found');
             return;
         }
 
-        // Get the portfolio ID from the URL
         if (!portfolioId) {
             console.error('No portfolio ID found in URL');
             return;
         }
 
-        // Fetch initial composition data
-        const response = await fetch(`/auth/api/portfolio-composition/sector?portfolio_id=${portfolioId}`);
+        // Get initial view type from select element
+        const viewSelector = document.getElementById('compositionView');
+        const initialViewType = viewSelector ? viewSelector.value : 'sector';
+
+        // Fetch composition data with view type
+        const response = await fetch(`/analytics/portfolio/${portfolioId}/composition/${initialViewType}`);
         console.log('API Response status:', response.status);
 
         if (!response.ok) {
@@ -399,7 +394,7 @@ async function initializeCompositionChart() {
         const data = await response.json();
         console.log('Composition data:', data);
 
-        const ctx = document.getElementById('compositionDonut').getContext('2d');
+        const ctx = canvas.getContext('2d');
         compositionChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -442,6 +437,7 @@ async function initializeCompositionChart() {
 
     } catch (error) {
         console.error('Failed to initialize composition chart:', error);
+        showError('Failed to load portfolio composition data');
     }
 }
 
@@ -485,16 +481,22 @@ function updateLegend(data) {
     const legend = document.getElementById('compositionLegend');
     if (!legend) return;
 
-    legend.innerHTML = data.labels.map((label, index) => `
-        <div class="legend-item">
-            <span class="color-box" style="background-color: ${compositionChart.data.datasets[0].backgroundColor[index]}"></span>
-            <div class="legend-text">
-                <span class="label">${label}</span>
-                <span class="value">${data.values[index].toFixed(2)}%</span>
+    legend.innerHTML = data.labels.map((label, index) => {
+        const value = data.values[index];
+        const backgroundColor = compositionChart.data.datasets[0].backgroundColor[index];
+
+        return `
+            <div class="legend-item">
+                <span class="color-box" style="background-color: ${backgroundColor}"></span>
+                <div class="legend-text">
+                    <span class="label">${label || 'Unknown'}</span>
+                    <span class="value">${value.toFixed(2)}%</span>
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
+
 
 // Handle view changes
 function setupViewSelector() {
@@ -504,7 +506,7 @@ function setupViewSelector() {
     selector.addEventListener('change', async (e) => {
         const viewType = e.target.value;
         try {
-            const response = await fetch(`/api/portfolio-composition/${viewType}?portfolio_id=${portfolioId}`);
+            const response = await fetch(`/portfolio/${portfolioId}/composition/${viewType}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -513,14 +515,37 @@ function setupViewSelector() {
             // Update chart data
             compositionChart.data.labels = data.labels;
             compositionChart.data.datasets[0].data = data.values;
+            compositionChart.data.datasets[0].backgroundColor = chartPalette.blues.slice(0, data.labels.length);
             compositionChart.update();
 
             // Update legend
             updateLegend(data);
         } catch (error) {
             console.error('Failed to update composition view:', error);
+            showError('Failed to update portfolio composition view');
         }
     });
+}
+
+
+function showError(message) {
+    const errorContainer = document.createElement('div');
+    errorContainer.className = 'error-message';
+    errorContainer.textContent = message;
+
+    const chartCard = document.querySelector('.chart-card');
+    if (chartCard) {
+        // Remove any existing error messages
+        const existingError = chartCard.querySelector('.error-message');
+        if (existingError) {
+            existingError.remove();
+        }
+        // Add new error message after the section header
+        const sectionHeader = chartCard.querySelector('.section-header');
+        if (sectionHeader) {
+            sectionHeader.insertAdjacentElement('afterend', errorContainer);
+        }
+    }
 }
 
 // Initialize everything when the document is ready
