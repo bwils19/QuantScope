@@ -1469,7 +1469,6 @@ function setupPreviewHandlers() {
     });
 
     document.getElementById('createPortfolioBtn').addEventListener('click', () => {
-        // Your existing portfolio creation logic here
         handlePortfolioCreation();
     });
 }
@@ -1486,12 +1485,12 @@ function handleFileDrop(e) {
 }
 
 function toggleEditMode(portfolioId) {
-    console.log('Toggling edit mode for portfolio:', portfolioId); // Debug log
+    console.log('Toggling edit mode for portfolio:', portfolioId);
 
     const editColumn = document.querySelector('.edit-column');
     const isEditMode = elements.editModeControls.classList.contains('hidden');
 
-    console.log('Current edit mode state:', !isEditMode); // Debug log
+    console.log('Current edit mode state:', !isEditMode);
 
     if (!editColumn) {
         console.error('Edit column not found');
@@ -1505,11 +1504,11 @@ function toggleEditMode(portfolioId) {
     if (isEditMode) {
         // Entering edit mode
         currentPortfolio = portfolioId;
-        console.log('Entering edit mode for portfolio:', currentPortfolio); // Debug log
+        console.log('Entering edit mode for portfolio:', currentPortfolio);
         refreshPortfolioView(true);
     } else {
         // Exiting edit mode
-        console.log('Exiting edit mode'); // Debug log
+        console.log('Exiting edit mode');
         editedSecurities.clear();
         refreshPortfolioView(false);
     }
@@ -2011,13 +2010,11 @@ async function handleWatchlistSearch(event) {
 
 async function addToWatchlist(security) {
     try {
-        // Get CSRF token from cookie
         const csrfToken = document.cookie
             .split('; ')
             .find(row => row.startsWith('csrf_access_token='))
             ?.split('=')[1];
 
-        // First, add to watchlist in database
         const response = await fetch('/auth/watchlist', {
             method: 'POST',
             headers: {
@@ -2047,7 +2044,7 @@ async function addToWatchlist(security) {
         if (historicalResponse.ok) {
             priceData = await historicalResponse.json();
         } else {
-            // Only if no historical data exists, fetch from AlphaVantage
+            // Only if no historical data exists, fetch from AV
             const stockDataResponse = await fetch('/stocks', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2173,7 +2170,7 @@ function renderWatchlistItems(data = null) {
 
 async function renderWatchlistChart(symbol, container) {
     try {
-        // If we don't have the data stored, fetch it
+        // If we don't have the data already stored in the hist table, fetch it from AV
         if (!watchlistStockData[symbol]) {
             const historicalResponse = await fetch(`/auth/security-historical/${symbol}`, {
                 credentials: 'include'
@@ -2270,14 +2267,14 @@ async function renderWatchlistChart(symbol, container) {
             if (watchlistDataElement) {
                 try {
                     const watchlistData = JSON.parse(watchlistDataElement.textContent);
-                    console.log("Initial watchlist data:", watchlistData); // Debug log
+                    console.log("Initial watchlist data:", watchlistData);
                     renderWatchlistItems(watchlistData);
                 } catch (e) {
                     console.error('Error parsing watchlist data:', e);
                     renderWatchlistItems([]);
                 }
             } else {
-                console.log("No watchlist data element found"); // Debug log
+                console.log("No watchlist data element found");
                 renderWatchlistItems([]);
             }
 

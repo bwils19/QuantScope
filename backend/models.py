@@ -155,3 +155,19 @@ class Watchlist(db.Model):
 
     # Relationship with User
     user = db.relationship('User', backref=db.backref('watchlist_items', lazy=True))
+
+
+class SecurityMetadata(db.Model):
+    __tablename__ = 'security_metadata'
+
+    id = db.Column(db.Integer, primary_key=True)
+    ticker = db.Column(db.String(10), unique=True, nullable=False)
+    sector = db.Column(db.String(100))
+    industry = db.Column(db.String(100))
+    asset_type = db.Column(db.String(50))
+    currency = db.Column(db.String(3))
+    exchange = db.Column(db.String(20))
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<SecurityMetadata {self.ticker}>'

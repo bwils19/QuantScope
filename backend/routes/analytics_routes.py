@@ -5,9 +5,10 @@ from flask import Blueprint, jsonify, render_template, redirect, url_for
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 
-from backend.models import User, Portfolio, Security, HistoricalDataUpdateLog, SecurityHistoricalData
+from backend.models import User, Portfolio, Security, HistoricalDataUpdateLog, SecurityHistoricalData, SecurityMetadata
 from backend.analytics.risk_calculations import RiskAnalytics, calculate_credit_risk
 from backend import db
+from backend.routes.auth_routes import get_risk_composition
 from backend.services.historical_data_service import HistoricalDataService
 
 analytics_blueprint = Blueprint('analytics', __name__)
@@ -158,3 +159,51 @@ def historical_data_management():
         user={"first_name": user.first_name, "email": user.email}
     )
 
+
+@analytics_blueprint.route('/portfolio/<int:portfolio_id>/composition/<view_type>', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def get_portfolio_composition(portfolio_id, view_type):
+    try:
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+
+        # Join with metadata table to get the composition data, since i built historical table first...
+        query = db.session.query(
+            Security,
+            SecurityMetadata
+        ).join(
+            SecurityMetadata,
+            Security.ticker == SecurityMetadata.ticker
+        ).filter(
+            Security.portfolio_id == portfolio_id
+        )
+
+        securities = query.all()
+        total_value = sum(s[0].total_value for s in securities)
+
+        if view_type == 'sector':
+            groups = {}
+            for security, metadata in securities:
+                sector = metadata.sector or 'Unknown'
+                groups[sector] = groups.get(sector, 0) + security.total_value
+        elif view_type == 'asset_type':
+            # Similar grouping for asset type
+            pass
+        elif view_type == 'currency':
+            # Similar grouping for currency
+            pass
+        elif view_type == 'risk':
+            # Use existing risk components data
+            return get_risk_composition(portfolio_id)
+
+        # Calculate percentages
+        composition = {
+            'labels': list(groups.keys()),
+            'values': [value / total_value * 100 for value in groups.values()]
+        }
+
+        return jsonify(composition)
+
+    except Exception as e:
+        print(f"Error calculating composition: {str(e)}")
+        return jsonify({"error": "Failed to calculate composition"}), 500

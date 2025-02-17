@@ -69,6 +69,33 @@ with app.app_context():
     else:
         print("\nHistorical data update log table already exists.")
 
+    if 'security_metadata' not in existing_tables:
+        print("\nCreating security metadata table...")
+        metadata = MetaData()
+
+        security_metadata_table = Table(
+            'security_metadata',
+            metadata,
+            Column('id', Integer, primary_key=True),
+            Column('ticker', String(10), unique=True, nullable=False),
+            Column('sector', String(100)),
+            Column('industry', String(100)),
+            Column('asset_type', String(50)),
+            Column('currency', String(3)),
+            Column('exchange', String(20)),
+            Column('last_updated', DateTime, default=datetime.utcnow)
+        )
+
+        security_metadata_table.create(db.engine)
+        print("Security metadata table created successfully.")
+
+        print("\nVerifying security metadata table columns:")
+        metadata_columns = inspector.get_columns('security_metadata')
+        for column in metadata_columns:
+            print(f"  - {column['name']}: {column['type']}")
+    else:
+        print("\nSecurity metadata table already exists.")
+
     # Verify log table schema
     print("\nVerifying historical data update log table columns:")
     log_columns = inspector.get_columns('historical_data_update_log')
