@@ -2,14 +2,12 @@ from typing import Dict, List, Tuple, Any
 import random
 from backend import db
 from backend.models import SecurityHistoricalData
-from datetime import datetime, timedelta, date
-
+from datetime import datetime, timedelta, date  
 import os
 import requests
-import datetime
 
 
-def fetch_historical_prices(ticker: str) -> List[Tuple[Any, float]]:
+def fetch_historical_prices(ticker: str) -> List[Tuple[date, float]]:
     """
     Fetch historical price data from our database, with API fallback for recent data
     """
@@ -67,14 +65,14 @@ def fetch_historical_prices(ticker: str) -> List[Tuple[Any, float]]:
         return []
 
 
-def generate_dummy_data(num_days: int = 252) -> List[Tuple[datetime.datetime, float]]:
+def generate_dummy_data(num_days: int = 252) -> List[Tuple[datetime, float]]:
     """Generate dummy price data for testing"""
-    today = datetime.datetime.now()
+    today = datetime.now()
     dummy_data = []
     base_price = 100.0
 
     for i in range(num_days):
-        day = today - datetime.timedelta(days=i)
+        day = today - timedelta(days=i)
         if day.weekday() < 5:  # Only weekdays
             price_variation = random.uniform(-0.5, 0.5)
             dummy_data.append((day, base_price + price_variation))

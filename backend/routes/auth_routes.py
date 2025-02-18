@@ -24,6 +24,7 @@ from werkzeug.utils import secure_filename
 
 from backend.tasks import is_market_open
 from backend.utils.file_handlers import parse_portfolio_file, format_preview_data
+from backend.services.cache_service import invalidate_user_cache
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 import requests
@@ -411,6 +412,8 @@ def portfolio_overview():
                         if current_price and previous_close else None,
                         'latest_update': latest_price_data.date if latest_price_data else None
                     })
+
+                    invalidate_user_cache(user.id)
 
             return render_template(
                 'portfolio_overview.html',

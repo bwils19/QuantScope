@@ -2016,6 +2016,11 @@ body.risk-analysis-page {
     margin-bottom: 20px;
 }
 
+.chart-card.loading .composition-grid {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
 .chart-card h3 {
     margin: 0 0 5px 0;
     color: #2c3e50;
@@ -2032,6 +2037,50 @@ body.risk-analysis-page {
 .chart-card.full-width {
     grid-column: 1 / -1;
 }
+
+/*loading state*/
+.loading-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    z-index: 10;
+}
+
+.loading-state {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading-text {
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 
 /* Responsive adjustments */
 @media (max-width: 1200px) {

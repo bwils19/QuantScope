@@ -1,6 +1,7 @@
 import asyncio
-from datetime import datetime
-
+from functools import lru_cache
+from datetime import datetime, timedelta
+from typing import Dict, Any
 from flask import Blueprint, jsonify, render_template, redirect, url_for
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
@@ -8,7 +9,7 @@ from sqlalchemy import func
 from backend.models import User, Portfolio, Security, HistoricalDataUpdateLog, SecurityHistoricalData, SecurityMetadata
 from backend.analytics.risk_calculations import RiskAnalytics, calculate_credit_risk
 from backend import db
-from backend.routes.auth_routes import get_risk_composition
+from backend.services.cache_service import get_cached_risk_components
 from backend.services.historical_data_service import HistoricalDataService
 
 analytics_blueprint = Blueprint('analytics', __name__)
@@ -163,17 +164,80 @@ def historical_data_management():
 @analytics_blueprint.route('/portfolio/<int:portfolio_id>/composition/<view_type>', methods=['GET'])
 @jwt_required(locations=["cookies"])
 def get_portfolio_composition(portfolio_id, view_type):
+    print(f"Received composition request - Portfolio: {portfolio_id}, View Type: {view_type}")
     try:
         current_user_email = get_jwt_identity()
         user = User.query.filter_by(email=current_user_email).first()
         portfolio = Portfolio.query.filter_by(id=portfolio_id, user_id=user.id).first()
 
         if not portfolio:
+            print(f"Portfolio {portfolio_id} not found for user {current_user_email}")
             return jsonify({"error": "Portfolio not found"}), 404
 
         securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
+        print(f"Found {len(securities)} securities in portfolio")
 
-        # Join with metadata to get sector, asset type, etc.
+        if view_type == 'risk':
+            try:
+                # Initialize risk analyzer
+                print("Initializing RiskAnalytics...")
+                risk_analyzer = RiskAnalytics()
+
+                # Convert Security objects to dictionaries
+                securities_data = [{
+                    'ticker': s.ticker,
+                    'amount_owned': s.amount_owned,
+                    'total_value': s.total_value,
+                    'purchase_date': s.purchase_date.strftime("%Y-%m-%d") if s.purchase_date else None,
+                    'current_price': s.current_price
+                } for s in securities]
+
+                var_components = get_cached_risk_components(portfolio_id, securities_data)
+
+                print(f"Converted securities data: {securities_data}")
+
+                # Get VaR components
+                print("Calculating VaR components...")
+                # var_components = risk_analyzer.get_var_components(securities_data)
+                print(f"VaR components calculated: {var_components}")
+
+                if not var_components:
+                    print("No VaR components returned")
+                    return jsonify({
+                        'labels': ['No Risk Data'],
+                        'values': [100]
+                    })
+
+                # Calculate total VaR
+                print("Calculating total VaR...")
+                total_var = sum(abs(comp['var_contribution']) for comp in var_components)
+                print(f"Total VaR: {total_var}")
+
+                # Group by risk category
+                groups = {}
+                for comp in var_components:
+                    volatility = abs(comp['volatility'])
+                    risk_category = (
+                        'High Risk' if volatility > 20
+                        else 'Medium Risk' if volatility > 10
+                        else 'Low Risk'
+                    )
+                    groups[risk_category] = groups.get(risk_category, 0) + abs(comp['var_contribution'])
+                    print(f"Security {comp.get('ticker', 'Unknown')}: {risk_category} - Contribution: {comp['var_contribution']}")
+
+                # Convert to percentages
+                return jsonify({
+                    'labels': list(groups.keys()),
+                    'values': [abs(value) / total_var * 100 for value in groups.values()]
+                })
+
+            except Exception as e:
+                print(f"Error in risk calculation: {str(e)}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
+                return jsonify({"error": f"Failed to calculate risk composition: {str(e)}"}), 500
+
+        # For non-risk views
         composition_data = []
         total_value = 0
 
@@ -203,22 +267,6 @@ def get_portfolio_composition(portfolio_id, view_type):
             for item in composition_data:
                 currency = item['currency']
                 groups[currency] = groups.get(currency, 0) + item['value']
-        elif view_type == 'risk':
-            # Use existing risk components data
-            risk_analyzer = RiskAnalytics()
-            var_components = risk_analyzer.get_var_components(securities)
-            total_var = sum(abs(comp['var_contribution']) for comp in var_components)
-
-            for comp in var_components:
-                risk_category = 'High Risk' if abs(comp['volatility']) > 20 else 'Medium Risk' if abs(
-                    comp['volatility']) > 10 else 'Low Risk'
-                groups[risk_category] = groups.get(risk_category, 0) + abs(comp['var_contribution'])
-
-            # Convert to percentages
-            return jsonify({
-                'labels': list(groups.keys()),
-                'values': [abs(value) / total_var * 100 for value in groups.values()]
-            })
 
         # Calculate percentages for non-risk views
         composition = {
@@ -230,4 +278,59 @@ def get_portfolio_composition(portfolio_id, view_type):
 
     except Exception as e:
         print(f"Error calculating composition: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": "Failed to calculate composition"}), 500
+
+
+risk_cache: Dict[str, Any] = {}
+
+
+def invalidate_portfolio_cache(portfolio_id: int) -> None:
+    """Invalidate cached risk data for a specific portfolio"""
+    cache_key = f"risk_{portfolio_id}"
+    if cache_key in risk_cache:
+        del risk_cache[cache_key]
+
+
+def invalidate_user_cache(user_id: int) -> None:
+    """Invalidate all cached risk data for a user's portfolios"""
+    portfolios = Portfolio.query.filter_by(user_id=user_id).all()
+    for portfolio in portfolios:
+        invalidate_portfolio_cache(portfolio.id)
+
+
+def get_cached_risk_components(portfolio_id, securities_data):
+    """Get risk components from cache or calculate if needed"""
+    cache_key = f"risk_{portfolio_id}"
+
+    # Check if we have cached data and it's not expired
+    if cache_key in risk_cache:
+        cached_data = risk_cache[cache_key]
+        cache_time = cached_data['timestamp']
+        # Cache for 5 minutes
+        if datetime.now() - cache_time < timedelta(minutes=5):
+            return cached_data['components']
+
+    # Calculate new data
+    risk_analyzer = RiskAnalytics()
+    var_components = risk_analyzer.get_var_components(securities_data)
+
+    # Cache the result
+    risk_cache[cache_key] = {
+        'components': var_components,
+        'timestamp': datetime.now()
+    }
+
+    return var_components
+
+
+def cleanup_risk_cache():
+    """Remove expired cache entries"""
+    now = datetime.now()
+    expired_keys = [
+        key for key, data in risk_cache.items()
+        if now - data['timestamp'] > timedelta(minutes=5)
+    ]
+    for key in expired_keys:
+        del risk_cache[key]

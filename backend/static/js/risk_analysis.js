@@ -505,8 +505,20 @@ function setupViewSelector() {
 
     selector.addEventListener('change', async (e) => {
         const viewType = e.target.value;
+        const chartCard = document.querySelector('.chart-card');
+
         try {
-            const response = await fetch(`/portfolio/${portfolioId}/composition/${viewType}`);
+            // Show loading state
+            chartCard.classList.add('loading');
+            const loadingState = document.createElement('div');
+            loadingState.className = 'loading-state';
+            loadingState.innerHTML = `
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Calculating ${viewType === 'risk' ? 'Risk Distribution' : viewType.charAt(0).toUpperCase() + viewType.slice(1) + ' Distribution'}...</div>
+            `;
+            chartCard.appendChild(loadingState);
+
+            const response = await fetch(`/analytics/portfolio/${portfolioId}/composition/${viewType}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -515,7 +527,6 @@ function setupViewSelector() {
             // Update chart data
             compositionChart.data.labels = data.labels;
             compositionChart.data.datasets[0].data = data.values;
-            compositionChart.data.datasets[0].backgroundColor = chartPalette.blues.slice(0, data.labels.length);
             compositionChart.update();
 
             // Update legend
@@ -523,8 +534,42 @@ function setupViewSelector() {
         } catch (error) {
             console.error('Failed to update composition view:', error);
             showError('Failed to update portfolio composition view');
+        } finally {
+            // Remove loading state
+            chartCard.classList.remove('loading');
+            const loadingState = chartCard.querySelector('.loading-state');
+            if (loadingState) {
+                loadingState.remove();
+            }
         }
     });
+}
+
+// Add loading state functions - would be cool to do a spinning logo or something
+function showLoading(show) {
+    const chartCard = document.querySelector('.chart-card');
+    if (!chartCard) return;
+
+    let loader = chartCard.querySelector('.loader');
+    if (show) {
+        if (!loader) {
+            loader = document.createElement('div');
+            loader.className = 'loader';
+            loader.innerHTML = `
+                <div class="loading-overlay">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Calculating Risk...</div>
+                </div>
+            `;
+            chartCard.appendChild(loader);
+        }
+        chartCard.classList.add('loading');
+    } else {
+        if (loader) {
+            loader.remove();
+        }
+        chartCard.classList.remove('loading');
+    }
 }
 
 
