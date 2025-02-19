@@ -2014,11 +2014,13 @@ body.risk-analysis-page {
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     margin-bottom: 20px;
+    transition: opacity 0.2s ease;
 }
 
 .chart-card.loading .composition-grid {
     opacity: 0.5;
     pointer-events: none;
+    transition: opacity 0.2s ease;
 }
 
 .chart-card h3 {
@@ -2060,6 +2062,7 @@ body.risk-analysis-page {
     align-items: center;
     justify-content: center;
     z-index: 10;
+    animation: fadeIn 0.2s ease forwards;
 }
 
 .loading-spinner {
@@ -2080,7 +2083,10 @@ body.risk-analysis-page {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
-
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
 
 /* Responsive adjustments */
 @media (max-width: 1200px) {

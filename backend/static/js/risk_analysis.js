@@ -1,4 +1,5 @@
 let compositionChart = null;
+let loadingTimeout = null;
 const portfolioId = new URLSearchParams(window.location.search).get('portfolio_id');
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -508,30 +509,34 @@ function setupViewSelector() {
         const chartCard = document.querySelector('.chart-card');
 
         try {
-            // Show loading state
-            chartCard.classList.add('loading');
-            const loadingState = document.createElement('div');
-            loadingState.className = 'loading-state';
-            loadingState.innerHTML = `
-                <div class="loading-spinner"></div>
-                <div class="loading-text">Calculating ${viewType === 'risk' ? 'Risk Distribution' : viewType.charAt(0).toUpperCase() + viewType.slice(1) + ' Distribution'}...</div>
-            `;
-            chartCard.appendChild(loadingState);
+            loadingTimeout = setTimeout(() => {
+                chartCard.classList.add('loading');
+                const loadingState = document.createElement('div');
+                loadingState.className = 'loading-state';
+                loadingState.innerHTML = `
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Loading ${viewType === 'risk' ? 'Risk Distribution' : viewType.charAt(0).toUpperCase() + viewType.slice(1) + ' Distribution'}...</div>
+                `;
+                chartCard.appendChild(loadingState);
+            }, 300);
 
             const response = await fetch(`/analytics/portfolio/${portfolioId}/composition/${viewType}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
+            clearTimeout(loadingTimeout);
 
             // Update chart data
             compositionChart.data.labels = data.labels;
             compositionChart.data.datasets[0].data = data.values;
+            compositionChart.data.datasets[0].backgroundColor = chartPalette.blues.slice(0, data.labels.length);
             compositionChart.update();
 
             // Update legend
             updateLegend(data);
         } catch (error) {
+            clearTimeout(loadingTimeout);
             console.error('Failed to update composition view:', error);
             showError('Failed to update portfolio composition view');
         } finally {
