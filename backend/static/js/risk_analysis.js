@@ -5,21 +5,75 @@ const portfolioId = new URLSearchParams(window.location.search).get('portfolio_i
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const portfolioId = urlParams.get('portfolio_id');
-    
+    const chartCard = document.querySelector('.chart-card');
+    let loadingTimeout;
+
+    if (!chartCard) {
+        console.error('Chart card container not found');
+        return;
+    }
+
     try {
+        loadingTimeout = await showLoading(chartCard, 'Loading Portfolio Risk Analysis...', 0);
+
         const response = await fetch(`/analytics/portfolio/${portfolioId}/risk`);
         const data = await response.json();
         console.log("Risk Data API Response:", data);
-        if (!response.ok) throw new Error(data.error || 'Failed to fetch risk data');
-        
-        renderRiskDashboard(data);
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch risk data');
+        }
+
+        // Render the dashboard
+        await renderRiskDashboard(data);
+
     } catch (error) {
         console.error('Error:', error);
         showError('Failed to load risk analysis');
+    } finally {
+        // Always ensure loading state is removed
+        hideLoading(chartCard, loadingTimeout);
     }
 });
 
-function renderRiskDashboard(data) {
+function showLoading(container, message = 'Loading...', delay = 300) {
+    let loadingTimeout = null;
+
+    return new Promise((resolve) => {
+        loadingTimeout = setTimeout(() => {
+            container.classList.add('loading');
+            const loadingState = document.createElement('div');
+            loadingState.className = 'loading-state';
+            loadingState.innerHTML = `
+                <div class="loading-spinner"></div>
+                <div class="loading-text">${message}</div>
+            `;
+            container.appendChild(loadingState);
+        }, delay);
+
+        resolve(loadingTimeout);
+    });
+}
+
+function hideLoading(container, timeout) {
+    console.log('Hiding loading state...');
+    if (timeout) {
+        console.log('Clearing timeout...');
+        clearTimeout(timeout);
+    }
+    console.log('Removing loading class...');
+    container.classList.remove('loading');
+    const loadingState = container.querySelector('.loading-state');
+    if (loadingState) {
+        console.log('Removing loading state element...');
+        loadingState.remove();
+    }
+    console.log('Loading state removed.');
+}
+
+async function renderRiskDashboard(data) {
+    console.log('Starting dashboard render...');
+
     // Portfolio Value with 24h change
     document.getElementById('totalValue').textContent = formatCurrency(data.total_value);
     const changeValue = document.querySelector('.change-value');
@@ -57,6 +111,11 @@ function renderRiskDashboard(data) {
     renderVarChart(data.var_metrics);
     renderRiskHeatmap(data.var_components);
     renderRegimeChart(data.var_metrics.regime_distribution);
+    await initializeCompositionChart();
+    setupViewSelector();
+
+    console.log('Dashboard render complete.');
+
 }
 
 const chartPalette = {
@@ -378,11 +437,17 @@ async function initializeCompositionChart() {
             return;
         }
 
+        // Destroy existing chart if it exists
+        if (compositionChart) {
+            console.log('Destroying existing chart...');
+            compositionChart.destroy();
+            compositionChart = null;
+        }
+
         // Get initial view type from select element
         const viewSelector = document.getElementById('compositionView');
         const initialViewType = viewSelector ? viewSelector.value : 'sector';
 
-        // Fetch composition data with view type
         const response = await fetch(`/analytics/portfolio/${portfolioId}/composition/${initialViewType}`);
         console.log('API Response status:', response.status);
 
@@ -439,6 +504,11 @@ async function initializeCompositionChart() {
     } catch (error) {
         console.error('Failed to initialize composition chart:', error);
         showError('Failed to load portfolio composition data');
+        // Make sure to clean up if initialization fails
+        if (compositionChart) {
+            compositionChart.destroy();
+            compositionChart = null;
+        }
     }
 }
 
@@ -507,25 +577,19 @@ function setupViewSelector() {
     selector.addEventListener('change', async (e) => {
         const viewType = e.target.value;
         const chartCard = document.querySelector('.chart-card');
+        let loadingTimeout;
 
         try {
-            loadingTimeout = setTimeout(() => {
-                chartCard.classList.add('loading');
-                const loadingState = document.createElement('div');
-                loadingState.className = 'loading-state';
-                loadingState.innerHTML = `
-                    <div class="loading-spinner"></div>
-                    <div class="loading-text">Loading ${viewType === 'risk' ? 'Risk Distribution' : viewType.charAt(0).toUpperCase() + viewType.slice(1) + ' Distribution'}...</div>
-                `;
-                chartCard.appendChild(loadingState);
-            }, 300);
+            const message = `Loading ${viewType === 'risk' ? 'Risk Distribution' : 
+                           viewType.charAt(0).toUpperCase() + viewType.slice(1) + ' Distribution'}...`;
+
+            loadingTimeout = await showLoading(chartCard, message);
 
             const response = await fetch(`/analytics/portfolio/${portfolioId}/composition/${viewType}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
-            clearTimeout(loadingTimeout);
 
             // Update chart data
             compositionChart.data.labels = data.labels;
@@ -536,47 +600,13 @@ function setupViewSelector() {
             // Update legend
             updateLegend(data);
         } catch (error) {
-            clearTimeout(loadingTimeout);
             console.error('Failed to update composition view:', error);
             showError('Failed to update portfolio composition view');
         } finally {
-            // Remove loading state
-            chartCard.classList.remove('loading');
-            const loadingState = chartCard.querySelector('.loading-state');
-            if (loadingState) {
-                loadingState.remove();
-            }
+            hideLoading(chartCard, loadingTimeout);
         }
     });
 }
-
-// Add loading state functions - would be cool to do a spinning logo or something
-function showLoading(show) {
-    const chartCard = document.querySelector('.chart-card');
-    if (!chartCard) return;
-
-    let loader = chartCard.querySelector('.loader');
-    if (show) {
-        if (!loader) {
-            loader = document.createElement('div');
-            loader.className = 'loader';
-            loader.innerHTML = `
-                <div class="loading-overlay">
-                    <div class="loading-spinner"></div>
-                    <div class="loading-text">Calculating Risk...</div>
-                </div>
-            `;
-            chartCard.appendChild(loader);
-        }
-        chartCard.classList.add('loading');
-    } else {
-        if (loader) {
-            loader.remove();
-        }
-        chartCard.classList.remove('loading');
-    }
-}
-
 
 function showError(message) {
     const errorContainer = document.createElement('div');
