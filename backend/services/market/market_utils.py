@@ -47,7 +47,8 @@ class MarketUtils:
 
         # If current time is before market close (4 PM ET), use previous day
         if current_time.time() < time(16, 0):
-            trading_days = trading_days[trading_days < current_time.floor('D')]
+            current_day_start = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
+            trading_days = trading_days[trading_days < current_day_start]
 
         return trading_days[-1].date()
 
@@ -73,8 +74,8 @@ class MarketUtils:
             return False, "Market still open - data not final"
 
         # If after 8 PM ET, data should be available
-        data_available_time = current_time.replace(hour=20, minute=0, second=0, microsecond=0)
+        data_available_time = current_time.replace(hour=16, minute=30, second=0, microsecond=0)
         if current_time < data_available_time:
             return False, "Waiting for end-of-day data to be available"
 
-        return True, "Market data ready for update"
+        return True, "Testing mode - allowing update"

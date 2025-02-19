@@ -75,6 +75,37 @@ def trigger_historical_update():
         current_user_email = get_jwt_identity()
         print(f"Historical update triggered by user: {current_user_email}")
 
+        # Add debug logging for market conditions
+        service = HistoricalDataService()
+        should_fetch, reason = service.market_utils.should_fetch_market_data()
+        print(f"Should fetch market data? {should_fetch}. Reason: {reason}")
+
+        current_time = service.market_utils.get_current_market_time()
+        print(f"Current market time: {current_time} ET")
+
+        # Get list of tickers that need updates
+        tickers_to_update = service.get_tickers_needing_update()
+        print(f"Tickers needing update: {tickers_to_update}")
+
+        if not should_fetch:
+            next_update_time = None
+            if "Market still open" in reason:
+                # Next update available after 8 PM ET
+                next_update_time = current_time.replace(hour=20, minute=0, second=0, microsecond=0)
+            elif "Weekend" in reason:
+                # Next update on Monday after 8 PM ET
+                days_until_monday = (7 - current_time.weekday()) % 7
+                next_update_time = (current_time + timedelta(days=days_until_monday)).replace(
+                    hour=20, minute=0, second=0, microsecond=0
+                )
+
+            return jsonify({
+                "message": reason,
+                "next_update": next_update_time.isoformat() if next_update_time else None,
+                "current_market_time": current_time.isoformat(),
+                "success": False
+            }), 200
+
         # Create log entry
         log_entry = HistoricalDataUpdateLog(
             status='started',
@@ -85,14 +116,16 @@ def trigger_historical_update():
         db.session.commit()
         print(f"Created log entry with ID: {log_entry.id}")
 
-        service = HistoricalDataService()
         result = service.update_historical_data()
+        print(f"Update result: {result}")
 
         if result['success']:
             log_entry.status = 'completed'
             log_entry.tickers_updated = result['tickers_updated']
             log_entry.records_added = result['records_added']
             db.session.commit()
+            print(
+                f"Update completed successfully. Tickers updated: {result['tickers_updated']}, Records added: {result['records_added']}")
 
             return jsonify({
                 "message": "Historical data update completed successfully",
@@ -102,16 +135,20 @@ def trigger_historical_update():
                 "records_added": result['records_added']
             }), 200
         else:
+            error_msg = result.get('error', 'Update process failed')
+            print(f"Update failed: {error_msg}")
             log_entry.status = 'failed'
-            log_entry.error = result.get('error', 'Update process failed')
+            log_entry.error = error_msg
             db.session.commit()
             return jsonify({
-                "error": result.get('error', 'Update process failed'),
+                "error": error_msg,
                 "timestamp": datetime.utcnow().isoformat()
             }), 500
 
     except Exception as e:
         print(f"Error in trigger_historical_update: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         if log_entry:
             log_entry.status = 'failed'
             log_entry.error = str(e)

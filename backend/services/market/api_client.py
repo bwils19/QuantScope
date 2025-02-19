@@ -60,6 +60,7 @@ class AlphaVantageClient:
 
             logger.info(f"Fetching data for {ticker}")
             response = self.session.get(url, timeout=10)
+            logger.info(f"Response status code for {ticker}: {response.status_code}")
 
             # Update rate limit tracking
             self.rate_limit_remaining -= 1
@@ -72,6 +73,7 @@ class AlphaVantageClient:
 
             response.raise_for_status()
             data = response.json()
+            logger.info(f"Response data keys for {ticker}: {data.keys()}")
 
             if 'Error Message' in data:
                 logger.error(f"API error for {ticker}: {data['Error Message']}")

@@ -72,20 +72,38 @@
     background-color: #2c3e50;
 }
 
+.status-message.warning {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+    margin-top: 10px;
+    padding: 12px 15px;
+    border-radius: 4px;
+}
+
+td {
+    white-space: nowrap;
+}
+
 .status-message {
     margin-top: 10px;
-    padding: 10px;
+    padding: 12px 15px;
     border-radius: 4px;
+    font-size: 14px;
+    line-height: 1.4;
+    transition: all 0.3s ease;
 }
 
 .status-message.success {
     background-color: #d4edda;
     color: #155724;
+    border: 1px solid #c3e6cb;
 }
 
 .status-message.error {
     background-color: #f8d7da;
     color: #721c24;
+    border: 1px solid #f5c6cb;
 }
 
 .updates-table-container {
@@ -155,15 +173,27 @@ async function loadRecentUpdates() {
 
         const updates = await response.json();
 
-        updatesTableBody.innerHTML = updates.map(update => `
-            <tr>
-                <td>${new Date(update.update_time).toLocaleString()}</td>
-                <td>${update.tickers_updated || 0}</td>
-                <td>${update.records_added || 0}</td>
-                <td>${update.status}</td>
-                <td>${update.error || '-'}</td>
-            </tr>
-        `).join('');
+        updatesTableBody.innerHTML = updates.map(update => {
+            // Parse the time and convert to local timezone
+            const updateTime = new Date(update.update_time);
+            return `
+                <tr>
+                    <td>${updateTime.toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true
+                    })}</td>
+                    <td>${update.tickers_updated || 0}</td>
+                    <td>${update.records_added || 0}</td>
+                    <td>${update.status}</td>
+                    <td>${update.error || '-'}</td>
+                </tr>
+            `;
+        }).join('');
     } catch (error) {
         console.error('Failed to load updates:', error);
         if (!statusDiv.classList.contains('error')) {
@@ -175,7 +205,6 @@ async function loadRecentUpdates() {
 
 // Update trigger button handler
 triggerBtn.addEventListener('click', async function() {
-    // Disable button and show status
     triggerBtn.disabled = true;
     statusDiv.className = 'status-message';
     statusDiv.textContent = 'Triggering update...';
@@ -183,26 +212,24 @@ triggerBtn.addEventListener('click', async function() {
 
     try {
         console.log('Sending update trigger request...');
-
         const response = await fetch('/analytics/trigger-historical-update', {
             ...getFetchConfig('POST')
         });
 
         console.log('Response status:', response.status);
-
-        if (response.status === 401) {
-            console.log('Session expired, redirecting to login...');
-            window.location.href = '/auth/login';
-            return;
-        }
-
         const data = await response.json();
         console.log('Response data:', data);
 
         if (response.ok) {
-            statusDiv.textContent = `Update triggered successfully! (${new Date().toLocaleTimeString()})`;
-            statusDiv.classList.add('success');
-            // Reload the updates table after a short delay
+            if (!data.success) {
+                // Handle case when update is not available
+                const marketTime = new Date(data.current_market_time);
+                statusDiv.textContent = `${data.message}. Current market time: ${marketTime.toLocaleTimeString()}`;
+                statusDiv.classList.add('warning');
+            } else {
+                statusDiv.textContent = `Update completed successfully! ${data.tickers_updated} tickers updated, ${data.records_added} records added.`;
+                statusDiv.classList.add('success');
+            }
             setTimeout(loadRecentUpdates, 1000);
         } else {
             throw new Error(data.error || data.msg || `Server error: ${response.status}`);
@@ -212,8 +239,9 @@ triggerBtn.addEventListener('click', async function() {
         statusDiv.textContent = `Error: ${error.message}`;
         statusDiv.classList.add('error');
     } finally {
-        // Re-enable the button
-        triggerBtn.disabled = false;
+        setTimeout(() => {
+            triggerBtn.disabled = false;
+        }, 2000);
     }
 });
 

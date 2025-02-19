@@ -90,8 +90,11 @@ class HistoricalDataService:
     def update_historical_data(self):
         """Update historical data for all tickers"""
         try:
+            logger.info("Starting historical data update process...")
             # Check if we should fetch market data
             should_fetch, reason = self.market_utils.should_fetch_market_data()
+            logger.info(f"Should fetch market data? {should_fetch}. Reason: {reason}")
+
             if not should_fetch:
                 logger.info(f"Skipping update: {reason}")
                 return {
@@ -103,6 +106,8 @@ class HistoricalDataService:
 
             # Get tickers needing updates
             tickers_to_update = self.get_tickers_needing_update()
+            logger.info(f"Found {len(tickers_to_update)} tickers that need updating: {tickers_to_update}")
+
             if not tickers_to_update:
                 logger.info("All tickers are up to date")
                 return {
@@ -125,6 +130,7 @@ class HistoricalDataService:
 
             total_records_added = 0
             total_tickers_updated = 0
+            logger.info(f"Created update log entry with ID: {log_entry.id}")
 
             for ticker, latest_date in tickers_to_update:
                 try:
@@ -132,14 +138,16 @@ class HistoricalDataService:
 
                     time_series_data = self.api_client.fetch_daily_data(ticker)
                     if not time_series_data:
+                        logger.warning(f"No time series data returned for {ticker}")
                         continue
 
+                    logger.info(f"Processing data for {ticker}")
                     records_added = self.process_historical_data(
                         ticker,
                         time_series_data,
                         latest_date
                     )
-
+                    logger.info(f"Added {records_added} records for {ticker}")
                     if records_added > 0:
                         total_records_added += records_added
                         total_tickers_updated += 1
@@ -186,7 +194,7 @@ class HistoricalDataService:
                 f"https://www.alphavantage.co/query?"
                 f"function=TIME_SERIES_DAILY_ADJUSTED&"
                 f"symbol={ticker}&outputsize=full&"
-                f"apikey={self.api_key}"
+                f"apikey={self.api_client.api_key}"
             )
 
             print(f"Making API request for {ticker}...")
