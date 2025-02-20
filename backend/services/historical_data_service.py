@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
 import logging
+import time
 
 import requests
 from sqlalchemy import func
@@ -16,6 +17,14 @@ class HistoricalDataService:
     def __init__(self):
         self.market_utils = MarketUtils()
         self.api_client = AlphaVantageClient(os.getenv('ALPHA_VANTAGE_KEY'))
+        self.benchmark_tickers = {
+            'US_BROAD': 'SPY',  # S&P 500 ETF
+            'US_TECH': 'QQQ',  # NASDAQ-100 ETF
+            'US_SMALL': 'IWM',  # Russell 2000 ETF
+            'GLOBAL': 'ACWI',  # MSCI All Country World Index
+            'EUROPE': 'FEZ',  # EURO STOXX 50 ETF
+            'EMERGING': 'EEM'  # iShares MSCI Emerging Markets ETF
+        }
 
     def get_tickers_needing_update(self):
         """Get list of tickers that need updating"""
@@ -32,6 +41,7 @@ class HistoricalDataService:
             # Get unique tickers from securities table
             active_tickers = db.session.query(Security.ticker).distinct().all()
             active_tickers = set(t[0] for t in active_tickers)
+            active_tickers.update(self.benchmark_tickers.values())
 
             tickers_to_update = []
             for ticker, latest_date in latest_data:
@@ -87,25 +97,38 @@ class HistoricalDataService:
             logger.error(f"Error processing data for {ticker}: {str(e)}")
             return 0
 
-    def update_historical_data(self):
+    def update_historical_data(self, force_update=False):
         """Update historical data for all tickers"""
         try:
             logger.info("Starting historical data update process...")
-            # Check if we should fetch market data
-            should_fetch, reason = self.market_utils.should_fetch_market_data()
-            logger.info(f"Should fetch market data? {should_fetch}. Reason: {reason}")
+            if not force_update:
+                # Check if we should fetch market data
+                should_fetch, reason = self.market_utils.should_fetch_market_data()
+                logger.info(f"Should fetch market data? {should_fetch}. Reason: {reason}")
 
-            if not should_fetch:
-                logger.info(f"Skipping update: {reason}")
-                return {
-                    'success': True,
-                    'message': reason,
-                    'tickers_updated': 0,
-                    'records_added': 0
-                }
+                if not should_fetch:
+                    logger.info(f"Skipping update: {reason}")
+                    return {
+                        'success': True,
+                        'message': reason,
+                        'tickers_updated': 0,
+                        'records_added': 0
+                    }
+                else:
+                    logger.info("Forcing update - bypassing market hours check")
 
             # Get tickers needing updates
             tickers_to_update = self.get_tickers_needing_update()
+            logger.info(f"Found {len(tickers_to_update)} tickers that need updating: {tickers_to_update}")
+
+            if force_update:
+                active_benchmarks = set(self.benchmark_tickers.values())
+                current_tickers = set(t[0] for t in tickers_to_update)
+                missing_benchmarks = active_benchmarks - current_tickers
+                if missing_benchmarks:
+                    logger.info(f"Adding missing benchmark tickers: {missing_benchmarks}")
+                    tickers_to_update.extend([(t, None) for t in missing_benchmarks])
+
             logger.info(f"Found {len(tickers_to_update)} tickers that need updating: {tickers_to_update}")
 
             if not tickers_to_update:

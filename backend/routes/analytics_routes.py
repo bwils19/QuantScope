@@ -2,7 +2,8 @@ import asyncio
 from functools import lru_cache
 from datetime import datetime, timedelta
 from typing import Dict, Any
-from flask import Blueprint, jsonify, render_template, redirect, url_for
+
+from flask import Blueprint, jsonify, render_template, redirect, url_for, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 
@@ -41,8 +42,9 @@ def get_portfolio_risk(portfolio_id):
         # Calculate metrics
         var_data = risk_analyzer.calculate_dynamic_var(securities_data)
         credit_risk = calculate_credit_risk(securities_data)
-        # putting the beta calculation on hold for right now.
-        # beta = risk_analyzer.calculate_portfolio_beta(securities_data, portfolio.total_value)
+
+        # adding in the beta component, please don't break...
+        beta_data = risk_analyzer.calculate_portfolio_beta(securities_data)
 
         var_components = risk_analyzer.get_var_components(securities_data)
 
@@ -55,7 +57,7 @@ def get_portfolio_risk(portfolio_id):
             'total_value': portfolio.total_value,
             'var_metrics': var_data,
             'credit_risk': credit_risk,
-            'beta': 0.0,  # beta,
+            'beta': beta_data,  # beta,
             'var_components': var_components,
             'securities': securities_data,
             'latest_update': latest_update.strftime('%Y-%m-%d %H:%M:%S') if latest_update else None
@@ -75,87 +77,74 @@ def trigger_historical_update():
         current_user_email = get_jwt_identity()
         print(f"Historical update triggered by user: {current_user_email}")
 
-        # Add debug logging for market conditions
-        service = HistoricalDataService()
-        should_fetch, reason = service.market_utils.should_fetch_market_data()
-        print(f"Should fetch market data? {should_fetch}. Reason: {reason}")
+        # Get force_update parameter from request
+        data = request.get_json()
+        force_update = data.get('force_update', False)
+        print(f"Force update: {force_update}")
 
-        current_time = service.market_utils.get_current_market_time()
-        print(f"Current market time: {current_time} ET")
+        service = HistoricalDataService()
+
+        # Only check market conditions if not forcing update
+        if not force_update:
+            should_fetch, reason = service.market_utils.should_fetch_market_data()
+            print(f"Should fetch market data? {should_fetch}. Reason: {reason}")
+
+            current_time = service.market_utils.get_current_market_time()
+            print(f"Current market time: {current_time} ET")
+
+            if not should_fetch:
+                next_update_time = None
+                if "Market still open" in reason:
+                    # Next update available after 8 PM ET
+                    next_update_time = current_time.replace(hour=20, minute=0, second=0, microsecond=0)
+                elif "Weekend" in reason:
+                    # Next update on Monday after 8 PM ET
+                    days_until_monday = (7 - current_time.weekday()) % 7
+                    next_update_time = (current_time + timedelta(days=days_until_monday)).replace(
+                        hour=20, minute=0, second=0, microsecond=0
+                    )
+
+                return jsonify({
+                    "message": reason,
+                    "next_update": next_update_time.isoformat() if next_update_time else None,
+                    "current_market_time": current_time.isoformat(),
+                    "success": False
+                }), 200
 
         # Get list of tickers that need updates
         tickers_to_update = service.get_tickers_needing_update()
         print(f"Tickers needing update: {tickers_to_update}")
 
-        if not should_fetch:
-            next_update_time = None
-            if "Market still open" in reason:
-                # Next update available after 8 PM ET
-                next_update_time = current_time.replace(hour=20, minute=0, second=0, microsecond=0)
-            elif "Weekend" in reason:
-                # Next update on Monday after 8 PM ET
-                days_until_monday = (7 - current_time.weekday()) % 7
-                next_update_time = (current_time + timedelta(days=days_until_monday)).replace(
-                    hour=20, minute=0, second=0, microsecond=0
-                )
-
-            return jsonify({
-                "message": reason,
-                "next_update": next_update_time.isoformat() if next_update_time else None,
-                "current_market_time": current_time.isoformat(),
-                "success": False
-            }), 200
-
-        # Create log entry
-        log_entry = HistoricalDataUpdateLog(
-            status='started',
-            tickers_updated=0,
-            records_added=0
-        )
-        db.session.add(log_entry)
-        db.session.commit()
-        print(f"Created log entry with ID: {log_entry.id}")
-
-        result = service.update_historical_data()
+        # Trigger the update with force_update parameter
+        result = service.update_historical_data(force_update=force_update)
         print(f"Update result: {result}")
 
         if result['success']:
-            log_entry.status = 'completed'
-            log_entry.tickers_updated = result['tickers_updated']
-            log_entry.records_added = result['records_added']
-            db.session.commit()
-            print(
-                f"Update completed successfully. Tickers updated: {result['tickers_updated']}, Records added: {result['records_added']}")
-
             return jsonify({
                 "message": "Historical data update completed successfully",
                 "triggered_by": current_user_email,
                 "timestamp": datetime.utcnow().isoformat(),
                 "tickers_updated": result['tickers_updated'],
-                "records_added": result['records_added']
+                "records_added": result['records_added'],
+                "success": True
             }), 200
         else:
             error_msg = result.get('error', 'Update process failed')
             print(f"Update failed: {error_msg}")
-            log_entry.status = 'failed'
-            log_entry.error = error_msg
-            db.session.commit()
             return jsonify({
                 "error": error_msg,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
+                "success": False
             }), 500
 
     except Exception as e:
         print(f"Error in trigger_historical_update: {str(e)}")
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
-        if log_entry:
-            log_entry.status = 'failed'
-            log_entry.error = str(e)
-            db.session.commit()
         return jsonify({
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "success": False
         }), 500
 
 

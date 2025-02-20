@@ -1,4 +1,8 @@
 let compositionChart = null;
+let betaChart = null;
+let varChart = null;
+let riskHeatmapChart = null;
+let regimeChart = null;
 let loadingTimeout = null;
 const portfolioId = new URLSearchParams(window.location.search).get('portfolio_id');
 
@@ -72,52 +76,79 @@ function hideLoading(container, timeout) {
 }
 
 async function renderRiskDashboard(data) {
-    console.log('Starting dashboard render...');
+    console.log('Starting dashboard render with data:', data);
+    console.log('Full API Response:', data);
+    console.log('Beta data:', data.beta);
 
-    // Portfolio Value with 24h change
-    document.getElementById('totalValue').textContent = formatCurrency(data.total_value);
-    const changeValue = document.querySelector('.change-value');
-    if (data.value_change_24h) {
-        const changePercent = data.value_change_24h.toFixed(2);
-        changeValue.textContent = `${changePercent > 0 ? '+' : ''}${changePercent}%`;
-        changeValue.classList.add(changePercent > 0 ? 'positive' : 'negative');
+    try {
+        // Portfolio Value with 24h change
+        document.getElementById('totalValue').textContent = formatCurrency(data.total_value);
+        const changeValue = document.querySelector('.change-value');
+        if (data.value_change_24h) {
+            const changePercent = data.value_change_24h.toFixed(2);
+            changeValue.textContent = `${changePercent > 0 ? '+' : ''}${changePercent}%`;
+            changeValue.classList.add(changePercent > 0 ? 'positive' : 'negative');
+        }
+
+        // add the timestamp to the portfolio value card
+        if (data.latest_update) {
+            document.getElementById('portfolioTimestamp').textContent =
+                `Latest Update: ${data.latest_update}`;
+        }
+
+        // Add timestamp to page footer
+        if (data.latest_update) {
+            document.getElementById('pageTimestamp').textContent =
+                `Data as of: ${data.latest_update}`;
+        }
+
+        // VaR with percentage context
+        if (data.var_metrics) {
+            document.getElementById('portfolioVar').textContent = formatCurrency(Math.abs(data.var_metrics.var_normal));
+            const varPercent = (Math.abs(data.var_metrics.var_normal) / data.total_value * 100).toFixed(2);
+            document.getElementById('varPercent').textContent = `${varPercent}%`;
+            renderVarChart(data.var_metrics);
+        } else {
+            console.error('Missing VaR metrics data');
+        }
+
+        // Stress VaR with confidence level
+        if (data.var_metrics) {
+            document.getElementById('stressVar').textContent = formatCurrency(Math.abs(data.var_metrics.var_stress));
+            document.getElementById('stressConfidence').textContent = '99%';
+        }
+
+        // Portfolio Beta with rolling period
+        if (data.beta && typeof data.beta === 'object') {
+            console.log('Rendering beta chart with data:', data.beta);
+            document.getElementById('portfolioBeta').textContent = data.beta.beta.toFixed(2);
+            renderBetaChart(data.beta);
+        } else {
+            console.error('Invalid or missing beta data:', data.beta);
+        }
+
+        // Render other charts with validation
+        if (data.var_components) {
+            renderRiskHeatmap(data.var_components);
+        } else {
+            console.error('Missing risk components data');
+        }
+
+        if (data.var_metrics?.regime_distribution) {
+            renderRegimeChart(data.var_metrics.regime_distribution);
+        } else {
+            console.error('Missing regime distribution data');
+        }
+
+        await initializeCompositionChart();
+        setupViewSelector();
+
+        console.log('Dashboard render complete.');
+
+    } catch (error) {
+        console.error('Error rendering dashboard:', error);
     }
-
-    // add the timestamp to the portfolio value card
-    if (data.latest_update) {
-        document.getElementById('portfolioTimestamp').textContent =
-            `Latest Update: ${data.latest_update}`;
-    }
-
-    // Add timestamp to page footer
-    if (data.latest_update) {
-        document.getElementById('pageTimestamp').textContent =
-            `Data as of: ${data.latest_update}`;
-    }
-
-    // VaR with percentage context
-    document.getElementById('portfolioVar').textContent = formatCurrency(Math.abs(data.var_metrics.var_normal));
-    const varPercent = (Math.abs(data.var_metrics.var_normal) / data.total_value * 100).toFixed(2);
-    document.getElementById('varPercent').textContent = `${varPercent}%`;
-
-    // Stress VaR with confidence level
-    document.getElementById('stressVar').textContent = formatCurrency(Math.abs(data.var_metrics.var_stress));
-    document.getElementById('stressConfidence').textContent = '99%';  // Or fetch from data if variable
-
-    // Portfolio Beta with rolling period
-    document.getElementById('portfolioBeta').textContent = data.beta.toFixed(2);
-
-    // Render existing charts
-    renderVarChart(data.var_metrics);
-    renderRiskHeatmap(data.var_components);
-    renderRegimeChart(data.var_metrics.regime_distribution);
-    await initializeCompositionChart();
-    setupViewSelector();
-
-    console.log('Dashboard render complete.');
-
 }
-
 const chartPalette = {
     // Core blues for main visualizations
      blues: [
@@ -176,6 +207,13 @@ const chartPalette = {
 };
 
 function renderVarChart(varData) {
+    const canvas = document.getElementById('varChart');
+    if (!canvas) return;
+
+    if (varChart) {
+        varChart.destroy();
+        varChart = null;
+    }
     const ctx = document.getElementById('varChart').getContext('2d');
     
      new Chart(ctx, {
@@ -246,6 +284,13 @@ function renderVarChart(varData) {
 }
 
 function renderRiskHeatmap(components) {
+    const canvas = document.getElementById('riskHeatmap');
+    if (!canvas) return;
+
+    if (riskHeatmapChart) {
+        riskHeatmapChart.destroy();
+        riskHeatmapChart = null;
+    }
     const ctx = document.getElementById('riskHeatmap');
     if (!ctx) {
         console.error('Risk heatmap canvas not found');
@@ -333,9 +378,16 @@ function renderRiskHeatmap(components) {
 }
 
 function renderRegimeChart(regimeData) {
+    const canvas = document.getElementById('regimeChart');
+    if (!canvas) return;
+
+    if (regimeChart) {
+        regimeChart.destroy();
+        regimeChart = null;
+    }
     const ctx = document.getElementById('regimeChart').getContext('2d');
     
-    const regimeChart = new Chart(ctx, {
+    regimeChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: ['Normal Market', 'Stress Market'],
@@ -387,6 +439,117 @@ function renderRegimeChart(regimeData) {
             </div>
         `).join('');
     }
+}
+
+function renderBetaChart(betaData) {
+    console.log('Beta data received:', betaData);
+    console.log('Rolling betas:', betaData.rolling_betas);
+    console.log('Confidence intervals:', betaData.confidence);
+
+    if (betaChart) {
+        betaChart.destroy();
+        betaChart = null;
+    }
+    const ctx = document.getElementById('betaChart').getContext('2d');
+
+    // Create gradient for confidence interval
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(52, 152, 219, 0.1)');
+    gradient.addColorStop(1, 'rgba(52, 152, 219, 0.02)');
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array(betaData.rolling_betas.length).fill('').map((_, i) =>
+                `Day ${i + 1}`
+            ),
+            datasets: [{
+                label: 'Rolling Beta',
+                data: betaData.rolling_betas,
+                borderColor: chartPalette.primary.navy,
+                borderWidth: 2,
+                fill: false,
+                tension: 0.4
+            }, {
+                label: 'Confidence Interval',
+                data: Array(betaData.rolling_betas.length).fill(betaData.confidence.high),
+                borderColor: 'rgba(52, 152, 219, 0.3)',
+                borderWidth: 1,
+                fill: '+1',
+                tension: 0.4
+            }, {
+                label: 'Confidence Interval',
+                data: Array(betaData.rolling_betas.length).fill(betaData.confidence.low),
+                borderColor: 'rgba(52, 152, 219, 0.3)',
+                borderWidth: 1,
+                fill: false,
+                tension: 0.4,
+                backgroundColor: gradient
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: chartPalette.background.card,
+                    titleColor: chartPalette.primary.navy,
+                    bodyColor: chartPalette.primary.navy,
+                    borderColor: chartPalette.primary.lightGrey,
+                    borderWidth: 1,
+                    padding: 10,
+                    callbacks: {
+                        label: (context) => `Beta: ${context.raw.toFixed(2)}`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    grid: {
+                        drawBorder: false,
+                        color: '#e2e8f0'
+                    },
+                    ticks: {
+                        callback: value => value.toFixed(2),
+                        font: {
+                            family: 'Arial',
+                            size: 12
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+
+    // Update beta metrics card
+    document.getElementById('portfolioBeta').textContent = betaData.beta.toFixed(2);
+
+    // Add additional beta metrics to the card
+    const betaContext = document.querySelector('.metric-context');
+    betaContext.innerHTML = `
+        <div class="beta-metrics">
+            <div class="beta-metric">
+                <span class="label">R²:</span>
+                <span class="value">${(betaData.r_squared * 100).toFixed(1)}%</span>
+            </div>
+            <div class="beta-metric">
+                <span class="label">Downside β:</span>
+                <span class="value">${betaData.downside_beta.toFixed(2)}</span>
+            </div>
+        </div>
+    `;
 }
 
 function showVarDetails(index, varData) {

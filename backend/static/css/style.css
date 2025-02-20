@@ -2040,6 +2040,43 @@ body.risk-analysis-page {
     grid-column: 1 / -1;
 }
 
+/* Beta chart card */
+
+.beta-metrics {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+.beta-metric {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.875rem;
+    color: #6c7d93;
+}
+
+.beta-metric .label {
+    color: #6c7d93;
+    font-size: 0.875rem;
+}
+
+.beta-metric .value {
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+.beta-details {
+    margin-top: 8px;
+    display: flex;
+    gap: 16px;
+}
+
+.beta-metric span:last-child {
+    font-weight: 500;
+    color: #2c3e50;
+}
+
 /*loading state*/
 .loading-overlay {
     position: absolute;
