@@ -612,5 +612,3 @@ class RiskAnalytics:
             },
             "horizon_days": self.VAR_HORIZON
         }
-
-

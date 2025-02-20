@@ -537,19 +537,19 @@ function renderBetaChart(betaData) {
     document.getElementById('portfolioBeta').textContent = betaData.beta.toFixed(2);
 
     // Add additional beta metrics to the card
-    const betaContext = document.querySelector('.metric-context');
-    betaContext.innerHTML = `
-        <div class="beta-metrics">
-            <div class="beta-metric">
-                <span class="label">R²:</span>
-                <span class="value">${(betaData.r_squared * 100).toFixed(1)}%</span>
-            </div>
-            <div class="beta-metric">
-                <span class="label">Downside β:</span>
-                <span class="value">${betaData.downside_beta.toFixed(2)}</span>
-            </div>
-        </div>
-    `;
+    const betaContext = document.querySelector('.beta-metrics');
+    if (betaContext) {
+        betaContext.innerHTML = `
+                <div class="beta-metric">
+                    <span class="label">R²:</span>
+                    <span class="value">${(betaData.r_squared * 100).toFixed(1)}%</span>
+                </div>
+                <div class="beta-metric">
+                    <span class="label">Downside β:</span>
+                    <span class="value">${betaData.downside_beta.toFixed(2)}</span>
+                </div>
+            `;
+    }
 }
 
 function showVarDetails(index, varData) {

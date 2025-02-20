@@ -2046,15 +2046,17 @@ body.risk-analysis-page {
     display: flex;
     gap: 1rem;
     margin-top: 0.5rem;
+    align-items: center;
+    justify-content: center;
 }
 
-.beta-metric {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.875rem;
-    color: #6c7d93;
-}
+/*.beta-metric {*/
+/*    display: flex;*/
+/*    align-items: center;*/
+/*    gap: 6px;*/
+/*    font-size: 0.875rem;*/
+/*    color: #6c7d93;*/
+/*}*/
 
 .beta-metric .label {
     color: #6c7d93;
@@ -2075,6 +2077,26 @@ body.risk-analysis-page {
 .beta-metric span:last-child {
     font-weight: 500;
     color: #2c3e50;
+}
+
+.beta-period-selector {
+    padding: 0.5rem 0;
+}
+
+.period-btn {
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    background-color: #f8f9fa;
+    border: 1px solid #e2e8f0;
+    color: #4a5568;
+    transition: all 0.2s;
+}
+
+.period-btn.selected {
+    background-color: #2c3e50;
+    color: white;
+    border-color: #2c3e50;
 }
 
 /*loading state*/
