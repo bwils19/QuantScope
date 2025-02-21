@@ -1,13 +1,14 @@
-import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from flask import Blueprint, jsonify, render_template, redirect, url_for, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 
-from backend.models import User, Portfolio, Security, HistoricalDataUpdateLog, SecurityHistoricalData, SecurityMetadata
+from backend.models import User, Portfolio, Security, HistoricalDataUpdateLog, SecurityHistoricalData, SecurityMetadata, \
+    RiskAnalysisCache
 from backend.analytics.risk_calculations import RiskAnalytics, calculate_credit_risk
 from backend import db
 from backend.services.cache_service import get_cached_risk_components
@@ -19,8 +20,18 @@ analytics_blueprint = Blueprint('analytics', __name__)
 @analytics_blueprint.route('/portfolio/<int:portfolio_id>/risk', methods=['GET'])
 @jwt_required(locations=["cookies"])
 def get_portfolio_risk(portfolio_id):
-
     try:
+        # Check if force_refresh is requested
+        force_refresh = request.args.get('force_refresh', '').lower() == 'true'
+
+        if not force_refresh:
+            # Try to get cached results
+            cached_data = RiskAnalysisCache.get_cache(portfolio_id)
+            if cached_data:
+                print("Returning cached risk analysis data")
+                return jsonify(cached_data)
+
+        print("Calculating fresh risk analysis...")
         current_user_email = get_jwt_identity()
         user = User.query.filter_by(email=current_user_email).first()
         portfolio = Portfolio.query.filter_by(id=portfolio_id, user_id=user.id).first()
@@ -42,31 +53,63 @@ def get_portfolio_risk(portfolio_id):
         # Calculate metrics
         var_data = risk_analyzer.calculate_dynamic_var(securities_data)
         credit_risk = calculate_credit_risk(securities_data)
-
-        # adding in the beta component, please don't break...
         beta_data = risk_analyzer.calculate_portfolio_beta(securities_data)
-
         var_components = risk_analyzer.get_var_components(securities_data)
 
         latest_update = db.session.query(
             func.max(SecurityHistoricalData.updated_at)
         ).scalar()
 
-        return jsonify({
+        response_data = {
             'portfolio_name': portfolio.name,
             'total_value': portfolio.total_value,
             'var_metrics': var_data,
             'credit_risk': credit_risk,
-            'beta': beta_data,  # beta,
+            'beta': beta_data,
             'var_components': var_components,
             'securities': securities_data,
-            'latest_update': latest_update.strftime('%Y-%m-%d %H:%M:%S') if latest_update else None
+            'latest_update': latest_update.strftime('%Y-%m-%d %H:%M:%S') if latest_update else None,
+            'cached': False
+        }
 
-        })
+        # Cache the results
+        print("Caching new risk analysis results")
+        RiskAnalysisCache.set_cache(portfolio_id, response_data)
+
+        return jsonify(response_data)
 
     except Exception as e:
         print(f"Error calculating risk metrics: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": "Failed to calculate risk metrics"}), 500
+
+
+# helper functions for caching responses
+@analytics_blueprint.route('/portfolio/<int:portfolio_id>/invalidate-cache', methods=['POST'])
+@jwt_required(locations=["cookies"])
+def invalidate_risk_cache(portfolio_id):
+    """Endpoint to manually invalidate cache"""
+    try:
+        cache = RiskAnalysisCache.query.filter_by(portfolio_id=portfolio_id).first()
+        if cache:
+            db.session.delete(cache)
+            db.session.commit()
+            return jsonify({"message": "Cache invalidated successfully"})
+        return jsonify({"message": "No cache found to invalidate"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def invalidate_portfolio_cache(portfolio_id):
+    """Helper function to invalidate cache when portfolio changes"""
+    try:
+        cache = RiskAnalysisCache.query.filter_by(portfolio_id=portfolio_id).first()
+        if cache:
+            db.session.delete(cache)
+            db.session.commit()
+    except Exception as e:
+        print(f"Error invalidating cache: {str(e)}")
 
 
 @analytics_blueprint.route('/trigger-historical-update', methods=['POST'])
@@ -120,6 +163,17 @@ def trigger_historical_update():
         print(f"Update result: {result}")
 
         if result['success']:
+            affected_portfolios = db.session.query(Portfolio.id).distinct().join(
+                Security
+            ).filter(
+                Security.ticker.in_(result['tickers_updated'])
+            ).all()
+
+            # Invalidate cache for each affected portfolio
+            for portfolio_id, in affected_portfolios:
+                invalidate_portfolio_cache(portfolio_id)
+                print(f"Invalidated cache for portfolio {portfolio_id}")
+
             return jsonify({
                 "message": "Historical data update completed successfully",
                 "triggered_by": current_user_email,
@@ -205,27 +259,23 @@ def get_portfolio_composition(portfolio_id, view_type):
 
         if view_type == 'risk':
             try:
-                # Initialize risk analyzer
-                print("Initializing RiskAnalytics...")
-                risk_analyzer = RiskAnalytics()
-
-                # Convert Security objects to dictionaries
-                securities_data = [{
-                    'ticker': s.ticker,
-                    'amount_owned': s.amount_owned,
-                    'total_value': s.total_value,
-                    'purchase_date': s.purchase_date.strftime("%Y-%m-%d") if s.purchase_date else None,
-                    'current_price': s.current_price
-                } for s in securities]
-
-                var_components = get_cached_risk_components(portfolio_id, securities_data)
-
-                print(f"Converted securities data: {securities_data}")
-
-                # Get VaR components
-                print("Calculating VaR components...")
-                # var_components = risk_analyzer.get_var_components(securities_data)
-                print(f"VaR components calculated: {var_components}")
+                # Try to get cached data first
+                cached_data = RiskAnalysisCache.get_cache(portfolio_id)
+                if cached_data and 'var_components' in cached_data:
+                    print("Using cached VaR components for composition")
+                    var_components = cached_data['var_components']
+                else:
+                    print("Calculating fresh VaR components...")
+                    # Calculate if not cached
+                    risk_analyzer = RiskAnalytics()
+                    securities_data = [{
+                        'ticker': s.ticker,
+                        'amount_owned': s.amount_owned,
+                        'total_value': s.total_value,
+                        'purchase_date': s.purchase_date.strftime("%Y-%m-%d") if s.purchase_date else None,
+                        'current_price': s.current_price
+                    } for s in securities]
+                    var_components = risk_analyzer.get_var_components(securities_data)
 
                 if not var_components:
                     print("No VaR components returned")
@@ -307,56 +357,3 @@ def get_portfolio_composition(portfolio_id, view_type):
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": "Failed to calculate composition"}), 500
-
-
-risk_cache: Dict[str, Any] = {}
-
-
-def invalidate_portfolio_cache(portfolio_id: int) -> None:
-    """Invalidate cached risk data for a specific portfolio"""
-    cache_key = f"risk_{portfolio_id}"
-    if cache_key in risk_cache:
-        del risk_cache[cache_key]
-
-
-def invalidate_user_cache(user_id: int) -> None:
-    """Invalidate all cached risk data for a user's portfolios"""
-    portfolios = Portfolio.query.filter_by(user_id=user_id).all()
-    for portfolio in portfolios:
-        invalidate_portfolio_cache(portfolio.id)
-
-
-def get_cached_risk_components(portfolio_id, securities_data):
-    """Get risk components from cache or calculate if needed"""
-    cache_key = f"risk_{portfolio_id}"
-
-    # Check if we have cached data and it's not expired
-    if cache_key in risk_cache:
-        cached_data = risk_cache[cache_key]
-        cache_time = cached_data['timestamp']
-        # Cache for 5 minutes
-        if datetime.now() - cache_time < timedelta(minutes=5):
-            return cached_data['components']
-
-    # Calculate new data
-    risk_analyzer = RiskAnalytics()
-    var_components = risk_analyzer.get_var_components(securities_data)
-
-    # Cache the result
-    risk_cache[cache_key] = {
-        'components': var_components,
-        'timestamp': datetime.now()
-    }
-
-    return var_components
-
-
-def cleanup_risk_cache():
-    """Remove expired cache entries"""
-    now = datetime.now()
-    expired_keys = [
-        key for key, data in risk_cache.items()
-        if now - data['timestamp'] > timedelta(minutes=5)
-    ]
-    for key in expired_keys:
-        del risk_cache[key]

@@ -1,5 +1,7 @@
+from typing import Dict, Optional
+
 from backend import db
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 class User(db.Model):
@@ -171,3 +173,40 @@ class SecurityMetadata(db.Model):
 
     def __repr__(self):
         return f'<SecurityMetadata {self.ticker}>'
+
+
+class RiskAnalysisCache(db.Model):
+    __tablename__ = 'risk_analysis_cache'
+
+    id = db.Column(db.Integer, primary_key=True)
+    portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'),
+                             unique=True)  # Note: 'portfolios' not 'portfolio'
+    cache_data = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime)
+
+    # Add relationship
+    portfolio = db.relationship('Portfolio', backref=db.backref('risk_cache', lazy=True))
+
+    @classmethod
+    def get_cache(cls, portfolio_id: int) -> Optional[Dict]:
+        cache = cls.query.filter_by(portfolio_id=portfolio_id).first()
+        if not cache or cache.expires_at < datetime.utcnow():
+            return None
+        return cache.cache_data
+
+    @classmethod
+    def set_cache(cls, portfolio_id: int, data: Dict, ttl: timedelta = None):
+        ttl = ttl or timedelta(hours=24)
+        cache = cls.query.filter_by(portfolio_id=portfolio_id).first()
+        if cache:
+            cache.cache_data = data
+            cache.expires_at = datetime.utcnow() + ttl
+        else:
+            cache = cls(
+                portfolio_id=portfolio_id,
+                cache_data=data,
+                expires_at=datetime.utcnow() + ttl
+            )
+            db.session.add(cache)
+        db.session.commit()

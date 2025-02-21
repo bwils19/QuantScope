@@ -1,15 +1,19 @@
-import os
 from datetime import datetime, timedelta, date
+
+from flask import current_app
 from scipy import stats
 import numpy as np
-from typing import List, Dict, Optional, Tuple, Any
-
-import requests
+import traceback
+from typing import List, Dict, Optional, Tuple, Any, Union
+from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
+import threading
 
 from .market_data import fetch_historical_prices
 from ..models import SecurityHistoricalData
 
 
+# I don't think i want to implement this yet. keeping it here as a reminder
 def calculate_credit_risk(securities_data):
     """ Placeholder method for credit risk.
         Could be refined to look up credit spreads,
@@ -27,33 +31,16 @@ def calculate_credit_risk(securities_data):
     }
 
 
-# def calculate_portfolio_beta(self, securities_data, portfolio_value):
-#     """ Calculate portfolio beta as weighted average of individual betas.
-#         This requires a way to fetch each security's beta or compute it.
-#         Putting this on hold until I get VaR incorporated completely
-#     """
-#     total_beta = 0
-#     for s in securities_data:
-#         # For now, let's pretend we have a function get_beta(ticker)
-#         beta_of_security = self._get_beta_for_ticker(s['ticker'])
-#         weight = s['total_value'] / portfolio_value if portfolio_value else 0
-#         total_beta += beta_of_security * weight
-#
-#     return total_beta
-#
-#
-# def _get_beta_for_ticker(self, ticker):
-#     # Placeholder or fetch from an API
-#     # e.g., return 1.2 for AAPL, etc.
-#     return 1.0
-
-
 class RiskAnalytics:
     def __init__(self):
         self.market_data = None
         self.RISK_FREE_RATE = 0.05  # 5% annual rate - should be fetched from market data
         self.VAR_HORIZON = 10  # 10-day VaR
         self.TRADING_DAYS = 252  # Number of trading days in a year
+
+        self._cache_lock = threading.Lock()
+        self.thread_pool = ThreadPoolExecutor(max_workers=4)
+        self.app = current_app._get_current_object()
 
         # for the beta calculations
         self.benchmark_symbols = {
@@ -65,71 +52,125 @@ class RiskAnalytics:
             'EMERGING': 'EEM'  # iShares MSCI Emerging Markets ETF
         }
 
+    @lru_cache(maxsize=100)
+    def _get_historical_data(self, ticker: str, start_date: datetime.date,
+                             end_date: datetime.date) -> Optional[List]:
+        """Cached historical data retrieval with application context"""
+        with self.app.app_context():
+            hist_data = SecurityHistoricalData.query.filter(
+                SecurityHistoricalData.ticker == ticker,
+                SecurityHistoricalData.date >= start_date,
+                SecurityHistoricalData.date <= end_date
+            ).order_by(SecurityHistoricalData.date).all()
+
+            return hist_data if hist_data else None
+
+    def _process_security_returns(self, security: Dict, portfolio_value: float,
+                                  start_date: datetime.date,
+                                  end_date: datetime.date) -> Tuple[Optional[np.ndarray], Optional[float]]:
+        """Process returns for a single security"""
+        try:
+            print(f"\nProcessing security: {security['ticker']}")
+
+            hist_data = self._get_historical_data(security['ticker'], start_date, end_date)
+
+            print(f"Found {len(hist_data) if hist_data else 0} historical records")
+
+            if hist_data:
+                # Print first few records for debugging
+                for record in hist_data[:3]:
+                    print(f"Record: {record.date}: {record.adjusted_close}")
+
+                prices = np.array([float(data.adjusted_close) for data in hist_data])
+                returns = np.diff(np.log(prices))
+
+                if len(returns) > 0:
+                    weight = security['total_value'] / portfolio_value
+                    print(f"Added returns for {security['ticker']}, weight: {weight:.4f}")
+                    print(f"First few returns: {returns[:3]}")
+                    return returns, weight
+
+            return None, None
+
+        except Exception as e:
+            print(f"Error processing security {security['ticker']}: {str(e)}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return None, None
+
     def calculate_portfolio_risk(self, portfolio_id: int, securities: List[Dict]) -> Dict:
         """Calculate comprehensive portfolio risk metrics"""
-        portfolio_value = sum(s['total_value'] for s in securities)
+        try:
+            portfolio_value = sum(s['total_value'] for s in securities)
 
-        # Calculate VaR metrics with scaling
-        var_metrics = self.calculate_dynamic_var(securities)
+            # Launch calculations in parallel
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                var_future = executor.submit(self.calculate_dynamic_var, securities)
+                beta_future = executor.submit(self.calculate_portfolio_beta, securities)
+                components_future = executor.submit(self.get_var_components, securities)
+                credit_future = executor.submit(self.calculate_credit_risk, securities)
 
-        # Calculate component risks with correlation adjustments
-        var_components = self.get_var_components(securities)
+                # Get results with timeout
+                var_metrics = var_future.result(timeout=2)
+                beta = beta_future.result(timeout=2)
+                var_components = components_future.result(timeout=2)
+                credit_risk = credit_future.result(timeout=1)
 
-        # Calculate portfolio beta against market index
-        beta = self.calculate_portfolio_beta(securities, portfolio_value)
+            return {
+                "total_value": portfolio_value,
+                "beta": beta,
+                "var_metrics": var_metrics,
+                "var_components": var_components,
+                "credit_risk": credit_risk
+            }
 
-        # Calculate credit risk metrics
-        credit_risk = self.calculate_credit_risk(securities)
+        except Exception as e:
+            print(f"Error in parallel calculation: {str(e)}")
+            # Return default values if calculation fails
+            return self._get_default_risk_metrics(portfolio_value)
 
+    def _get_default_risk_metrics(self, portfolio_value: float) -> Dict:
+        """Return default risk metrics if calculation fails"""
         return {
             "total_value": portfolio_value,
-            "beta": beta,
-            "var_metrics": var_metrics,
-            "var_components": var_components,
-            "credit_risk": credit_risk
+            "beta": self._get_default_beta_metrics(),
+            "var_metrics": self._get_default_var_metrics(portfolio_value),
+            "var_components": [],
+            "credit_risk": {"cs01": portfolio_value * 0.0001}
         }
 
-    def calculate_portfolio_beta(self, securities_data: List[Dict], lookback_days: int = 252):
+    def calculate_portfolio_beta(self, securities_data: List[Dict], lookback_days: int = 252) -> Dict:
         """Calculate comprehensive beta metrics for the portfolio."""
         try:
             print(f"Calculating beta for {len(securities_data)} securities")
-            print(f"Lookback days: {lookback_days}")
 
             # Get dates for lookback period
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=lookback_days)
             print(f"Date range: {start_date} to {end_date}")
 
-            # Fetch benchmark returns from historical data
-            benchmark_returns = self._get_benchmark_returns(start_date, end_date)
-            if benchmark_returns is None:
-                print("Failed to get benchmark returns, returning default metrics")
-                return self._get_default_beta_metrics()
-
-            # Calculate portfolio returns using historical data
+            # Calculate portfolio returns
             portfolio_returns = self._get_portfolio_returns(securities_data, start_date, end_date)
             if portfolio_returns is None:
                 print("Failed to get portfolio returns, returning default metrics")
                 return self._get_default_beta_metrics()
 
-            print(f"Successfully calculated returns:")
-            print(f"Benchmark returns shape: {benchmark_returns.shape}")
-            print(f"Portfolio returns shape: {portfolio_returns.shape}")
+            # Get benchmark returns
+            with self.app.app_context():
+                benchmark_data = self._get_historical_data('SPY', start_date, end_date)
+                if not benchmark_data:
+                    print("Failed to get benchmark returns")
+                    return self._get_default_beta_metrics()
 
-            # Calculate different beta metrics
+                benchmark_prices = np.array([float(data.adjusted_close) for data in benchmark_data])
+                benchmark_returns = np.diff(np.log(benchmark_prices))
+
+            # Calculate beta metrics
             standard_beta = self._calculate_standard_beta(portfolio_returns, benchmark_returns)
-            print(f"Calculated standard beta: {standard_beta}")
-
             rolling_betas = self._calculate_rolling_beta(portfolio_returns, benchmark_returns)
-            print(f"Calculated {len(rolling_betas)} rolling betas")
-            print(f"Rolling betas range: {np.min(rolling_betas)} to {np.max(rolling_betas)}")
-
             downside_beta = self._calculate_downside_beta(portfolio_returns, benchmark_returns)
-            print(f"Calculated downside beta: {downside_beta}")
 
             # Calculate confidence metrics
             r_squared, std_error = self._calculate_beta_statistics(portfolio_returns, benchmark_returns)
-            print(f"Statistics - R²: {r_squared:.4f}, Std Error: {std_error:.4f}")
 
             return {
                 'beta': standard_beta,
@@ -140,16 +181,11 @@ class RiskAnalytics:
                 'confidence': {
                     'high': standard_beta + (1.96 * std_error),
                     'low': standard_beta - (1.96 * std_error)
-                },
-                'analysis': {
-                    'trend': 'increasing' if rolling_betas[-1] > rolling_betas[-20] else 'decreasing',
-                    'stability': 'high' if std_error < 0.1 else 'medium' if std_error < 0.2 else 'low'
                 }
             }
 
         except Exception as e:
-            print(f"Error calculating portfolio beta: {str(e)}")
-            import traceback
+            print(f"Error calculating beta: {str(e)}")
             print(f"Traceback: {traceback.format_exc()}")
             return self._get_default_beta_metrics()
 
@@ -210,7 +246,7 @@ class RiskAnalytics:
         return slope
 
     def _get_portfolio_returns(self, securities_data: List[Dict], start_date: datetime.date,
-                               end_date: datetime.date) -> np.ndarray:
+                             end_date: datetime.date) -> Optional[np.ndarray]:
         """Calculate portfolio returns using historical data."""
         try:
             portfolio_value = sum(s['total_value'] for s in securities_data)
@@ -222,31 +258,15 @@ class RiskAnalytics:
             all_returns = []
             weights = []
 
-            for security in securities_data:
-                print(f"\nProcessing security: {security['ticker']}")
-
-                hist_data = SecurityHistoricalData.query.filter(
-                    SecurityHistoricalData.ticker == security['ticker'],
-                    SecurityHistoricalData.date >= start_date,
-                    SecurityHistoricalData.date <= end_date
-                ).order_by(SecurityHistoricalData.date).all()
-
-                print(f"Found {len(hist_data) if hist_data else 0} historical records")
-
-                if hist_data:
-                    # Print first few records for debugging
-                    for record in hist_data[:3]:
-                        print(f"Record: {record.date}: {record.adjusted_close}")
-
-                    prices = np.array([float(data.adjusted_close) for data in hist_data])
-                    returns = np.diff(np.log(prices))
-
-                    if len(returns) > 0:
-                        weight = security['total_value'] / portfolio_value
-                        weights.append(weight)
+            # Process each security within app context
+            with self.app.app_context():
+                for security in securities_data:
+                    returns, weight = self._process_security_returns(
+                        security, portfolio_value, start_date, end_date
+                    )
+                    if returns is not None and weight is not None:
                         all_returns.append(returns)
-                        print(f"Added returns for {security['ticker']}, weight: {weight:.4f}")
-                        print(f"First few returns: {returns[:3]}")
+                        weights.append(weight)
 
             if not all_returns:
                 print("No valid returns calculated")
@@ -272,7 +292,6 @@ class RiskAnalytics:
 
         except Exception as e:
             print(f"Error calculating portfolio returns: {str(e)}")
-            import traceback
             print(f"Traceback: {traceback.format_exc()}")
             return None
 
@@ -557,8 +576,7 @@ class RiskAnalytics:
         return marginal_var
 
     @staticmethod
-    def _calculate_daily_returns(price_data: List[Tuple[Any, float]]) -> np.ndarray:
-        """Calculate logarithmic daily returns from price series"""
+    def _calculate_daily_returns(price_data: Union[List[Tuple[Any, float]], List[float], np.ndarray]) -> np.ndarray:
         try:
             if not price_data:
                 print("No price data provided")
@@ -566,8 +584,15 @@ class RiskAnalytics:
 
             print(f"Processing {len(price_data)} price points")
 
-            # Extract just the prices from the (date, price) tuples
-            prices = np.array([price for _, price in price_data], dtype=float)
+            # Handle different input formats
+            if isinstance(price_data, np.ndarray):
+                prices = price_data
+            elif isinstance(price_data[0], (tuple, list)):
+                # Extract just the prices from the (date, price) tuples
+                prices = np.array([price for _, price in price_data], dtype=float)
+            else:
+                # Direct list of prices
+                prices = np.array(price_data, dtype=float)
 
             if len(prices) < 2:
                 print("Insufficient price data for returns calculation")
@@ -584,6 +609,9 @@ class RiskAnalytics:
         except Exception as e:
             print(f"Error calculating returns: {str(e)}")
             print(f"Price data sample: {price_data[:5] if price_data else 'None'}")
+            print(f"Price data type: {type(price_data)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
             return np.array([])
 
     @staticmethod

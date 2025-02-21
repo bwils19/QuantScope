@@ -28,14 +28,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             throw new Error(data.error || 'Failed to fetch risk data');
         }
 
-        // Render the dashboard
+        // Render the dashboard first
         await renderRiskDashboard(data);
+
+        // Then initialize composition chart
+        await initializeCompositionChart();
+        setupViewSelector();
 
     } catch (error) {
         console.error('Error:', error);
         showError('Failed to load risk analysis');
     } finally {
-        // Always ensure loading state is removed
         hideLoading(chartCard, loadingTimeout);
     }
 });
@@ -600,7 +603,7 @@ async function initializeCompositionChart() {
             return;
         }
 
-        // Destroy existing chart if it exists
+        // Clean up existing chart
         if (compositionChart) {
             console.log('Destroying existing chart...');
             compositionChart.destroy();
@@ -611,63 +614,80 @@ async function initializeCompositionChart() {
         const viewSelector = document.getElementById('compositionView');
         const initialViewType = viewSelector ? viewSelector.value : 'sector';
 
-        const response = await fetch(`/analytics/portfolio/${portfolioId}/composition/${initialViewType}`);
-        console.log('API Response status:', response.status);
-
-        if (!response.ok) {
-            const text = await response.text();
-            console.error('API Error response:', text);
-            throw new Error(`HTTP error! status: ${response.status}`);
+        // Show loading state for composition chart
+        const chartContainer = canvas.closest('.chart-card');
+        let loadingTimeout;
+        if (chartContainer) {
+            loadingTimeout = await showLoading(chartContainer, 'Loading Portfolio Composition...', 0);
         }
 
-        const data = await response.json();
-        console.log('Composition data:', data);
+        try {
+            const response = await fetch(`/analytics/portfolio/${portfolioId}/composition/${initialViewType}`);
+            console.log('Composition API Response status:', response.status);
 
-        const ctx = canvas.getContext('2d');
-        compositionChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: data.labels,
-                datasets: [{
-                    data: data.values,
-                    backgroundColor: chartPalette.blues.slice(0, data.labels.length),
-                    borderWidth: 0,
-                    cutout: '70%'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        backgroundColor: chartPalette.background.card,
-                        titleColor: chartPalette.primary.navy,
-                        bodyColor: chartPalette.primary.navy,
-                        borderColor: chartPalette.primary.lightGrey,
-                        borderWidth: 1,
-                        padding: 10,
-                        callbacks: {
-                            label: function(context) {
-                                const label = context.label || '';
-                                const value = context.parsed || 0;
-                                return `${label}: ${value.toFixed(2)}%`;
+            if (!response.ok) {
+                const text = await response.text();
+                console.error('Composition API Error response:', text);
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('Composition data:', data);
+
+            if (!data.labels || !data.values) {
+                console.error('Invalid composition data format:', data);
+                return;
+            }
+
+            const ctx = canvas.getContext('2d');
+            compositionChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.values,
+                        backgroundColor: chartPalette.blues.slice(0, data.labels.length),
+                        borderWidth: 0,
+                        cutout: '70%'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: chartPalette.background.card,
+                            titleColor: chartPalette.primary.navy,
+                            bodyColor: chartPalette.primary.navy,
+                            borderColor: chartPalette.primary.lightGrey,
+                            borderWidth: 1,
+                            padding: 10,
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    return `${label}: ${value.toFixed(2)}%`;
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
 
-        // Update legend
-        updateLegend(data);
+            // Update legend
+            updateLegend(data);
+
+        } finally {
+            // Hide loading state
+            if (chartContainer && loadingTimeout) {
+                hideLoading(chartContainer, loadingTimeout);
+            }
+        }
 
     } catch (error) {
         console.error('Failed to initialize composition chart:', error);
         showError('Failed to load portfolio composition data');
-        // Make sure to clean up if initialization fails
         if (compositionChart) {
             compositionChart.destroy();
             compositionChart = null;
@@ -791,8 +811,8 @@ function showError(message) {
     }
 }
 
-// Initialize everything when the document is ready
-document.addEventListener('DOMContentLoaded', () => {
-    initializeCompositionChart();
-    setupViewSelector();
-});
+// // Initialize everything when the document is ready
+// document.addEventListener('DOMContentLoaded', () => {
+//     initializeCompositionChart();
+//     setupViewSelector();
+// });
