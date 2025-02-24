@@ -210,3 +210,18 @@ class RiskAnalysisCache(db.Model):
             )
             db.session.add(cache)
         db.session.commit()
+
+
+class StressScenario(db.Model):
+    __tablename__ = 'stress_scenarios'
+    id = db.Column(db.Integer, primary_key=True)
+    event_name = db.Column(db.String(50), nullable=False)
+    index_name = db.Column(db.String(50), nullable=False)
+    price_change_pct = db.Column(db.Float)
+    volatility = db.Column(db.Float)
+    vix_shift_pct = db.Column(db.Float)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+
+    def __repr__(self):
+        return f"<StressScenario {self.event_name} - {self.index_name}>"

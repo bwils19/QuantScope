@@ -8,21 +8,22 @@ from dotenv import load_dotenv
 from backend.tasks import init_scheduler
 from backend.commands import load_historical_data
 from backend.services.email_service import mail
-
+from backend.utils.data_utils import fetch_and_process_stress_scenarios
 from flask_mail import Mail, Message
 
-from backend.models import User, Portfolio, Security
+from backend.models import User, Portfolio, Security, StressScenario  # Import StressScenario for verification
+
+# Initialize Mail outside the app factory
 mail = Mail()
 
 
 def create_app(test_config=None):
-    # load environment variables
+    # Load environment variables
     load_dotenv()
 
     app = Flask(__name__)
 
     if test_config is None:
-
         upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
         os.makedirs(upload_folder, exist_ok=True)
         app.config['UPLOAD_FOLDER'] = upload_folder
@@ -53,7 +54,6 @@ def create_app(test_config=None):
     jwt.init_app(app)
 
     with app.app_context():
-
         from backend.models import User, Portfolio, Security
 
         @app.before_request
@@ -72,7 +72,8 @@ def create_app(test_config=None):
 
                 return response
 
-        # Create database tables
+        # Create database tables and log confirmation
+        print(f"Creating database tables with URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
         db.create_all()
 
         # Initialize migrations
@@ -81,7 +82,8 @@ def create_app(test_config=None):
         # Register blueprints
         from backend.routes.auth_routes import auth_blueprint
         from backend.routes.stock_routes import stock_blueprint
-        from .routes.analytics_routes import analytics_blueprint
+        from backend.routes.analytics_routes import \
+            analytics_blueprint  # Fixed typo from 'analytics_routes' to 'analytics_blueprint'
         app.register_blueprint(auth_blueprint, url_prefix="/auth")
         app.register_blueprint(stock_blueprint)
         app.register_blueprint(analytics_blueprint, url_prefix='/analytics')
@@ -92,7 +94,7 @@ def create_app(test_config=None):
     @app.route("/")
     def home():
         try:
-            # only allow access with valid JWT
+            # Only allow access with valid JWT
             verify_jwt_in_request(locations=["cookies"])
             jwt_identity = get_jwt_identity()
             if jwt_identity:
@@ -119,6 +121,36 @@ def create_app(test_config=None):
         scheduler = init_scheduler(app)
         app.scheduler = scheduler
 
+    # Run stress scenarios data population with detailed logging
+    with app.app_context():
+        print("Starting to fetch and process stress scenarios...")
+        try:
+            fetch_and_process_stress_scenarios(app)  # Pass the app instance here
+            print("Completed fetching and processing stress scenarios. Checking stress_scenarios table...")
+            # Verify data in stress_scenarios table
+            scenarios = StressScenario.query.all()
+            print(f"Number of stress scenarios in DB: {len(scenarios)}")
+            for scenario in scenarios:
+                print(
+                    f"Scenario: {scenario.event_name}, Index: {scenario.index_name}, Price Change: {scenario.price_change_pct}%")
+        except Exception as e:
+            print(f"Error processing stress scenarios: {e}")
+    # @app.cli.command('load_stress_scenarios')
+    # def load_stress_scenarios():
+    #     """Load stress scenario data into the database."""
+    #     with app.app_context():
+    #         print("Starting to fetch and process stress scenarios...")
+    #         try:
+    #             fetch_and_process_stress_scenarios(app)
+    #             print("Completed fetching and processing stress scenarios. Checking stress_scenarios table...")
+    #             scenarios = StressScenario.query.all()
+    #             print(f"Number of stress scenarios in DB: {len(scenarios)}")
+    #             for scenario in scenarios:
+    #                 print(
+    #                     f"Scenario: {scenario.event_name}, Index: {scenario.index_name}, Price Change: {scenario.price_change_pct}%")
+    #         except Exception as e:
+    #             print(f"Error processing stress scenarios: {e}")
+
     return app
 
 
@@ -132,14 +164,14 @@ def send_update_notification(status, details):
 
         msg.body = f"""
         Historical Data Update {status}
-        
+
         Time: {datetime.now()}
         Details: {details}
-        
+
         Tickers Updated: {details.get('tickers_updated', 0)}
         Records Added: {details.get('records_added', 0)}
         Status: {details.get('status', 'Unknown')}
-        
+
         Error (if any): {details.get('error', 'None')}
         """
 
@@ -149,7 +181,6 @@ def send_update_notification(status, details):
         print(f"Failed to send email notification: {e}")
 
 
-app = create_app()
-
 if __name__ == "__main__":
+    app = create_app()
     app.run(debug=True)
