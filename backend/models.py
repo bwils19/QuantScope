@@ -179,8 +179,7 @@ class RiskAnalysisCache(db.Model):
     __tablename__ = 'risk_analysis_cache'
 
     id = db.Column(db.Integer, primary_key=True)
-    portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'),
-                             unique=True)  # Note: 'portfolios' not 'portfolio'
+    portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'), unique=True)
     cache_data = db.Column(db.JSON)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime)

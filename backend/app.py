@@ -122,34 +122,34 @@ def create_app(test_config=None):
         app.scheduler = scheduler
 
     # Run stress scenarios data population with detailed logging
-    with app.app_context():
-        print("Starting to fetch and process stress scenarios...")
-        try:
-            fetch_and_process_stress_scenarios(app)  # Pass the app instance here
-            print("Completed fetching and processing stress scenarios. Checking stress_scenarios table...")
-            # Verify data in stress_scenarios table
-            scenarios = StressScenario.query.all()
-            print(f"Number of stress scenarios in DB: {len(scenarios)}")
-            for scenario in scenarios:
-                print(
-                    f"Scenario: {scenario.event_name}, Index: {scenario.index_name}, Price Change: {scenario.price_change_pct}%")
-        except Exception as e:
-            print(f"Error processing stress scenarios: {e}")
-    # @app.cli.command('load_stress_scenarios')
-    # def load_stress_scenarios():
-    #     """Load stress scenario data into the database."""
-    #     with app.app_context():
-    #         print("Starting to fetch and process stress scenarios...")
-    #         try:
-    #             fetch_and_process_stress_scenarios(app)
-    #             print("Completed fetching and processing stress scenarios. Checking stress_scenarios table...")
-    #             scenarios = StressScenario.query.all()
-    #             print(f"Number of stress scenarios in DB: {len(scenarios)}")
-    #             for scenario in scenarios:
-    #                 print(
-    #                     f"Scenario: {scenario.event_name}, Index: {scenario.index_name}, Price Change: {scenario.price_change_pct}%")
-    #         except Exception as e:
-    #             print(f"Error processing stress scenarios: {e}")
+    # with app.app_context():
+    #     print("Starting to fetch and process stress scenarios...")
+    #     try:
+    #         fetch_and_process_stress_scenarios(app)  # Pass the app instance here
+    #         print("Completed fetching and processing stress scenarios. Checking stress_scenarios table...")
+    #         # Verify data in stress_scenarios table
+    #         scenarios = StressScenario.query.all()
+    #         print(f"Number of stress scenarios in DB: {len(scenarios)}")
+    #         for scenario in scenarios:
+    #             print(
+    #                 f"Scenario: {scenario.event_name}, Index: {scenario.index_name}, Price Change: {scenario.price_change_pct}%")
+    #     except Exception as e:
+    #         print(f"Error processing stress scenarios: {e}")
+    @app.cli.command('load_stress_scenarios')
+    def load_stress_scenarios():
+        """Load stress scenario data into the database."""
+        with app.app_context():
+            print("Starting to fetch and process stress scenarios...")
+            try:
+                fetch_and_process_stress_scenarios(app)
+                print("Completed fetching and processing stress scenarios. Checking stress_scenarios table...")
+                scenarios = StressScenario.query.all()
+                print(f"Number of stress scenarios in DB: {len(scenarios)}")
+                for scenario in scenarios:
+                    print(
+                        f"Scenario: {scenario.event_name}, Index: {scenario.index_name}, Price Change: {scenario.price_change_pct}%")
+            except Exception as e:
+                print(f"Error processing stress scenarios: {e}")
 
     return app
 

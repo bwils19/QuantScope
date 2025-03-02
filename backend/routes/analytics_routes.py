@@ -25,7 +25,7 @@ def get_portfolio_risk(portfolio_id):
         force_refresh = request.args.get('force_refresh', '').lower() == 'true'
 
         if not force_refresh:
-            # Try to get cached results
+            # try to get cached results
             cached_data = RiskAnalysisCache.get_cache(portfolio_id)
             if cached_data:
                 print("Returning cached risk analysis data")
@@ -50,7 +50,7 @@ def get_portfolio_risk(portfolio_id):
             'total_value': s.total_value
         } for s in securities]
 
-        # Calculate metrics
+        # calculate metrics
         var_data = risk_analyzer.calculate_dynamic_var(securities_data)
         credit_risk = calculate_credit_risk(securities_data)
         beta_data = risk_analyzer.calculate_portfolio_beta(securities_data)

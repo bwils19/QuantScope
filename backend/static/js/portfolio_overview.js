@@ -2150,8 +2150,18 @@ function renderWatchlistItems(data = null) {
 
         removeBtn.addEventListener('click', async () => {
             try {
+
+                const csrfToken = document.cookie
+                    .split('; ')
+                    .find(row => row.startsWith('csrf_access_token='))
+                    ?.split('=')[1];
+
                 const response = await fetch(`/auth/watchlist/${item.id}`, {
                     method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    },
                     credentials: 'include'
                 });
 
