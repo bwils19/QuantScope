@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 import os
 from werkzeug.utils import secure_filename
-
+from dotenv import load_dotenv
 from backend.tasks import is_market_open
 from backend.utils.file_handlers import parse_portfolio_file, format_preview_data
 from backend.services.cache_service import invalidate_user_cache
@@ -58,6 +58,105 @@ def fetch_stock_data(ticker, api_key):
         print(f"Error fetching data for {ticker}: {str(e)}")
         return None
 
+
+def fetch_prices_for_portfolio(tickers):
+    """Fetch prices for all tickers in a portfolio efficiently"""
+    load_dotenv()
+    api_key = os.getenv('ALPHA_VANTAGE_KEY')
+    # api_key = current_app.config.get('ALPHA_VANTAGE_API_KEY')
+    results = {}
+    failed_tickers = []
+
+    # Get cached prices first
+    cached_prices = StockCache.query.filter(StockCache.ticker.in_(tickers)).all()
+    cache_dict = {cache.ticker: cache for cache in cached_prices}
+
+    # Identify which tickers need API calls
+    to_fetch = [ticker for ticker in tickers if ticker not in cache_dict
+                or (datetime.utcnow().date() - cache_dict[ticker].date).days > 0]
+
+    print(f"Fetching prices for {len(to_fetch)} securities (found {len(cache_dict) - len(to_fetch)} in cache)")
+
+    # Create a session with retries for robustness
+    session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=0.5,
+        status_forcelist=[429, 500, 502, 503, 504],
+    )
+    session.mount('https://', HTTPAdapter(max_retries=retries))
+
+    # Fetch from API with minimal rate limiting for premium API
+    for i, ticker in enumerate(to_fetch):
+        try:
+            # Still add a small pause between requests to avoid overwhelming the API
+            if i > 0 and i % 20 == 0:
+                time.sleep(1)  # Short pause every 20 requests
+
+            url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={api_key}"
+            response = session.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if data and 'Global Quote' in data and data['Global Quote'].get('05. price'):
+                quote = data['Global Quote']
+                # Process and cache the data
+                price_data = {
+                    'currentPrice': float(quote['05. price']),
+                    'previousClose': float(quote['08. previous close']),
+                    'changePercent': float(quote['10. change percent'].rstrip('%'))
+                }
+
+                # Create or update cache entry
+                if ticker in cache_dict:
+                    cache = cache_dict[ticker]
+                    cache.date = datetime.utcnow().date()
+                    cache.data = price_data
+                else:
+                    cache = StockCache(
+                        ticker=ticker,
+                        date=datetime.utcnow().date(),
+                        data=price_data
+                    )
+                    db.session.add(cache)
+
+                results[ticker] = price_data
+                print(f"Successfully fetched price for {ticker}: ${price_data['currentPrice']}")
+            else:
+                print(f"No price data returned for {ticker} - API response: {data}")
+                failed_tickers.append(ticker)
+
+        except Exception as e:
+            print(f"Error fetching price for {ticker}: {str(e)}")
+            failed_tickers.append(ticker)
+
+        # Commit every 50 securities to avoid holding transactions too long
+        if i > 0 and i % 50 == 0:
+            try:
+                db.session.commit()
+                print(f"Committed batch of 50 price updates")
+            except Exception as commit_error:
+                print(f"Error committing price batch: {commit_error}")
+                db.session.rollback()
+
+    # Final commit for remaining price updates
+    try:
+        db.session.commit()
+        print(f"Committed final batch of price updates")
+    except Exception as commit_error:
+        print(f"Error committing final price batch: {commit_error}")
+        db.session.rollback()
+
+    # Add all cached results to the results dictionary
+    for ticker, cache in cache_dict.items():
+        if ticker not in results and ticker not in failed_tickers:
+            results[ticker] = cache.data
+
+    if failed_tickers:
+        print(f"Failed to fetch prices for {len(failed_tickers)} tickers: {', '.join(failed_tickers[:10])}" +
+              (f"... and {len(failed_tickers) - 10} more" if len(failed_tickers) > 10 else ""))
+
+    return results
 
 # Ensure the app's configuration is set up
 @auth_blueprint.before_app_request
@@ -880,76 +979,152 @@ def preview_portfolio_file():
 def create_portfolio_from_file(file_id):
     """Create a portfolio from an uploaded file"""
     try:
-        data = request.get_json(force=True)
-        portfolio_name = data.get('portfolio_name', '').strip()
-        preview_data = data.get('preview_data', [])  # Get edited data
+        current_token = get_jwt()
+        token_expiry = datetime.fromtimestamp(current_token["exp"])
 
-        if not portfolio_name:
-            return jsonify({"message": "Portfolio name is required"}), 400
+        # If token is close to expiring (within 5 minutes), refresh it
+        if token_expiry - datetime.now() < timedelta(minutes=5):
+            # Create new access token with same identity and claims
+            access_token = create_access_token(
+                identity=get_jwt_identity(),
+                additional_claims={k: v for k, v in current_token.items() if k not in ['exp', 'iat', 'jti', 'type']}
+            )
+            resp = make_response(jsonify({"message": "Token refreshed"}))
+            set_access_cookies(resp, access_token)
 
-        current_user_email = get_jwt_identity()
-        user = User.query.filter_by(email=current_user_email).first()
-        if not user:
-            return jsonify({"message": "User not found"}), 404
+        try:
+            data = request.get_json(force=True)
+            portfolio_name = data.get('portfolio_name', '').strip()
+            preview_data = data.get('preview_data', [])
 
-        # Create portfolio
-        portfolio = Portfolio(
-            name=portfolio_name,
-            user_id=user.id,
-            total_holdings=len([row for row in preview_data if row['validation_status'] == 'valid'])
-        )
-        db.session.add(portfolio)
-        db.session.flush()
+            if not portfolio_name:
+                return jsonify({"message": "Portfolio name is required"}), 400
 
-        # Add securities from edited preview data
-        total_value = 0
-        total_cost = 0
+            current_user_email = get_jwt_identity()
+            user = User.query.filter_by(email=current_user_email).first()
+            if not user:
+                return jsonify({"message": "User not found"}), 404
 
-        for row in preview_data:
-            if row['validation_status'] == 'valid':
-                security = Security(
-                    portfolio_id=portfolio.id,
-                    ticker=row['ticker'].upper(),
-                    name=row.get('name', row['ticker']),
-                    amount_owned=float(row['amount']),
-                    purchase_date=datetime.strptime(row['purchase_date'], '%Y-%m-%d').date(),
-                    purchase_price=float(row.get('purchase_price', 0)) if row.get('purchase_price') else 0,
-                    current_price=float(row.get('current_price', 0)) if row.get('current_price') else 0,
-                    sector=row.get('sector', '')
-                )
+            # Create portfolio first
+            valid_rows = [row for row in preview_data if row['validation_status'] == 'valid']
+            portfolio = Portfolio(
+                name=portfolio_name,
+                user_id=user.id,
+                total_holdings=len(valid_rows)
+            )
+            db.session.add(portfolio)
+            db.session.commit()  # Commit to get portfolio ID
+            print(f"Created portfolio: {portfolio_name} with ID {portfolio.id}")
 
-                security.total_value = security.amount_owned * (security.current_price or security.purchase_price)
-                total_value += security.total_value
-                total_cost += security.amount_owned * security.purchase_price
+            # Extract unique tickers
+            tickers = list(set([row['ticker'].upper() for row in valid_rows]))
 
-                db.session.add(security)
-                print(f"Added security: {security.ticker}")
+            # Fetch current prices for all tickers at once
+            print(f"Fetching prices for {len(tickers)} unique securities")
+            start_time = time.time()
+            price_data = fetch_prices_for_portfolio(tickers)
+            elapsed = time.time() - start_time
+            print(
+                f"Price fetching completed in {elapsed:.2f} seconds. Found prices for {len(price_data)} of {len(tickers)} securities.")
 
-        portfolio.total_value = total_value
-        portfolio.total_gain = total_value - total_cost
-        portfolio.total_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
+            # Now add securities with the fetched prices
+            total_value = 0
+            total_cost = 0
+            securities_with_prices = 0
 
-        db.session.commit()
+            # Process in batches to avoid large transactions
+            batch_size = 50
+            for i in range(0, len(valid_rows), batch_size):
+                batch = valid_rows[i:i + batch_size]
+                print(f"Processing batch {i // batch_size + 1} of {(len(valid_rows) + batch_size - 1) // batch_size}")
 
-        # Clean up
-        file_record = PortfolioFiles.query.get(file_id)
-        if file_record:
-            file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], file_record.filename)
+                for row in batch:
+                    ticker = row['ticker'].upper()
+                    current_price = 0
+
+                    # Use fetched price if available
+                    if ticker in price_data:
+                        current_price = price_data[ticker]['currentPrice']
+                        securities_with_prices += 1
+
+                    # Fallback to purchase price if available and no current price
+                    purchase_price = float(row.get('purchase_price', 0)) if row.get('purchase_price') else 0
+
+                    security = Security(
+                        portfolio_id=portfolio.id,
+                        ticker=ticker,
+                        name=row.get('name', ticker),
+                        amount_owned=float(row['amount']),
+                        purchase_date=datetime.strptime(row['purchase_date'], '%Y-%m-%d').date(),
+                        purchase_price=purchase_price,
+                        current_price=current_price,
+                        sector=row.get('sector', '')
+                    )
+
+                    # Calculate values
+                    security.total_value = security.amount_owned * security.current_price
+                    security.value_change = 0  # Will be updated later if historical data exists
+                    security.value_change_pct = 0
+
+                    # Track totals for portfolio
+                    total_value += security.total_value
+                    total_cost += security.amount_owned * security.purchase_price
+
+                    db.session.add(security)
+
+                    if current_price > 0:
+                        print(f"Added security: {security.ticker} with price: ${security.current_price}")
+                    else:
+                        print(f"Added security: {security.ticker} with NO PRICE")
+
+                # Commit each batch separately
+                db.session.commit()
+                print(f"Committed batch {i // batch_size + 1}")
+
+            # Update portfolio totals
+            portfolio = Portfolio.query.get(portfolio.id)  # Re-fetch after commits
+            portfolio.total_value = total_value
+            portfolio.total_gain = total_value - total_cost
+            portfolio.total_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
+            db.session.commit()
+            print(f"Updated portfolio totals: value=${total_value:.2f}, gain=${portfolio.total_gain:.2f}")
+
+            # Clean up
             try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"Warning: Failed to remove temporary file: {e}")
+                file_record = PortfolioFiles.query.get(file_id)
+                if file_record:
+                    file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], file_record.filename)
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        print(f"Warning: Failed to remove temporary file: {e}")
+            except Exception as cleanup_error:
+                print(f"Non-critical cleanup error: {cleanup_error}")
 
-        return jsonify({
-            "message": "Portfolio created successfully",
-            "portfolio_id": portfolio.id
-        }), 200
+            # Report success statistics
+            price_success_rate = (securities_with_prices / len(valid_rows)) * 100 if valid_rows else 0
 
-    except Exception as e:
-        print(f"Error creating portfolio: {str(e)}")
-        if 'db' in locals():
-            db.session.rollback()
-        return jsonify({"message": f"Error creating portfolio: {str(e)}"}), 500
+            return jsonify({
+                "message": f"Portfolio created successfully with {len(valid_rows)} securities.",
+                "stats": {
+                    "securities_added": len(valid_rows),
+                    "securities_with_prices": securities_with_prices,
+                    "price_success_rate": f"{price_success_rate:.1f}%"
+                },
+                "portfolio_id": portfolio.id
+            }), 200
+
+        except Exception as e:
+            print(f"Error creating portfolio: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            if 'db' in locals():
+                db.session.rollback()
+            return jsonify({"message": f"Error creating portfolio: {str(e)}"}), 500
+
+    except Exception as token_error:  # This is the missing block!
+        print(f"Token refresh error: {str(token_error)}")
+        return jsonify({"message": "Authentication error. Please log in again."}), 401
 
 
 @auth_blueprint.route('/portfolio/<int:portfolio_id>/update', methods=['POST'])
