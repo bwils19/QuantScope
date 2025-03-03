@@ -257,14 +257,16 @@ def login():
                 'access_token_cookie',
                 access_token,
                 httponly=True,
-                secure=True,  # Require HTTPS
+                # secure=True,  # Require HTTPS
+                secure=False,
                 samesite='Lax',
                 max_age=7200  # will log out after 2 hours
             )
             response.set_cookie(
                 'csrf_access_token',
                 csrf_token,
-                secure=True,
+                # secure=True,
+                secure=False,
                 samesite='Lax',
                 max_age=7200
             )
