@@ -178,7 +178,8 @@ class SecurityMetadata(db.Model):
 class RiskAnalysisCache(db.Model):
     __tablename__ = 'risk_analysis_cache'
 
-    id = db.Column(db.Integer, primary_key=True)
+    # Change how ID is defined to better handle sequence issues
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'), unique=True)
     cache_data = db.Column(db.JSON)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -189,26 +190,40 @@ class RiskAnalysisCache(db.Model):
 
     @classmethod
     def get_cache(cls, portfolio_id: int) -> Optional[Dict]:
-        cache = cls.query.filter_by(portfolio_id=portfolio_id).first()
-        if not cache or cache.expires_at < datetime.utcnow():
+        try:
+            cache = cls.query.filter_by(portfolio_id=portfolio_id).first()
+            if not cache or cache.expires_at < datetime.utcnow():
+                return None
+            return cache.cache_data
+        except Exception as e:
+            print(f"Error retrieving cache: {str(e)}")
             return None
-        return cache.cache_data
 
     @classmethod
     def set_cache(cls, portfolio_id: int, data: Dict, ttl: timedelta = None):
         ttl = ttl or timedelta(hours=24)
-        cache = cls.query.filter_by(portfolio_id=portfolio_id).first()
-        if cache:
-            cache.cache_data = data
-            cache.expires_at = datetime.utcnow() + ttl
-        else:
-            cache = cls(
-                portfolio_id=portfolio_id,
-                cache_data=data,
-                expires_at=datetime.utcnow() + ttl
-            )
-            db.session.add(cache)
-        db.session.commit()
+        try:
+            # Try to update existing record first
+            cache = cls.query.filter_by(portfolio_id=portfolio_id).first()
+
+            if cache:
+                cache.cache_data = data
+                cache.expires_at = datetime.utcnow() + ttl
+                cache.created_at = datetime.utcnow()
+            else:
+                # Create new record
+                cache = cls(
+                    portfolio_id=portfolio_id,
+                    cache_data=data,
+                    expires_at=datetime.utcnow() + ttl
+                )
+                db.session.add(cache)
+
+            db.session.commit()
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error setting cache: {str(e)}")
 
 
 class StressScenario(db.Model):

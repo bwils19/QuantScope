@@ -72,9 +72,11 @@ def get_portfolio_risk(portfolio_id):
             'cached': False
         }
 
-        # Cache the results
-        print("Caching new risk analysis results")
-        RiskAnalysisCache.set_cache(portfolio_id, response_data)
+        try:
+            RiskAnalysisCache.set_cache(portfolio_id, response_data)
+        except Exception as cache_error:
+            print(f"Warning: Failed to cache risk analysis: {str(cache_error)}")
+            # Continue without caching
 
         return jsonify(response_data)
 
