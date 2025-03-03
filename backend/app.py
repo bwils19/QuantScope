@@ -29,7 +29,18 @@ def create_app(test_config=None):
         app.config['UPLOAD_FOLDER'] = upload_folder
 
         basedir = os.path.abspath(os.path.dirname(__file__))
-        app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(basedir, 'instance', 'users.db')}"
+
+        database_url = os.getenv('DATABASE_URL')
+        if database_url:
+            # If using PostgreSQL, ensure URL has correct format for SQLAlchemy
+            if database_url.startswith('postgres://'):
+                database_url = database_url.replace('postgres://', 'postgresql://')
+            app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+        else:
+            basedir = os.path.abspath(os.path.dirname(__file__))
+            app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(basedir, 'instance', 'users.db')}"
+
+        #app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(basedir, 'instance', 'users.db')}"
         app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
         app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
         app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')
