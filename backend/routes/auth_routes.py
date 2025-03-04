@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import time
 
 import requests
+import sqlalchemy
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, make_response, current_app, send_file
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity, verify_jwt_in_request, \
     set_access_cookies
@@ -1650,13 +1651,37 @@ def add_to_watchlist():
             exchange=exchange
         )
 
-        db.session.add(watchlist_item)
-        db.session.commit()
+        try:
+            db.session.add(watchlist_item)
+            db.session.commit()
+            return jsonify({
+                "message": "Added to watchlist successfully",
+                "id": watchlist_item.id
+            }), 201
+        except Exception as db_error:
+            db.session.rollback()
+            print(f"Database error adding to watchlist: {str(db_error)}")
 
-        return jsonify({
-            "message": "Added to watchlist successfully",
-            "id": watchlist_item.id
-        }), 201
+            # If there's a unique constraint violation on ID, try regenerating the ID
+            if isinstance(db_error, sqlalchemy.exc.IntegrityError) and "watchlists_pkey" in str(db_error):
+                result = db.session.execute("SELECT nextval('watchlists_id_seq')")
+                next_id = result.scalar()
+
+                # Try again with the next ID
+                watchlist_item = Watchlist(
+                    id=next_id + 1,
+                    user_id=user.id,
+                    ticker=ticker,
+                    name=name,
+                    exchange=exchange
+                )
+                db.session.add(watchlist_item)
+                db.session.commit()
+                return jsonify({
+                    "message": "Added to watchlist successfully (with ID recovery)",
+                    "id": watchlist_item.id
+                }), 201
+            raise
 
     except Exception as e:
         print(f"Error adding to watchlist: {e}")
