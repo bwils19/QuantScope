@@ -1642,8 +1642,9 @@ def add_to_watchlist():
         # Check if already in watchlist
         existing = Watchlist.query.filter_by(user_id=user.id, ticker=ticker).first()
         if existing:
-            return jsonify({"message": "Security already in watchlist"}), 400
+            return jsonify({"message": "Security already in watchlist", "id": existing.id}), 200
 
+        # Try a simpler approach without specifying ID
         watchlist_item = Watchlist(
             user_id=user.id,
             ticker=ticker,
@@ -1654,34 +1655,45 @@ def add_to_watchlist():
         try:
             db.session.add(watchlist_item)
             db.session.commit()
+
             return jsonify({
                 "message": "Added to watchlist successfully",
                 "id": watchlist_item.id
             }), 201
+
         except Exception as db_error:
             db.session.rollback()
             print(f"Database error adding to watchlist: {str(db_error)}")
 
-            # If there's a unique constraint violation on ID, try regenerating the ID
-            if isinstance(db_error, sqlalchemy.exc.IntegrityError) and "watchlists_pkey" in str(db_error):
-                result = db.session.execute("SELECT nextval('watchlists_id_seq')")
-                next_id = result.scalar()
+            raw_sql = """
+            INSERT INTO watchlists (user_id, ticker, name, exchange, added_at)
+            VALUES (:user_id, :ticker, :name, :exchange, :added_at)
+            RETURNING id
+            """
 
-                # Try again with the next ID
-                watchlist_item = Watchlist(
-                    id=next_id + 1,
-                    user_id=user.id,
-                    ticker=ticker,
-                    name=name,
-                    exchange=exchange
+            try:
+                result = db.session.execute(
+                    db.text(raw_sql),
+                    {
+                        'user_id': user.id,
+                        'ticker': ticker,
+                        'name': name,
+                        'exchange': exchange,
+                        'added_at': datetime.utcnow()
+                    }
                 )
-                db.session.add(watchlist_item)
+                new_id = result.scalar()
                 db.session.commit()
+
                 return jsonify({
-                    "message": "Added to watchlist successfully (with ID recovery)",
-                    "id": watchlist_item.id
+                    "message": "Added to watchlist successfully (fallback method)",
+                    "id": new_id
                 }), 201
-            raise
+
+            except Exception as fallback_error:
+                db.session.rollback()
+                print(f"Fallback error: {str(fallback_error)}")
+                raise
 
     except Exception as e:
         print(f"Error adding to watchlist: {e}")
