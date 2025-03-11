@@ -9,7 +9,7 @@ import requests
 
 def fetch_historical_prices(ticker: str) -> List[Tuple[date, float]]:
     """
-    Fetch historical price data from our database, with API fallback for recent data
+    Fetch historical price data from the database, with API fallback for recent data
     """
     print(f"Starting fetch for {ticker}")
     try:
