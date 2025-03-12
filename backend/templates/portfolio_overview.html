@@ -119,6 +119,9 @@
                   </span>
                 </div>
               </div>
+                <div class="portfolio-footer">
+                    <div class="portfolio-timestamp">Last Updated: {{ portfolio.updated_at.strftime('%Y-%m-%d %H:%M:%S') if portfolio.updated_at else 'Never' }}</div>
+                </div>
             </div>
           {% endfor %}
         {% endif %}

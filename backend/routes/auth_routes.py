@@ -1252,11 +1252,21 @@ def update_portfolio_prices(portfolio_id):
         result = price_service.update_prices_for_portfolio(portfolio_id)
 
         if result.get('success', False):
+            # Format the timestamp nicely for display
+            timestamp = None
+            if 'timestamp' in result:
+                try:
+                    dt = datetime.fromisoformat(result['timestamp'])
+                    timestamp = dt.strftime('%Y-%m-%d %H:%M:%S')
+                except (ValueError, TypeError):
+                    timestamp = result['timestamp']
+
             return jsonify({
                 "message": "Price update completed successfully",
                 "updated_count": result.get('updated_count', 0),
                 "tickers_updated": result.get('tickers_updated', []),
-                "timestamp": result.get('timestamp', None)
+                "timestamp": timestamp,
+                "portfolio_id": portfolio_id
             }), 200
         else:
             return jsonify({
@@ -1265,6 +1275,7 @@ def update_portfolio_prices(portfolio_id):
             }), 500
 
     except Exception as e:
+        print(f"Error updating prices: {str(e)}")
         return jsonify({"message": f"Error updating prices: {str(e)}"}), 500
 
 
@@ -1284,11 +1295,21 @@ def update_all_prices():
         result = price_service.update_all_portfolio_prices()
 
         if result.get('success', False):
+            # Format the timestamp nicely for display
+            timestamp = None
+            if 'timestamp' in result:
+                try:
+                    dt = datetime.fromisoformat(result['timestamp'])
+                    timestamp = dt.strftime('%Y-%m-%d %H:%M:%S')
+                except (ValueError, TypeError):
+                    timestamp = result['timestamp']
+
             return jsonify({
                 "message": "Price update for all portfolios completed successfully",
                 "updated_count": result.get('updated_count', 0),
                 "tickers_updated": result.get('tickers_updated', []),
-                "elapsed_time": result.get('elapsed_time', 0)
+                "elapsed_time": result.get('elapsed_time', 0),
+                "timestamp": timestamp
             }), 200
         else:
             return jsonify({
@@ -1297,6 +1318,7 @@ def update_all_prices():
             }), 500
 
     except Exception as e:
+        print(f"Error updating prices: {str(e)}")
         return jsonify({"message": f"Error updating prices: {str(e)}"}), 500
 
 

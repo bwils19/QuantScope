@@ -1695,10 +1695,15 @@ function refreshPrices(portfolioId = null) {
             // Hide loading indicator
             loadingToast.hide();
 
+            // Update the timestamp in the UI
+            if (data.timestamp) {
+                updateLastRefreshTimestamp(data.timestamp, data.portfolio_id);
+            }
+
             // Show success message
             showToast(`Successfully updated ${data.updated_count} securities`, 'success');
 
-            // Reload page to display updated prices
+            // Wait a moment to let the user see the update
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
@@ -1736,6 +1741,28 @@ function refreshPrices(portfolioId = null) {
             });
         }
     });
+}
+
+// Helper function to update timestamp elements
+function updateLastRefreshTimestamp(timestamp, portfolioId) {
+    if (portfolioId) {
+        // Update timestamp for specific portfolio
+        const timestampElement = document.querySelector(`.portfolio-item[data-id="${portfolioId}"] .portfolio-timestamp`);
+        if (timestampElement) {
+            timestampElement.textContent = `Last Updated: ${timestamp}`;
+        }
+    } else {
+        // Update global timestamp
+        const pageTimestamp = document.getElementById('pageTimestamp');
+        if (pageTimestamp) {
+            pageTimestamp.textContent = `Data as of: ${timestamp}`;
+        }
+
+        // Also update all individual portfolio timestamps
+        document.querySelectorAll('.portfolio-timestamp').forEach(element => {
+            element.textContent = `Last Updated: ${timestamp}`;
+        });
+    }
 }
 
 // Helper function to show toast notifications
