@@ -1,0 +1,33 @@
+__pycache__/
+API_testing/data/
+API_testing/logs/
+
+# Sensitive configuration files
+import_data.py
+setup_postgres.py
+
+# Data export files
+*_data.json
+
+*.pyc
+
+# Ignore environment files
+.env
+API_testing/.env
+
+# Ignore logs
+*.log
+
+# Ignore database files (if SQLite)
+*.db
+
+# Ignore node_modules (for frontend)
+frontend/node_modules/
+
+# Ignore build files
+frontend/build/
+frontend/dist/
+
+# Ignore system files
+.DS_Store
+Thumbs.db

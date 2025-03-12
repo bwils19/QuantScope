@@ -1627,6 +1627,259 @@ async function deleteSecurity(securityId) {
     }
 }
 
+function refreshPrices(portfolioId = null) {
+    // Show loading indicator
+    const loadingToast = showToast('Refreshing prices...', 'info');
+
+    // Update UI to show loading state
+    if (portfolioId) {
+        // Find and update the specific portfolio refresh button
+        const refreshBtn = document.querySelector(`.refresh-portfolio-btn[data-id="${portfolioId}"]`);
+        if (refreshBtn) {
+            refreshBtn.classList.add('loading');
+            refreshBtn.disabled = true;
+        }
+    } else {
+        // Global refresh - update all buttons
+        const globalRefreshBtn = document.getElementById('refreshAllPricesBtn');
+        if (globalRefreshBtn) {
+            globalRefreshBtn.classList.add('loading');
+            globalRefreshBtn.disabled = true;
+        }
+
+        // Disable all individual refresh buttons
+        document.querySelectorAll('.refresh-portfolio-btn').forEach(btn => {
+            btn.classList.add('loading');
+            btn.disabled = true;
+        });
+    }
+
+    // Determine the endpoint - refresh all or just one portfolio
+    const endpoint = portfolioId
+        ? `/auth/portfolio/${portfolioId}/update-prices`
+        : '/auth/update-all-prices';
+
+    // Get CSRF token
+    const csrfToken = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('csrf_access_token='))
+        ?.split('=')[1];
+
+    // Make the request
+    fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken
+        },
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) {
+            if (response.status === 401) {
+                // Session expired
+                showToast('Your session has expired. Please log in again.', 'error');
+                setTimeout(() => {
+                    window.location.href = '/auth/login';
+                }, 2000);
+                return null;
+            }
+            return response.json().then(data => {
+                throw new Error(data.message || 'Failed to refresh prices');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data) {
+            // Hide loading indicator
+            loadingToast.hide();
+
+            // Show success message
+            showToast(`Successfully updated ${data.updated_count} securities`, 'success');
+
+            // Reload page to display updated prices
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        }
+    })
+    .catch(error => {
+        // Hide loading indicator
+        loadingToast.hide();
+
+        // Show error
+        showToast(`Error: ${error.message}`, 'error');
+        console.error('Price refresh error:', error);
+    })
+    .finally(() => {
+        // Reset UI state regardless of outcome
+        if (portfolioId) {
+            // Reset specific portfolio button
+            const refreshBtn = document.querySelector(`.refresh-portfolio-btn[data-id="${portfolioId}"]`);
+            if (refreshBtn) {
+                refreshBtn.classList.remove('loading');
+                refreshBtn.disabled = false;
+            }
+        } else {
+            // Reset global refresh button
+            const globalRefreshBtn = document.getElementById('refreshAllPricesBtn');
+            if (globalRefreshBtn) {
+                globalRefreshBtn.classList.remove('loading');
+                globalRefreshBtn.disabled = false;
+            }
+
+            // Reset all individual portfolio buttons
+            document.querySelectorAll('.refresh-portfolio-btn').forEach(btn => {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+            });
+        }
+    });
+}
+
+// Helper function to show toast notifications
+function showToast(message, type = 'info') {
+    // Check if we need to create the toast container
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container';
+        document.body.appendChild(toastContainer);
+
+        // Add some basic styling if not already added
+        if (!document.querySelector('#toast-styles')) {
+            const style = document.createElement('style');
+            style.id = 'toast-styles';
+            style.textContent = `
+            .toast-container {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 1000;
+                max-width: 300px;
+            }
+            
+            .toast {
+                background-color: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                padding: 16px;
+                margin-bottom: 10px;
+                transition: all 0.3s ease;
+                opacity: 0;
+                transform: translateY(-10px);
+                display: flex;
+                align-items: center;
+            }
+            
+            .toast.show {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            
+            .toast.info {
+                border-left: 4px solid #3498db;
+            }
+            
+            .toast.success {
+                border-left: 4px solid #2ecc71;
+            }
+            
+            .toast.error {
+                border-left: 4px solid #e74c3c;
+            }
+            
+            .toast-message {
+                flex-grow: 1;
+                font-size: 14px;
+                color: #333;
+            }
+            
+            .toast-progress {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                height: 3px;
+                width: 100%;
+                background-color: rgba(0, 0, 0, 0.1);
+            }
+            
+            .toast-progress-bar {
+                height: 100%;
+                width: 100%;
+                transform-origin: left;
+                animation: progress 5s linear forwards;
+            }
+            
+            .toast.info .toast-progress-bar {
+                background-color: #3498db;
+            }
+            
+            .toast.success .toast-progress-bar {
+                background-color: #2ecc71;
+            }
+            
+            .toast.error .toast-progress-bar {
+                background-color: #e74c3c;
+            }
+            
+            @keyframes progress {
+                0% {
+                    transform: scaleX(1);
+                }
+                100% {
+                    transform: scaleX(0);
+                }
+            }`;
+            document.head.appendChild(style);
+        }
+    }
+
+    // Create the toast element
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    // Create the toast content
+    toast.innerHTML = `
+        <div class="toast-message">${message}</div>
+        <div class="toast-progress">
+            <div class="toast-progress-bar"></div>
+        </div>
+    `;
+
+    // Add the toast to the container
+    toastContainer.appendChild(toast);
+
+    // Show the toast (after a small delay to allow for animation)
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+
+    // Remove after 5 seconds (matches the CSS animation)
+    const timeout = setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300); // Wait for fade out animation
+    }, 5000);
+
+    // Return an object that allows hiding the toast programmatically
+    return {
+        hide: () => {
+            clearTimeout(timeout);
+            toast.classList.remove('show');
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }
+    };
+}
+
 async function savePortfolioChanges() {
     try {
         const changes = {

@@ -239,6 +239,28 @@ datalist option {
     margin-bottom: 20px; /* Adds spacing below the header */
 }
 
+.portfolio-header .refresh-btn {
+    background-color: #212830;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.3s ease;
+    font-size: 14px;
+}
+
+.portfolio-header .refresh-btn:hover {
+    background-color: #6C7D93;
+}
+
+.portfolio-header .refresh-btn .fa-sync-alt {
+    font-size: 14px;
+}
+
 .new-portfolio-btn {
     padding: 10px 20px;
     background-color: #212830;
@@ -264,6 +286,42 @@ datalist option {
 
 .new-portfolio-btn:hover {
     background-color: #6C7D93;
+}
+
+.refresh-portfolio-btn {
+    background: none;
+    border: none;
+    color: #6C7D93;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.refresh-portfolio-btn:hover {
+    background-color: #f4f4f4;
+    color: #2c3e50;
+}
+
+.refresh-portfolio-btn .fa-sync-alt {
+    font-size: 14px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.refresh-portfolio-btn.loading .fa-sync-alt,
+.refresh-btn.loading .fa-sync-alt {
+    animation: spin 1s linear infinite;
+}
+
+/* Disabled state for buttons */
+.refresh-btn:disabled,
+.refresh-portfolio-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .page-title {

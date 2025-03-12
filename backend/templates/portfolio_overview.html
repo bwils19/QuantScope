@@ -6,6 +6,10 @@
     <div class="portfolio-header">
       <h3 class="page-title">Portfolio Dashboard</h3>
     </div>
+<!--      Added this button - might hate it-->
+      <button id="refreshAllPricesBtn" class="refresh-btn">
+            <i class="fas fa-sync-alt"></i> Refresh All Prices
+        </button>
 
     <div class="dashboard-card">
       <div class="dashboard-stat">
@@ -53,11 +57,15 @@
               <div class="portfolio-item-header">
                 <h4>{{ portfolio.name }}</h4>
                   <div class="header-actions">
+                  <button class="refresh-portfolio-btn" data-id="{{ portfolio.id }}" title="Refresh portfolio prices">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
                 <button
                   class="risk-analysis-btn"
                   onclick="location.href='{{ url_for('auth.risk_analysis_page', portfolio_id=portfolio.id) }}'">
                   <i class="fas fa-chart-line"></i> Risk Analysis
                 </button>
+
 
                 <div class="portfolio-dropdown-container">
                   <button class="portfolio-dropdown-toggle">
@@ -386,5 +394,25 @@
 {% endif %}
 
 <script src="{{ url_for('static', filename='js/portfolio_overview.js') }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Global price refresh button
+        const refreshAllBtn = document.getElementById('refreshAllPricesBtn');
+        if (refreshAllBtn) {
+            refreshAllBtn.addEventListener('click', function() {
+                refreshPrices(); // Call the function without portfolio ID to refresh all
+            });
+        }
+
+        // Individual portfolio refresh buttons
+        document.querySelectorAll('.refresh-portfolio-btn').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.stopPropagation(); // Prevent event bubbling
+                const portfolioId = this.getAttribute('data-id');
+                refreshPrices(portfolioId);
+            });
+        });
+    });
+</script>
 </body>
 {% endblock %}

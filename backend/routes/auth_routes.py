@@ -23,6 +23,8 @@ from sqlalchemy.orm import Session
 import os
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+
+from backend.services.price_update_service import PriceUpdateService
 from backend.tasks import is_market_open
 from backend.utils.file_handlers import parse_portfolio_file, format_preview_data
 from backend.services.cache_service import invalidate_user_cache
@@ -1228,6 +1230,74 @@ def update_portfolio(portfolio_id):
         print(f"Error in update_portfolio: {str(e)}")
         db.session.rollback()
         return jsonify({"message": f"Failed to update portfolio: {str(e)}"}), 500
+
+
+@auth_blueprint.route('/portfolio/<int:portfolio_id>/update-prices', methods=['POST'])
+@jwt_required(locations=["cookies"])
+def update_portfolio_prices(portfolio_id):
+    """Manually trigger a price update for a specific portfolio"""
+    try:
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        portfolio = Portfolio.query.filter_by(id=portfolio_id, user_id=user.id).first()
+        if not portfolio:
+            return jsonify({"message": "Portfolio not found"}), 404
+
+        # Use the price update service
+        price_service = PriceUpdateService()
+        result = price_service.update_prices_for_portfolio(portfolio_id)
+
+        if result.get('success', False):
+            return jsonify({
+                "message": "Price update completed successfully",
+                "updated_count": result.get('updated_count', 0),
+                "tickers_updated": result.get('tickers_updated', []),
+                "timestamp": result.get('timestamp', None)
+            }), 200
+        else:
+            return jsonify({
+                "message": "Price update failed",
+                "error": result.get('error', 'Unknown error')
+            }), 500
+
+    except Exception as e:
+        return jsonify({"message": f"Error updating prices: {str(e)}"}), 500
+
+
+@auth_blueprint.route('/update-all-prices', methods=['POST'])
+@jwt_required(locations=["cookies"])
+def update_all_prices():
+    """Manually trigger a price update for all portfolios"""
+    try:
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        # Use the price update service
+        price_service = PriceUpdateService()
+        result = price_service.update_all_portfolio_prices()
+
+        if result.get('success', False):
+            return jsonify({
+                "message": "Price update for all portfolios completed successfully",
+                "updated_count": result.get('updated_count', 0),
+                "tickers_updated": result.get('tickers_updated', []),
+                "elapsed_time": result.get('elapsed_time', 0)
+            }), 200
+        else:
+            return jsonify({
+                "message": "Price update failed",
+                "error": result.get('error', 'Unknown error')
+            }), 500
+
+    except Exception as e:
+        return jsonify({"message": f"Error updating prices: {str(e)}"}), 500
 
 
 @auth_blueprint.route('/portfolio/<int:portfolio_id>/rename', methods=['POST'])
