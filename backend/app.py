@@ -134,8 +134,15 @@ def create_app(test_config=None):
 
     # Initialize scheduler if not in debug mode
     if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
-        scheduler = init_scheduler(app)
-        app.scheduler = scheduler
+        try:
+            scheduler = init_scheduler(app)
+            if scheduler:  # Only set if initialization succeeded
+                app.scheduler = scheduler
+                app.logger.info("Scheduler initialized successfully")
+            else:
+                app.logger.warning("Scheduler could not be initialized, continuing without it")
+        except Exception as e:
+            app.logger.error(f"Failed to initialize scheduler: {e}")
 
     # Run stress scenarios data population with detailed logging
     # with app.app_context():

@@ -112,17 +112,18 @@ def init_scheduler(app):
             # Continue without scheduler rather than crashing the app
             return None
 
-        # Register a teardown to handle app shutdown
         def shutdown_scheduler(exception=None):
             try:
-                scheduler.shutdown()
-                app.logger.info("Scheduler shut down")
+                # Only shut down if the scheduler exists and is running
+                if scheduler and scheduler.running:
+                    scheduler.shutdown()
+                    app.logger.info("Scheduler shut down")
             except Exception as e:
                 app.logger.error(f"Error shutting down scheduler: {e}")
 
-        app.teardown_appcontext(shutdown_scheduler)
+            app.teardown_appcontext(shutdown_scheduler)
 
-        return scheduler
+            return scheduler
     except Exception as e:
         app.logger.error(f"Error initializing scheduler: {e}")
         # Return None instead of crashing

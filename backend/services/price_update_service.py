@@ -90,7 +90,7 @@ class PriceUpdateService:
 
                 # Update prices in batches
                 self.logger.info(f"Starting ticker price updates...")
-                update_stats = self.update_prices_for_tickers(tickers, session)
+                update_stats = self.update_prices_for_tickers(tickers, session, is_weekend=is_weekend)
 
                 if not update_stats.get('success', False):
                     self.logger.error(f"Failed to update ticker prices: {update_stats.get('error', 'Unknown error')}")
@@ -291,24 +291,17 @@ class PriceUpdateService:
         return results
 
     def update_prices_for_tickers(self, tickers: List[str], session=None, is_weekend=None) -> Dict[str, Any]:
-        """Update prices for a list of tickers, respecting API rate limits.
-        Args:
-            tickers: List of tickers to update
-            session: Optional database session to use
-            is_weekend: Override to force weekend mode (None = auto-detect)
-        Returns:
-            Dict with update statistics
-        """
+        """Update prices for a list of tickers, respecting API rate limits."""
         if not tickers:
             self.logger.warning("No tickers provided to update_prices_for_tickers")
             return {'success': True, 'updated_count': 0, 'failed_count': 0, 'tickers_updated': []}
 
         # Auto-detect weekend if not specified
         if is_weekend is None:
-            is_weekend = datetime.now().weekday() >= 5
+            is_weekend = datetime.now().weekday() >= 5  # 5=Saturday, 6=Sunday
 
-        mode_msg = "WEEKEND MODE" if is_weekend else "MARKET HOURS MODE"
-        self.logger.info(f"Updating prices for {len(tickers)} tickers ({mode_msg})")
+        self.logger.info(
+            f"Updating prices for {len(tickers)} tickers ({'WEEKEND MODE' if is_weekend else 'REGULAR MODE'})")
 
         # Use provided session or create a new one
         use_provided_session = session is not None
@@ -323,122 +316,84 @@ class PriceUpdateService:
             cache_time = time.time() - start_time
             self.logger.info(f"Found {len(cached_tickers)} tickers in cache (in {cache_time:.2f}s)")
 
+            # Determine which tickers need to be updated
+            tickers_to_update = []
             updated_data = {}
-            failed_tickers = []
 
-            # Special handling for weekend mode
+            # For weekend mode, try to get historical data first
             if is_weekend:
-                self.logger.info("Weekend mode: Prioritizing Friday's closing prices")
-
-                # Import here to avoid circular imports
+                self.logger.info("Weekend mode: Looking for Friday prices in historical data")
                 from backend.models import SecurityHistoricalData
 
-                # Calculate the most recent trading day (Friday for weekends)
+                # Find most recent Friday
                 today = datetime.now().date()
-                days_since_friday = today.weekday() - 4 if today.weekday() > 4 else 0  # Friday is 4
-                last_trading_day = today - timedelta(days=days_since_friday)
+                days_since_friday = today.weekday() - 4 if today.weekday() > 4 else 3  # Friday is 4
+                last_friday = today - timedelta(days=days_since_friday)
+                self.logger.info(f"Using prices from most recent trading day: {last_friday}")
 
-                self.logger.info(f"Using prices from last trading day: {last_trading_day}")
-
-                try:
-                    # Get historical closing prices for all tickers in one batch query
-                    historical_records = session.query(
-                        SecurityHistoricalData.ticker,
-                        SecurityHistoricalData.close_price,
-                        SecurityHistoricalData.date,
-                        func.row_number().over(
-                            partition_by=SecurityHistoricalData.ticker,
-                            order_by=SecurityHistoricalData.date.desc()
-                        ).label('row_num')
-                    ).filter(
-                        SecurityHistoricalData.ticker.in_(tickers),
-                        SecurityHistoricalData.date <= last_trading_day
-                    ).subquery()
-
-                    latest_prices = session.query(
-                        historical_records
-                    ).filter(
-                        historical_records.c.row_num == 1
-                    ).all()
-
-                    # Get previous day prices for each ticker to calculate day change
-                    previous_day_records = {}
-                    for record in latest_prices:
-                        ticker = record.ticker
-                        current_date = record.date
-
-                        prev_record = session.query(SecurityHistoricalData).filter(
+                # Get historical data for all tickers on or before Friday
+                for ticker in tickers:
+                    try:
+                        # Find the most recent historical price
+                        historical_data = session.query(SecurityHistoricalData) \
+                            .filter(
                             SecurityHistoricalData.ticker == ticker,
-                            SecurityHistoricalData.date < current_date
-                        ).order_by(SecurityHistoricalData.date.desc()).first()
+                            SecurityHistoricalData.date <= last_friday
+                        ) \
+                            .order_by(SecurityHistoricalData.date.desc()) \
+                            .first()
 
-                        if prev_record:
-                            previous_day_records[ticker] = prev_record
+                        if historical_data and historical_data.close_price > 0:
+                            # Get previous day for day change calculation
+                            prev_day = session.query(SecurityHistoricalData) \
+                                .filter(
+                                SecurityHistoricalData.ticker == ticker,
+                                SecurityHistoricalData.date < historical_data.date
+                            ) \
+                                .order_by(SecurityHistoricalData.date.desc()) \
+                                .first()
 
-                    # Convert to our price data format and update cache
-                    for record in latest_prices:
-                        ticker = record.ticker
-                        current_price = float(record.close_price) if record.close_price else 0
+                            price = float(historical_data.close_price)
+                            prev_price = float(prev_day.close_price) if prev_day and prev_day.close_price else price
 
-                        # Skip invalid prices
-                        if current_price <= 0:
-                            self.logger.warning(f"Historical price for {ticker} is invalid: {current_price}")
-                            continue
+                            # Create price data dictionary
+                            price_data = {
+                                'currentPrice': price,
+                                'previousClose': prev_price,
+                                'changePercent': ((price - prev_price) / prev_price * 100) if prev_price > 0 else 0,
+                                'timestamp': datetime.now().isoformat(),
+                                'source': 'historical',
+                                'date': historical_data.date.isoformat()
+                            }
 
-                        # Get previous close for day change calculation
-                        prev_record = previous_day_records.get(ticker)
-                        prev_close = float(
-                            prev_record.close_price) if prev_record and prev_record.close_price else current_price
-
-                        # Calculate day change percentage
-                        if prev_close > 0:
-                            change_pct = ((current_price - prev_close) / prev_close) * 100
+                            # Update cache and data
+                            self._update_stock_cache(ticker, price_data, session)
+                            updated_data[ticker] = price_data
+                            self.logger.debug(
+                                f"Using historical price for {ticker}: ${price} from {historical_data.date}")
                         else:
-                            change_pct = 0
+                            # Need to update from API
+                            tickers_to_update.append(ticker)
+                    except Exception as e:
+                        self.logger.error(f"Error getting historical price for {ticker}: {str(e)}")
+                        tickers_to_update.append(ticker)
 
-                        # Create price data record
-                        price_data = {
-                            'currentPrice': current_price,
-                            'previousClose': prev_close,
-                            'changePercent': change_pct,
-                            'timestamp': datetime.now().isoformat(),
-                            'historicalDate': record.date.isoformat() if record.date else None,
-                            'isHistorical': True
-                        }
+                self.logger.info(f"Found historical prices for {len(updated_data)}/{len(tickers)} tickers")
+                self.logger.info(f"Need to update {len(tickers_to_update)} tickers from API")
 
-                        # Update cache and our local update data
-                        self._update_stock_cache(ticker, price_data, session)
-                        updated_data[ticker] = price_data
-
-                    self.logger.info(f"Found historical prices for {len(updated_data)}/{len(tickers)} tickers")
-
-                    # Only try API for remaining tickers (those missing historical data)
-                    tickers_to_update = [t for t in tickers if t not in updated_data]
-
-                    if cached_tickers:
-                        # Add valid cached data to updated_data
-                        for ticker, cache_data in cached_tickers.items():
-                            if ticker not in updated_data and 'currentPrice' in cache_data and cache_data[
-                                'currentPrice'] > 0:
-                                updated_data[ticker] = cache_data
-
-                        # Recalculate tickers to update
-                        tickers_to_update = [t for t in tickers if t not in updated_data]
-
-                    self.logger.info(f"Still need to update {len(tickers_to_update)} tickers from API")
-
-                except Exception as e:
-                    self.logger.error(f"Error fetching historical prices: {str(e)}", exc_info=True)
-                    # Fall back to regular cache/API update logic
-                    tickers_to_update = [t for t in tickers if
-                                         t not in cached_tickers or self._needs_update(cached_tickers.get(t))]
             else:
-                # Regular market hours logic - use cache and API as normal
+                # Normal weekday mode - use cache expiry logic
                 tickers_to_update = [t for t in tickers if
                                      t not in cached_tickers or self._needs_update(cached_tickers.get(t))]
                 self.logger.info(f"Need to update {len(tickers_to_update)} tickers from API")
 
-            # Update remaining tickers from API in batches within rate limit
+            # The rest of your existing function remains largely the same
+            # Fetch data from API in batches for tickers_to_update
+            # ...
+
+            # This part should be unchanged from your original function
+            failed_tickers = []
+
             if tickers_to_update:
                 # Process in batches to respect rate limit
                 for i in range(0, len(tickers_to_update), self.rate_limit):
@@ -456,7 +411,7 @@ class PriceUpdateService:
                             ticker = futures[future]
                             try:
                                 result = future.result()
-                                if result and 'currentPrice' in result and result['currentPrice'] > 0:
+                                if result:
                                     updated_data[ticker] = result
                                     self.logger.debug(f"Got price for {ticker}: ${result.get('currentPrice', 'N/A')}")
                                 else:
@@ -475,23 +430,17 @@ class PriceUpdateService:
                         self.logger.info("Waiting for rate limit before next batch...")
                         time.sleep(60)  # Wait a minute before the next batch
             else:
-                self.logger.info("All prices are up to date, no API calls needed")
+                self.logger.info("All prices are up to date in cache, no API calls needed")
 
-            # For any failed tickers, try to fall back to cached data
+            # For any failed tickers, try to use cached data
             for ticker in failed_tickers[:]:
                 if ticker in cached_tickers:
-                    cache_data = cached_tickers[ticker]
-                    if 'currentPrice' in cache_data and cache_data['currentPrice'] > 0:
-                        self.logger.info(f"Using cached price for {ticker} as fallback")
-                        updated_data[ticker] = cache_data
-                        failed_tickers.remove(ticker)
+                    self.logger.info(f"Using cached data for failed ticker {ticker}")
+                    updated_data[ticker] = cached_tickers[ticker]
+                    failed_tickers.remove(ticker)
 
-            # Merge with cached data for any tickers not yet covered
-            all_price_data = updated_data.copy()
-            for ticker in tickers:
-                if ticker not in all_price_data and ticker in cached_tickers:
-                    all_price_data[ticker] = cached_tickers[ticker]
-
+            # Merge with cached data
+            all_price_data = {**cached_tickers, **updated_data}
             self.logger.info(f"Total price data available: {len(all_price_data)}/{len(tickers)} tickers")
 
             # Update securities with the new prices
@@ -783,11 +732,7 @@ class PriceUpdateService:
             raise
 
     def _update_security_prices(self, security: Security, price_data: Dict[str, Any]) -> None:
-        """Update a security's price and related metrics.
-        Args:
-            security: The security to update
-            price_data: New price data
-        """
+        """Update a security's price and related metrics."""
         if not price_data:
             self.logger.warning(f"No price data provided for {security.ticker}")
             return
@@ -797,20 +742,31 @@ class PriceUpdateService:
             current_price = float(price_data.get('currentPrice', 0))
             prev_close = float(price_data.get('previousClose', current_price))
 
+            # Special handling for zero or negative prices
             if current_price <= 0:
-                self.logger.warning(f"Invalid price for {security.ticker}: {current_price}")
+                self.logger.warning(f"Zero/negative price for {security.ticker}: {current_price}")
 
-                # Try to find a historical price instead
-                latest_historical = self._get_historical_price(security.ticker)
-                if latest_historical and latest_historical > 0:
-                    self.logger.info(f"Using historical price for {security.ticker}: ${latest_historical}")
-                    current_price = latest_historical
-                    # If previous close is also invalid, estimate it using the same price
-                    if prev_close <= 0:
-                        prev_close = current_price
+                # Try to get historical price
+                from backend.models import SecurityHistoricalData
+
+                # Find the most recent historical price
+                historical_data = db.session.query(SecurityHistoricalData) \
+                    .filter(SecurityHistoricalData.ticker == security.ticker) \
+                    .order_by(SecurityHistoricalData.date.desc()) \
+                    .first()
+
+                if historical_data and historical_data.close_price > 0:
+                    self.logger.info(f"Using historical price for {security.ticker}: ${historical_data.close_price}")
+                    current_price = float(historical_data.close_price)
+                    prev_close = current_price  # No day change when using historical data
+                elif security.purchase_price and security.purchase_price > 0:
+                    # Fallback to purchase price
+                    self.logger.info(f"Using purchase price for {security.ticker}: ${security.purchase_price}")
+                    current_price = security.purchase_price
+                    prev_close = current_price  # No day change when using purchase price
                 else:
-                    self.logger.error(f"No valid price found for {security.ticker}, skipping update")
-                    return
+                    self.logger.error(f"Could not find valid price for {security.ticker}")
+                    return  # Skip update if no valid price found
 
             # Store original values for comparison
             old_price = security.current_price
@@ -943,11 +899,7 @@ class PriceUpdateService:
             self.logger.error(f"Failed to update portfolio totals: {str(e)}", exc_info=True)
 
     def _invalidate_risk_cache(self, portfolio_id: int, session=None) -> None:
-        """Invalidate risk analysis cache for a portfolio.
-        Args:
-            portfolio_id: Portfolio ID to invalidate
-            session: Database session to use
-        """
+        """Invalidate risk analysis cache for a portfolio."""
         try:
             # Use provided session or create a new one
             use_provided_session = session is not None
