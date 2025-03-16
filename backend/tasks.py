@@ -39,66 +39,76 @@ def update_portfolio_prices():
 
 def init_scheduler(app):
     """Initialize the task scheduler with optimal schedule for market hours."""
-    scheduler = BackgroundScheduler()
-
-    # Set up price updates during market hours
-    scheduler.add_job(
-        func=update_portfolio_prices,
-        trigger=CronTrigger(
-            day_of_week='mon-fri',  # Weekdays only
-            hour='9,10,11,12,13,14,15,16',  # Every hour during market hours (9:30 AM - 4 PM ET)
-            minute='0,15,30,45',  # Every 15 minutes
-            timezone=pytz.timezone('America/New_York')
-        ),
-        id='update_prices',
-        name='Update security prices during market hours',
-        coalesce=True,
-        max_instances=1
-    )
-
-    # Historical data pull after market close
-    historical_data_service = HistoricalDataService()
-    scheduler.add_job(
-        func=historical_data_service.update_historical_data,
-        trigger=CronTrigger(
-            day_of_week='mon-fri',
-            hour='16',  # Run after market closes
-            minute='30',
-            timezone=pytz.timezone('America/New_York')
-        ),
-        id='update_historical_data',
-        name='Update historical price data',
-        coalesce=True,
-        max_instances=1
-    )
-
-    # Add another job for end-of-day portfolio refresh
-    scheduler.add_job(
-        func=update_portfolio_prices,
-        trigger=CronTrigger(
-            day_of_week='mon-fri',
-            hour='17',  # Run one final update after market closes
-            minute='00',
-            timezone=pytz.timezone('America/New_York')
-        ),
-        id='end_of_day_update',
-        name='End of day portfolio refresh',
-        coalesce=True,
-        max_instances=1
-    )
     try:
-        scheduler.start()
-        app.logger.info("Scheduler started successfully")
-    except Exception as e:
-        app.logger.error(f"Failed to start scheduler: {e}")
+        scheduler = BackgroundScheduler()
+
+        # Set up price updates during market hours
+        scheduler.add_job(
+            func=update_portfolio_prices,
+            trigger=CronTrigger(
+                day_of_week='mon-fri',  # Weekdays only
+                hour='9,10,11,12,13,14,15,16',  # Every hour during market hours (9:30 AM - 4 PM ET)
+                minute='0,15,30,45',  # Every 15 minutes
+                timezone=pytz.timezone('America/New_York')
+            ),
+            id='update_prices',
+            name='Update security prices during market hours',
+            coalesce=True,
+            max_instances=1
+        )
+
+        # Historical data pull after market close
+        historical_data_service = HistoricalDataService()
+        scheduler.add_job(
+            func=historical_data_service.update_historical_data,
+            trigger=CronTrigger(
+                day_of_week='mon-fri',
+                hour='16',  # Run after market closes
+                minute='30',
+                timezone=pytz.timezone('America/New_York')
+            ),
+            id='update_historical_data',
+            name='Update historical price data',
+            coalesce=True,
+            max_instances=1
+        )
+
+        # Add another job for end-of-day portfolio refresh
+        scheduler.add_job(
+            func=update_portfolio_prices,
+            trigger=CronTrigger(
+                day_of_week='mon-fri',
+                hour='17',  # Run one final update after market closes
+                minute='00',
+                timezone=pytz.timezone('America/New_York')
+            ),
+            id='end_of_day_update',
+            name='End of day portfolio refresh',
+            coalesce=True,
+            max_instances=1
+        )
+
+        # Start the scheduler with error handling
+        try:
+            scheduler.start()
+            app.logger.info("Scheduler started successfully")
+        except Exception as e:
+            app.logger.error(f"Failed to start scheduler: {e}")
+            # Continue without scheduler rather than crashing the app
+            return None
 
         # Register a teardown to handle app shutdown
+        def shutdown_scheduler(exception=None):
+            try:
+                scheduler.shutdown()
+                app.logger.info("Scheduler shut down")
+            except Exception as e:
+                app.logger.error(f"Error shutting down scheduler: {e}")
 
-    def shutdown_scheduler(exception=None):
-        scheduler.shutdown()
-        app.logger.info("Scheduler shut down")
+        app.teardown_appcontext(shutdown_scheduler)
 
-    app.teardown_appcontext(shutdown_scheduler)
-
-    scheduler.start()
-    return scheduler
+        return scheduler
+    except Exception as e:
+        app.logger.error(f"Error initializing scheduler: {e}")
+        # Return None instead of crashing
+        return None
