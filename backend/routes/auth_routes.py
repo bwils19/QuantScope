@@ -831,6 +831,8 @@ def get_portfolio_securities(portfolio_id):
         securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
         securities_data = []
 
+        print(f"Processing {len(securities)} securities for portfolio {portfolio_id}")
+
         for s in securities:
             # Get latest close price from historical data
             latest_price_data = (
@@ -839,9 +841,32 @@ def get_portfolio_securities(portfolio_id):
                 .order_by(SecurityHistoricalData.date.desc())
                 .first()
             )
+            previous_day_data = (
+                db.session.query(SecurityHistoricalData)
+                .filter_by(ticker=s.ticker)
+                .order_by(SecurityHistoricalData.date.desc())
+                .offset(1)  # Get the second most recent record
+                .first()
+            )
 
             latest_close = latest_price_data.close_price if latest_price_data else s.current_price
             latest_close_date = latest_price_data.date if latest_price_data else None
+
+            if latest_price_data and previous_day_data:
+                day_change = latest_price_data.close_price - previous_day_data.close_price
+                if previous_day_data.close_price != 0:
+                    day_change_pct = (day_change / previous_day_data.close_price) * 100
+                else:
+                    day_change_pct = 0
+            else:
+                day_change = s.value_change
+                day_change_pct = s.value_change_pct
+
+                # Fallback to API data from Security table if historical data is missing
+            if not latest_close or latest_close == 0:
+                latest_close = s.current_price
+
+            print(f"Security {s.ticker}: latest_close=${latest_close}, day_change=${day_change}")
 
             securities_data.append({
                 'ticker': s.ticker,
@@ -864,9 +889,10 @@ def get_portfolio_securities(portfolio_id):
             'securities': securities_data,
             'latest_update': latest_update.strftime('%Y-%m-%d %H:%M:%S') if latest_update else None
         }), 200
-
     except Exception as e:
         print(f"Error fetching portfolio securities: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return jsonify({"message": "An error occurred while fetching portfolio securities"}), 500
 
 

@@ -96,43 +96,62 @@ class PriceUpdateService:
             }
 
     def update_prices_for_portfolio(self, portfolio_id: int) -> Dict[str, Any]:
-        """Update prices for a specific portfolio.
-
-        Args:
-            portfolio_id: ID of the portfolio to update
-
-        Returns:
-            Dict with update statistics
-        """
-        logger.info(f"Starting price update for portfolio {portfolio_id}")
         try:
-            # Create a new session for this operation
-            session = db.create_scoped_session()
+            # Log start of portfolio update
+            self.logger.info(f"Updating prices for portfolio {portfolio_id}")
 
-            try:
-                # Get all tickers in this portfolio
-                securities = session.query(Security).filter_by(portfolio_id=portfolio_id).all()
-                tickers = [security.ticker for security in securities]
+            # Get securities for this portfolio
+            securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
+            tickers = [security.ticker for security in securities]
 
-                logger.info(f"Found {len(tickers)} securities in portfolio {portfolio_id}")
+            # Fetch prices with retry logic
+            start_time = time.time()
+            price_data = self._fetch_prices_with_retry(tickers)
 
-                # Update prices for these tickers
-                update_stats = self.update_prices_for_tickers(tickers, session)
+            # Update securities with new prices
+            updated_tickers = []
+            for security in securities:
+                if security.ticker in price_data:
+                    # Calculate old total value before price update
+                    old_value = security.total_value
 
-                # Update portfolio totals for this specific portfolio
-                self._update_portfolio_totals(portfolio_id, session)
+                    # Update price
+                    new_price = price_data[security.ticker]['currentPrice']
+                    security.current_price = new_price
 
-                # Invalidate risk cache
-                self._invalidate_risk_cache(portfolio_id, session)
+                    # Calculate new total value
+                    security.total_value = security.amount_owned * new_price
 
-                update_stats['timestamp'] = datetime.now().isoformat()
-                return update_stats
+                    # Update value change
+                    if 'previousClose' in price_data[security.ticker]:
+                        prev_close = price_data[security.ticker]['previousClose']
+                        security.value_change = security.amount_owned * (new_price - prev_close)
+                        if prev_close != 0:  # Avoid division by zero
+                            security.value_change_pct = (new_price - prev_close) / prev_close * 100
 
-            finally:
-                session.close()
+                    updated_tickers.append(security.ticker)
+
+                    # Log the update for debugging
+                    self.logger.info(f"Updated {security.ticker}: {old_value} -> {security.total_value}")
+
+            # Commit changes
+            db.session.commit()
+
+            # Update timestamp
+            self._update_timestamp(portfolio_id)
+
+            elapsed = time.time() - start_time
+            return {
+                'success': True,
+                'updated_count': len(updated_tickers),
+                'tickers_updated': updated_tickers,
+                'elapsed_time': elapsed,
+                'timestamp': datetime.utcnow().isoformat()
+            }
 
         except Exception as e:
-            logger.error(f"Error updating prices for portfolio {portfolio_id}: {str(e)}")
+            self.logger.error(f"Error updating portfolio {portfolio_id}: {str(e)}")
+            db.session.rollback()
             return {
                 'success': False,
                 'error': str(e)

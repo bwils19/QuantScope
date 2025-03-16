@@ -34,9 +34,12 @@ def update_portfolio_prices():
             logger.info(f"Update completed in {result.get('elapsed_time', 0):.2f} seconds")
         else:
             logger.error(f"Price update failed: {result.get('error', 'Unknown error')}")
+            logger.error(f"Details: {result}")  # Add more detailed logging
 
     except Exception as e:
         logger.error(f"Error in price update task: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
 
 
 def init_scheduler(app):
@@ -88,6 +91,19 @@ def init_scheduler(app):
         coalesce=True,
         max_instances=1
     )
+    try:
+        scheduler.start()
+        app.logger.info("Scheduler started successfully")
+    except Exception as e:
+        app.logger.error(f"Failed to start scheduler: {e}")
+
+        # Register a teardown to handle app shutdown
+
+    def shutdown_scheduler(exception=None):
+        scheduler.shutdown()
+        app.logger.info("Scheduler shut down")
+
+    app.teardown_appcontext(shutdown_scheduler)
 
     scheduler.start()
     return scheduler

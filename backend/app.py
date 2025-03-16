@@ -12,6 +12,16 @@ from backend.utils.data_utils import fetch_and_process_stress_scenarios
 from flask_mail import Mail, Message
 
 from backend.models import User, Portfolio, Security, StressScenario  # Import StressScenario for verification
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("app.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Initialize Mail outside the app factory
 mail = Mail()
@@ -84,7 +94,7 @@ def create_app(test_config=None):
                 return response
 
         # Create database tables and log confirmation
-        print(f"Creating database tables with URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
+        # print(f"Creating database tables with URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
         db.create_all()
 
         # Initialize migrations
