@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 import time
 
@@ -64,9 +65,11 @@ def fetch_stock_data(ticker, api_key):
 
 def fetch_prices_for_portfolio(tickers):
     """Fetch prices for all tickers in a portfolio efficiently"""
+    logger = logging.getLogger('api')
+    logger.info(f"Fetching prices for {len(tickers)} tickers")
+
     load_dotenv()
     api_key = os.getenv('ALPHA_VANTAGE_KEY')
-    # api_key = current_app.config.get('ALPHA_VANTAGE_API_KEY')
     results = {}
     failed_tickers = []
 
@@ -78,32 +81,30 @@ def fetch_prices_for_portfolio(tickers):
     to_fetch = [ticker for ticker in tickers if ticker not in cache_dict
                 or (datetime.utcnow().date() - cache_dict[ticker].date).days > 0]
 
-    print(f"Fetching prices for {len(to_fetch)} securities (found {len(cache_dict) - len(to_fetch)} in cache)")
+    logger.info(f"Found {len(cache_dict)} cached prices, need to fetch {len(to_fetch)}")
 
-    # Create a session with retries for robustness
+    # Create a session with retries
     session = requests.Session()
-    retries = Retry(
-        total=3,
-        backoff_factor=0.5,
-        status_forcelist=[429, 500, 502, 503, 504],
-    )
+    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
     session.mount('https://', HTTPAdapter(max_retries=retries))
 
-    # Fetch from API with minimal rate limiting for premium API
+    # Fetch from API with minimal rate limiting
     for i, ticker in enumerate(to_fetch):
         try:
-            # Still add a small pause between requests to avoid overwhelming the API
+            # Small pause between requests
             if i > 0 and i % 20 == 0:
                 time.sleep(1)  # Short pause every 20 requests
 
+            logger.info(f"Fetching price for {ticker} ({i + 1}/{len(to_fetch)})")
             url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={api_key}"
             response = session.get(url, timeout=10)
             response.raise_for_status()
             data = response.json()
 
+            logger.debug(f"Raw API response for {ticker}: {data}")
+
             if data and 'Global Quote' in data and data['Global Quote'].get('05. price'):
                 quote = data['Global Quote']
-                # Process and cache the data
                 price_data = {
                     'currentPrice': float(quote['05. price']),
                     'previousClose': float(quote['08. previous close']),
@@ -115,6 +116,7 @@ def fetch_prices_for_portfolio(tickers):
                     cache = cache_dict[ticker]
                     cache.date = datetime.utcnow().date()
                     cache.data = price_data
+                    logger.info(f"Updated cache for {ticker}: ${price_data['currentPrice']}")
                 else:
                     cache = StockCache(
                         ticker=ticker,
@@ -122,44 +124,46 @@ def fetch_prices_for_portfolio(tickers):
                         data=price_data
                     )
                     db.session.add(cache)
+                    logger.info(f"Created new cache for {ticker}: ${price_data['currentPrice']}")
 
                 results[ticker] = price_data
-                print(f"Successfully fetched price for {ticker}: ${price_data['currentPrice']}")
             else:
-                print(f"No price data returned for {ticker} - API response: {data}")
+                logger.warning(f"No price data returned for {ticker} - API response: {data}")
                 failed_tickers.append(ticker)
 
         except Exception as e:
-            print(f"Error fetching price for {ticker}: {str(e)}")
+            logger.error(f"Error fetching price for {ticker}: {str(e)}")
             failed_tickers.append(ticker)
 
-        # Commit every 50 securities to avoid holding transactions too long
+        # Commit every 50 securities
         if i > 0 and i % 50 == 0:
             try:
                 db.session.commit()
-                print(f"Committed batch of 50 price updates")
+                logger.info(f"Committed batch of 50 price updates")
             except Exception as commit_error:
-                print(f"Error committing price batch: {commit_error}")
+                logger.error(f"Error committing price batch: {commit_error}")
                 db.session.rollback()
 
     # Final commit for remaining price updates
     try:
         db.session.commit()
-        print(f"Committed final batch of price updates")
+        logger.info(f"Committed final batch of price updates")
     except Exception as commit_error:
-        print(f"Error committing final price batch: {commit_error}")
+        logger.error(f"Error committing final price batch: {commit_error}")
         db.session.rollback()
 
     # Add all cached results to the results dictionary
     for ticker, cache in cache_dict.items():
         if ticker not in results and ticker not in failed_tickers:
             results[ticker] = cache.data
+            logger.info(f"Using cached data for {ticker}: ${cache.data['currentPrice']}")
 
     if failed_tickers:
-        print(f"Failed to fetch prices for {len(failed_tickers)} tickers: {', '.join(failed_tickers[:10])}" +
-              (f"... and {len(failed_tickers) - 10} more" if len(failed_tickers) > 10 else ""))
+        logger.warning(f"Failed to fetch prices for {len(failed_tickers)} tickers: {', '.join(failed_tickers[:10])}" +
+                       (f"... and {len(failed_tickers) - 10} more" if len(failed_tickers) > 10 else ""))
 
     return results
+
 
 # Ensure the app's configuration is set up
 @auth_blueprint.before_app_request
@@ -1841,3 +1845,43 @@ def remove_from_watchlist(item_id):
         print(f"Error removing from watchlist: {e}")
         db.session.rollback()
         return jsonify({"message": "Failed to remove from watchlist"}), 500
+
+
+@auth_blueprint.route('/debug', methods=['GET'])
+@jwt_required(locations=["cookies"])
+def debug_view():
+    """Debugging view for admins only"""
+    from backend.utils.diagnostic import check_date_issues
+
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+
+    if not user or user.email != 'info@prophetanalytics.com':
+        return jsonify({"message": "Not authorized"}), 403
+
+    # Run diagnostics
+    check_date_issues()
+
+    # Test Alpha Vantage API directly
+    import requests
+    api_key = os.getenv('ALPHA_VANTAGE_KEY')
+
+    ticker = 'AAPL'  # Test with a reliable ticker
+    url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={api_key}"
+
+    try:
+        response = requests.get(url, timeout=10)
+        api_data = response.json()
+
+        logger = logging.getLogger('app')
+        logger.info(f"API test response for {ticker}: {api_data}")
+
+        return jsonify({
+            "message": "Debug checks complete, check logs for details",
+            "api_test": api_data
+        })
+    except Exception as e:
+        return jsonify({
+            "message": "Debug checks complete, but API test failed",
+            "error": str(e)
+        }), 500

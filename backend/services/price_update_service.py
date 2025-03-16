@@ -17,8 +17,8 @@ from backend import db
 from backend.models import StockCache, Portfolio, Security, RiskAnalysisCache
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
 
 
 class PriceUpdateService:
@@ -32,6 +32,7 @@ class PriceUpdateService:
             rate_limit: Number of requests allowed per minute
             batch_size: Number of securities to process in a single database transaction
         """
+        self.logger = logging.getLogger('prices')
         self.api_key = api_key or os.getenv('ALPHA_VANTAGE_KEY')
         self.rate_limit = rate_limit  # Premium tier: 75 requests per minute
         self.batch_size = batch_size
@@ -58,7 +59,7 @@ class PriceUpdateService:
         Returns:
             Dict with update statistics
         """
-        logger.info("Starting price update for all portfolios")
+        self.logger.info("Starting update of all portfolio prices")
         start_time = time.time()
 
         try:

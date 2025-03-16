@@ -9,19 +9,10 @@ from backend.tasks import init_scheduler
 from backend.commands import load_historical_data
 from backend.services.email_service import mail
 from backend.utils.data_utils import fetch_and_process_stress_scenarios
+from backend.logging_config import setup_logging
 from flask_mail import Mail, Message
 
 from backend.models import User, Portfolio, Security, StressScenario  # Import StressScenario for verification
-import logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("app.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 # Initialize Mail outside the app factory
 mail = Mail()
@@ -32,6 +23,7 @@ def create_app(test_config=None):
     load_dotenv()
 
     app = Flask(__name__)
+    loggers = setup_logging(app)
 
     if test_config is None:
         upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -51,6 +43,7 @@ def create_app(test_config=None):
             app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(basedir, 'instance', 'users.db')}"
 
         #app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(basedir, 'instance', 'users.db')}"
+        app.config['LOGGERS'] = loggers
         app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
         app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
         app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')
@@ -110,8 +103,10 @@ def create_app(test_config=None):
         app.register_blueprint(analytics_blueprint, url_prefix='/analytics')
 
         app.cli.add_command(load_historical_data)
+        from backend.utils.diagnostic import check_date_issues
+        check_date_issues()
 
-    # Root route
+        # Root route
     @app.route("/")
     def home():
         try:

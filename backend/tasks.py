@@ -10,13 +10,12 @@ from backend.services.historical_data_service import HistoricalDataService
 from backend.services.stock_service import is_market_open
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('scheduler')
 
 
 def update_portfolio_prices():
     """Update prices for all securities in active portfolios"""
-    logger.info(f"Starting price update at {datetime.now()}")
+    logger.info(f"Starting scheduled price update at {datetime.now()}")
 
     # Skip updates when market is closed
     if not is_market_open():
@@ -24,22 +23,18 @@ def update_portfolio_prices():
         return
 
     try:
-        # Use our new price update service
+        # Use our price update service
         price_service = PriceUpdateService()
         result = price_service.update_all_portfolio_prices()
 
         if result.get('success', False):
             logger.info(f"Successfully updated {result.get('updated_count', 0)} securities")
             logger.info(f"Failed to update {result.get('failed_count', 0)} securities")
-            logger.info(f"Update completed in {result.get('elapsed_time', 0):.2f} seconds")
         else:
             logger.error(f"Price update failed: {result.get('error', 'Unknown error')}")
-            logger.error(f"Details: {result}")  # Add more detailed logging
 
     except Exception as e:
-        logger.error(f"Error in price update task: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"Error in price update task: {str(e)}", exc_info=True)
 
 
 def init_scheduler(app):
