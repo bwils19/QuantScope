@@ -835,73 +835,83 @@ def get_portfolio_securities(portfolio_id):
         securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
         securities_data = []
 
-        # Create instance of the historical data service
-        from backend.services.historical_data_service import HistoricalDataService
-        historical_service = HistoricalDataService()
-
         for s in securities:
-            # Use the improved method to get latest price data
-            latest_price_data, previous_day_data = historical_service.get_most_recent_price_data(s.ticker)
+            try:
+                # Default values with proper None handling
+                current_price = s.current_price if s.current_price is not None else 0
+                amount_owned = s.amount_owned if s.amount_owned is not None else 0
+                total_value = s.total_value if s.total_value is not None else amount_owned * current_price
+                value_change = s.value_change if s.value_change is not None else 0
+                value_change_pct = s.value_change_pct if s.value_change_pct is not None else 0
 
-            # Default values in case we can't get data
-            current_price = s.current_price or 0
-            total_value = s.total_value or 0
-            value_change = s.value_change or 0
-            value_change_pct = s.value_change_pct or 0
-            latest_close = current_price
-            latest_close_date = None
+                # Get the latest historical price and date
+                latest_close = current_price
+                latest_close_date = 'N/A'
 
-            if latest_price_data:
-                # We have historical data, use it
-                latest_close = latest_price_data.close_price
-                latest_close_date = latest_price_data.date
+                try:
+                    # Try to get historical data
+                    historical_data = SecurityHistoricalData.query.filter_by(ticker=s.ticker).order_by(
+                        SecurityHistoricalData.date.desc()
+                    ).first()
 
-                # If current price is missing or zero, use latest close
-                if not current_price or current_price == 0:
-                    current_price = latest_close
-                    total_value = s.amount_owned * current_price
+                    if historical_data:
+                        latest_close = float(historical_data.close_price) if historical_data.close_price else 0
+                        latest_close_date = historical_data.date.strftime('%Y-%m-%d') if historical_data.date else 'N/A'
 
-                # If we have previous day data, calculate change
-                if previous_day_data:
-                    day_change = latest_price_data.close_price - previous_day_data.close_price
-                    if previous_day_data.close_price != 0:
-                        day_change_pct = (day_change / previous_day_data.close_price) * 100
-                    else:
-                        day_change_pct = 0
+                        # If current price is zero or null, use historical data
+                        if current_price <= 0 and latest_close > 0:
+                            current_price = latest_close
+                            total_value = amount_owned * current_price
+                except Exception as e:
+                    print(f"Error getting historical data for {s.ticker}: {e}")
 
-                    # If missing from security, use calculated values
-                    if not value_change:
-                        value_change = s.amount_owned * day_change
-                    if not value_change_pct:
-                        value_change_pct = day_change_pct
+                securities_data.append({
+                    'id': s.id,
+                    'ticker': s.ticker,
+                    'name': s.name if s.name else s.ticker,
+                    'amount_owned': amount_owned,
+                    'current_price': current_price,
+                    'total_value': total_value,
+                    'value_change': value_change,
+                    'value_change_pct': value_change_pct,
+                    'latest_close': latest_close,
+                    'latest_close_date': latest_close_date
+                })
+            except Exception as sec_error:
+                print(f"Error processing security {s.ticker}: {sec_error}")
+                # Add with minimal data rather than skipping
+                securities_data.append({
+                    'id': s.id,
+                    'ticker': s.ticker,
+                    'name': s.name if s.name else s.ticker,
+                    'amount_owned': s.amount_owned if s.amount_owned is not None else 0,
+                    'current_price': 0,
+                    'total_value': 0,
+                    'value_change': 0,
+                    'value_change_pct': 0,
+                    'latest_close': 0,
+                    'latest_close_date': 'N/A'
+                })
 
-            securities_data.append({
-                'id': s.id,
-                'ticker': s.ticker,
-                'name': s.name,
-                'amount_owned': s.amount_owned,
-                'current_price': current_price,
-                'total_value': total_value,
-                'value_change': value_change,
-                'value_change_pct': value_change_pct,
-                'latest_close': latest_close,
-                'latest_close_date': latest_close_date.strftime('%Y-%m-%d') if latest_close_date else 'N/A'
-            })
-
-        latest_update = db.session.query(
-            func.max(SecurityHistoricalData.updated_at)
-        ).scalar()
+        # Get the latest update timestamp
+        latest_update = None
+        try:
+            latest_update = db.session.query(func.max(SecurityHistoricalData.updated_at)).scalar()
+        except Exception as e:
+            print(f"Error getting latest update timestamp: {e}")
 
         return jsonify({
             'portfolio_id': portfolio_id,
+            'portfolio_name': portfolio.name,
             'securities': securities_data,
             'latest_update': latest_update.strftime('%Y-%m-%d %H:%M:%S') if latest_update else None
         }), 200
+
     except Exception as e:
-        print(f"Error fetching portfolio securities: {e}")
         import traceback
+        print(f"Error fetching portfolio securities: {e}")
         print(f"Traceback: {traceback.format_exc()}")
-        return jsonify({"message": "An error occurred while fetching portfolio securities"}), 500
+        return jsonify({"message": "An error occurred while fetching portfolio securities", "error": str(e)}), 500
 
 
 @auth_blueprint.route('/stock-cache/<symbol>', methods=['GET'])
