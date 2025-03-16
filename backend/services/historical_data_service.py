@@ -281,3 +281,58 @@ class HistoricalDataService:
         except Exception as e:
             print(f"Unexpected error fetching historical data for {ticker}: {e}")
             return None
+
+
+def get_most_recent_price_data(ticker_symbol):
+    """
+    Get the most recent valid price data for a ticker, properly handling weekends.
+    """
+    today = datetime.now().date()
+
+    # Determine the most recent trading day
+    if today.weekday() in [5, 6]:  # Saturday or Sunday
+        # For weekend, get Friday's data
+        days_to_subtract = today.weekday() - 4  # 5-4=1 for Saturday, 6-4=2 for Sunday
+        target_date = today - timedelta(days=days_to_subtract)
+    else:
+        # For weekday, get yesterday's data if after market close, otherwise day before
+        current_time = datetime.now().time()
+        market_close = time(16, 0)  # 4:00 PM ET
+
+        if current_time > market_close:
+            # After market close, use today's data if available
+            target_date = today
+        else:
+            # Before market close, use yesterday's data
+            target_date = today - timedelta(days=1)
+
+        # If yesterday was weekend, get Friday
+        if target_date.weekday() in [5, 6]:
+            days_to_subtract = target_date.weekday() - 4
+            target_date = target_date - timedelta(days=days_to_subtract)
+
+    # Query for the most recent data on or before the target date
+    latest_price = (
+        db.session.query(SecurityHistoricalData)
+        .filter(
+            SecurityHistoricalData.ticker == ticker_symbol,
+            SecurityHistoricalData.date <= target_date
+        )
+        .order_by(SecurityHistoricalData.date.desc())
+        .first()
+    )
+
+    # Get previous day data for day change calculation
+    previous_day_data = None
+    if latest_price:
+        previous_day_data = (
+            db.session.query(SecurityHistoricalData)
+            .filter(
+                SecurityHistoricalData.ticker == ticker_symbol,
+                SecurityHistoricalData.date < latest_price.date
+            )
+            .order_by(SecurityHistoricalData.date.desc())
+            .first()
+        )
+
+    return latest_price, previous_day_data

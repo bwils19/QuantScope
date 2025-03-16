@@ -88,6 +88,21 @@ def init_scheduler(app):
             max_instances=1
         )
 
+        # weekend scheduler
+        scheduler.add_job(
+            func=update_portfolio_prices,
+            trigger=CronTrigger(
+                day_of_week='sat,sun',  # Weekend only
+                hour='*/6',  # Every 6 hours
+                minute='15',  # 15 minutes past the hour
+                timezone=pytz.timezone('America/New_York')
+            ),
+            id='weekend_prices',
+            name='Weekend price refresh',
+            coalesce=True,
+            max_instances=1
+        )
+
         # Start the scheduler with error handling
         try:
             scheduler.start()

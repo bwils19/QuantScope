@@ -835,53 +835,57 @@ def get_portfolio_securities(portfolio_id):
         securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
         securities_data = []
 
-        print(f"Processing {len(securities)} securities for portfolio {portfolio_id}")
+        # Create instance of the historical data service
+        from backend.services.historical_data_service import HistoricalDataService
+        historical_service = HistoricalDataService()
 
         for s in securities:
-            # Get latest close price from historical data
-            latest_price_data = (
-                db.session.query(SecurityHistoricalData)
-                .filter_by(ticker=s.ticker)
-                .order_by(SecurityHistoricalData.date.desc())
-                .first()
-            )
-            previous_day_data = (
-                db.session.query(SecurityHistoricalData)
-                .filter_by(ticker=s.ticker)
-                .order_by(SecurityHistoricalData.date.desc())
-                .offset(1)  # Get the second most recent record
-                .first()
-            )
+            # Use the improved method to get latest price data
+            latest_price_data, previous_day_data = historical_service.get_most_recent_price_data(s.ticker)
 
-            latest_close = latest_price_data.close_price if latest_price_data else s.current_price
-            latest_close_date = latest_price_data.date if latest_price_data else None
+            # Default values in case we can't get data
+            current_price = s.current_price or 0
+            total_value = s.total_value or 0
+            value_change = s.value_change or 0
+            value_change_pct = s.value_change_pct or 0
+            latest_close = current_price
+            latest_close_date = None
 
-            if latest_price_data and previous_day_data:
-                day_change = latest_price_data.close_price - previous_day_data.close_price
-                if previous_day_data.close_price != 0:
-                    day_change_pct = (day_change / previous_day_data.close_price) * 100
-                else:
-                    day_change_pct = 0
-            else:
-                day_change = s.value_change
-                day_change_pct = s.value_change_pct
+            if latest_price_data:
+                # We have historical data, use it
+                latest_close = latest_price_data.close_price
+                latest_close_date = latest_price_data.date
 
-                # Fallback to API data from Security table if historical data is missing
-            if not latest_close or latest_close == 0:
-                latest_close = s.current_price
+                # If current price is missing or zero, use latest close
+                if not current_price or current_price == 0:
+                    current_price = latest_close
+                    total_value = s.amount_owned * current_price
 
-            print(f"Security {s.ticker}: latest_close=${latest_close}, day_change=${day_change}")
+                # If we have previous day data, calculate change
+                if previous_day_data:
+                    day_change = latest_price_data.close_price - previous_day_data.close_price
+                    if previous_day_data.close_price != 0:
+                        day_change_pct = (day_change / previous_day_data.close_price) * 100
+                    else:
+                        day_change_pct = 0
+
+                    # If missing from security, use calculated values
+                    if not value_change:
+                        value_change = s.amount_owned * day_change
+                    if not value_change_pct:
+                        value_change_pct = day_change_pct
 
             securities_data.append({
+                'id': s.id,
                 'ticker': s.ticker,
                 'name': s.name,
                 'amount_owned': s.amount_owned,
-                'current_price': s.current_price,
-                'total_value': s.total_value,
-                'value_change': s.value_change,
-                'value_change_pct': s.value_change_pct,
+                'current_price': current_price,
+                'total_value': total_value,
+                'value_change': value_change,
+                'value_change_pct': value_change_pct,
                 'latest_close': latest_close,
-                'latest_close_date': latest_close_date.strftime('%Y-%m-%d') if latest_close_date else None
+                'latest_close_date': latest_close_date.strftime('%Y-%m-%d') if latest_close_date else 'N/A'
             })
 
         latest_update = db.session.query(
