@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Tuple, Optional
 import concurrent.futures
 import requests
 from requests.adapters import HTTPAdapter
+from sqlalchemy import func
 from urllib3.util.retry import Retry
 
 from sqlalchemy.orm import Session
