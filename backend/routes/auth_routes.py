@@ -379,168 +379,194 @@ def should_update_price(cache_entry):
 def portfolio_overview():
     try:
         current_user_email = get_jwt_identity()
-        if not current_user_email:
+        user = User.query.filter_by(email=current_user_email).first()
+        if not user:
             return redirect(url_for('auth.login_page'))
 
-        with db.session.begin_nested():
-            user = User.query.filter_by(email=current_user_email).first()
-            if not user:
-                return redirect(url_for('auth.login_page'))
+        portfolios = Portfolio.query.filter_by(user_id=user.id).order_by(Portfolio.created_at.desc()).all()
 
-            portfolios = Portfolio.query.filter_by(user_id=user.id).order_by(Portfolio.created_at.desc()).all()
+        # Get all unique tickers for this user's portfolios
+        unique_tickers = (
+            db.session.query(Security.ticker)
+            .join(Portfolio)
+            .filter(Portfolio.user_id == user.id)
+            .distinct()
+            .all()
+        )
+        tickers = [t[0] for t in unique_tickers]
 
-            # Get all unique tickers for this user's portfolios
-            unique_tickers = (
-                db.session.query(Security.ticker)
-                .join(Portfolio)
-                .filter(Portfolio.user_id == user.id)
-                .distinct()
-                .all()
-            )
-            tickers = [t[0] for t in unique_tickers]
+        # Determine the most recent market date
+        today = datetime.now().date()
+        is_weekend = today.weekday() >= 5
+        days_since_friday = today.weekday() - 4 if is_weekend else 0
+        most_recent_market_date = today - timedelta(days=days_since_friday)
 
-            # Get all cached prices for these tickers
-            # cached_prices = StockCache.query.filter(StockCache.ticker.in_(tickers)).all()
-            # price_map = {cache.ticker: cache for cache in cached_prices}
+        # Get the most recent historical data for each ticker
+        latest_prices = {}
+        for ticker in tickers:
+            latest_data = db.session.query(
+                SecurityHistoricalData
+            ).filter(
+                SecurityHistoricalData.ticker == ticker,
+                SecurityHistoricalData.date <= most_recent_market_date
+            ).order_by(
+                SecurityHistoricalData.date.desc()
+            ).first()
 
-            latest_prices = {}
-            for ticker in tickers:
-                latest_price = db.session.query(
+            if latest_data:
+                # Get previous day data for accurate day change calculation
+                prev_day = db.session.query(
                     SecurityHistoricalData
                 ).filter(
-                    SecurityHistoricalData.ticker == ticker
+                    SecurityHistoricalData.ticker == ticker,
+                    SecurityHistoricalData.date < latest_data.date
                 ).order_by(
                     SecurityHistoricalData.date.desc()
                 ).first()
 
-                if latest_price:
-                    latest_prices[ticker] = {
-                        'current_price': latest_price.close_price,
-                        'previous_close': latest_price.close_price,
-                        'date': latest_price.date
-                    }
+                latest_prices[ticker] = {
+                    'current_price': latest_data.close_price,
+                    'previous_close': prev_day.close_price if prev_day else latest_data.close_price,
+                    'date': latest_data.date,
+                    'has_historical': True
+                }
 
-            # Update portfolio securities with cached prices
-            for portfolio in portfolios:
-                portfolio_total_value = 0
-                portfolio_day_change = 0
-                total_cost = 0
+        # Update portfolio securities with the most recent data
+        for portfolio in portfolios:
+            portfolio_total_value = 0
+            portfolio_day_change = 0
+            total_cost = 0
 
-                for security in portfolio.securities:
-                    latest_data = latest_prices.get(security.ticker)
-                    if latest_data:
-                        security.current_price = latest_data['current_price']
-                        security.total_value = security.amount_owned * latest_data['current_price']
+            for security in portfolio.securities:
+                latest_data = latest_prices.get(security.ticker)
 
-                        # Calculate day change using historical data
-                        previous_day_data = db.session.query(
-                            SecurityHistoricalData
-                        ).filter(
-                            SecurityHistoricalData.ticker == security.ticker,
-                            SecurityHistoricalData.date < latest_data['date']
-                        ).order_by(
-                            SecurityHistoricalData.date.desc()
-                        ).first()
+                if latest_data:
+                    # Update with historical data
+                    security.current_price = latest_data['current_price']
+                    security.total_value = security.amount_owned * latest_data['current_price']
 
-                        if previous_day_data:
-                            security.value_change = security.amount_owned * (
-                                    latest_data['current_price'] - previous_day_data.close_price
-                            )
-                            base_value = security.total_value - security.value_change
-                            security.value_change_pct = (security.value_change / base_value) * 100 if base_value != 0 else 0
-                        else:
-                            security.value_change = 0
-                            security.value_change_pct = 0
+                    # Calculate day change using historical data
+                    security.value_change = security.amount_owned * (
+                            latest_data['current_price'] - latest_data['previous_close']
+                    )
 
-                        # Calculate total gain
-                        position_cost = security.amount_owned * security.purchase_price if security.purchase_price else 0
-                        security.total_gain = security.total_value - position_cost
-                        if position_cost and position_cost != 0:
-                            security.total_gain_pct = ((security.total_value / position_cost) - 1) * 100
-                        else:
-                            security.total_gain_pct = 0
+                    base_value = security.amount_owned * latest_data['previous_close']
+                    security.value_change_pct = (security.value_change / base_value) * 100 if base_value != 0 else 0
 
-                        # Accumulate portfolio totals
-                        portfolio_total_value += security.total_value
-                        portfolio_day_change += security.value_change
-                        total_cost += position_cost
+                # Calculate total gain/loss if purchase price is available
+                position_cost = security.amount_owned * security.purchase_price if security.purchase_price else 0
+                security.total_gain = security.total_value - position_cost
+                if position_cost and position_cost != 0:
+                    security.total_gain_pct = ((security.total_value / position_cost) - 1) * 100
+                else:
+                    security.total_gain_pct = 0
 
+                # Accumulate portfolio totals
+                portfolio_total_value += security.total_value
+                portfolio_day_change += security.value_change
+                total_cost += position_cost
+
+            # Update portfolio metrics
+            portfolio.total_value = portfolio_total_value
+            portfolio.day_change = portfolio_day_change
+
+            if total_cost > 0:
                 portfolio.total_gain = portfolio_total_value - total_cost
-                portfolio.total_gain_pct = ((portfolio_total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
-
-            # Calculate dashboard statistics
-            total_portfolio_value = sum(p.total_value or 0 for p in portfolios) if portfolios else 0
-            total_day_change = sum(p.day_change or 0 for p in portfolios) if portfolios else 0
-            total_total_gain = sum(p.total_gain or 0 for p in portfolios) if portfolios else 0
-            total_total_gain_pct = (
-                        sum(p.total_gain_pct or 0 for p in portfolios) / len(portfolios)) if portfolios else 0
-
-            if total_portfolio_value != total_day_change:
-                base_value = total_portfolio_value - total_day_change
-                total_day_change_pct = (total_day_change / base_value) * 100 if base_value != 0 else 0
+                portfolio.total_gain_pct = ((portfolio_total_value / total_cost) - 1) * 100
             else:
-                total_day_change_pct = 0
+                portfolio.total_gain = 0
+                portfolio.total_gain_pct = 0
 
-            latest_update = db.session.query(
-                func.max(SecurityHistoricalData.updated_at)
-            ).scalar()
+            if portfolio_total_value != portfolio_day_change:
+                base_value = portfolio_total_value - portfolio_day_change
+                portfolio.day_change_pct = (portfolio_day_change / base_value) * 100 if base_value != 0 else 0
+            else:
+                portfolio.day_change_pct = 0
 
-            # watchlist_items = Watchlist.query.filter_by(user_id=user.id).all()
-            watchlist_data = []
-            if user:
-                watchlist_items = Watchlist.query.filter_by(user_id=user.id).all()
-                for item in watchlist_items:
-                    # Get latest price data
-                    latest_price_data = (
-                        db.session.query(SecurityHistoricalData)
-                        .filter_by(ticker=item.ticker)
-                        .order_by(SecurityHistoricalData.date.desc())
-                        .first()
+        # Calculate dashboard statistics
+        total_portfolio_value = sum(p.total_value or 0 for p in portfolios) if portfolios else 0
+        total_day_change = sum(p.day_change or 0 for p in portfolios) if portfolios else 0
+        total_total_gain = sum(p.total_gain or 0 for p in portfolios) if portfolios else 0
+        total_total_gain_pct = (
+                sum(p.total_gain_pct or 0 for p in portfolios) / len(portfolios)) if portfolios else 0
+
+        if total_portfolio_value != total_day_change:
+            base_value = total_portfolio_value - total_day_change
+            total_day_change_pct = (total_day_change / base_value) * 100 if base_value != 0 else 0
+        else:
+            total_day_change_pct = 0
+
+        # Get most recent historical data update timestamp
+        latest_update = db.session.query(
+            func.max(SecurityHistoricalData.updated_at)
+        ).scalar()
+
+        # Get watchlist data
+        watchlist_data = []
+        if user:
+            watchlist_items = Watchlist.query.filter_by(user_id=user.id).all()
+            for item in watchlist_items:
+                # Get latest price data
+                latest_price_data = (
+                    db.session.query(SecurityHistoricalData)
+                    .filter(
+                        SecurityHistoricalData.ticker == item.ticker,
+                        SecurityHistoricalData.date <= most_recent_market_date
                     )
+                    .order_by(SecurityHistoricalData.date.desc())
+                    .first()
+                )
 
-                    previous_day_data = (
-                        db.session.query(SecurityHistoricalData)
-                        .filter_by(ticker=item.ticker)
-                        .order_by(SecurityHistoricalData.date.desc())
-                        .offset(1)
-                        .first()
+                previous_day_data = (
+                    db.session.query(SecurityHistoricalData)
+                    .filter(
+                        SecurityHistoricalData.ticker == item.ticker,
+                        SecurityHistoricalData.date < latest_price_data.date if latest_price_data else most_recent_market_date
                     )
+                    .order_by(SecurityHistoricalData.date.desc())
+                    .first()
+                )
 
-                    current_price = latest_price_data.close_price if latest_price_data else None
-                    previous_close = previous_day_data.close_price if previous_day_data else None
+                current_price = latest_price_data.close_price if latest_price_data else None
+                previous_close = previous_day_data.close_price if previous_day_data else (
+                    current_price if current_price else None
+                )
 
-                    watchlist_data.append({
-                        'id': item.id,
-                        'ticker': item.ticker,
-                        'name': item.name,
-                        'exchange': item.exchange,
-                        'current_price': current_price,
-                        'day_change': (current_price - previous_close) if current_price and previous_close else None,
-                        'day_change_pct': ((current_price - previous_close) / previous_close * 100)
-                        if current_price and previous_close else None,
-                        'latest_update': latest_price_data.date if latest_price_data else None
-                    })
+                day_change = (current_price - previous_close) if current_price and previous_close else None
+                day_change_pct = ((
+                                              current_price - previous_close) / previous_close * 100) if current_price and previous_close and previous_close != 0 else None
 
-                    invalidate_user_cache(user.id)
+                watchlist_data.append({
+                    'id': item.id,
+                    'ticker': item.ticker,
+                    'name': item.name,
+                    'exchange': item.exchange,
+                    'current_price': current_price,
+                    'day_change': day_change,
+                    'day_change_pct': day_change_pct,
+                    'latest_update': latest_price_data.date if latest_price_data else None
+                })
 
-            return render_template(
-                'portfolio_overview.html',
-                body_class='portfolio-overview-page',
-                user={"first_name": user.first_name, "email": user.email},
-                portfolios=portfolios,
-                dashboard_stats={
-                    'total_value': total_portfolio_value,
-                    'day_change': total_day_change,
-                    'day_change_pct': total_day_change_pct,
-                    'total_gain': total_total_gain,
-                    'total_gain_pct': total_total_gain_pct
-                },
-                latest_update=latest_update,
-                watchlist=watchlist_data
-            )
+        return render_template(
+            'portfolio_overview.html',
+            body_class='portfolio-overview-page',
+            user={"first_name": user.first_name, "email": user.email},
+            portfolios=portfolios,
+            dashboard_stats={
+                'total_value': total_portfolio_value,
+                'day_change': total_day_change,
+                'day_change_pct': total_day_change_pct,
+                'total_gain': total_total_gain,
+                'total_gain_pct': total_total_gain_pct
+            },
+            latest_update=latest_update,
+            watchlist=watchlist_data
+        )
 
     except Exception as e:
         print(f"Error in portfolio-overview: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         db.session.rollback()
         return redirect(url_for("auth.login_page"))
 
@@ -835,35 +861,74 @@ def get_portfolio_securities(portfolio_id):
         securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
         securities_data = []
 
+        # Determine most recent market date (handle weekends properly)
+        today = datetime.now().date()
+        is_weekend = today.weekday() >= 5
+        days_since_friday = today.weekday() - 4 if is_weekend else 0
+        most_recent_market_date = today - timedelta(days=days_since_friday)
+
+        # Get all historical data for these securities in one query for efficiency
+        tickers = [s.ticker for s in securities]
+
+        # Get the most recent historical data for each ticker
+        historical_data_dict = {}
+        previous_day_dict = {}
+
+        historical_records = db.session.query(
+            SecurityHistoricalData
+        ).filter(
+            SecurityHistoricalData.ticker.in_(tickers),
+            SecurityHistoricalData.date <= most_recent_market_date
+        ).order_by(
+            SecurityHistoricalData.ticker,
+            SecurityHistoricalData.date.desc()
+        ).all()
+
+        # Process the results to get the most recent price for each ticker
+        for record in historical_records:
+            ticker = record.ticker
+            if ticker not in historical_data_dict:
+                # First record for this ticker is the most recent
+                historical_data_dict[ticker] = record
+            elif ticker not in previous_day_dict:
+                # Second record for this ticker is the previous day
+                previous_day_dict[ticker] = record
+
         for s in securities:
             try:
-                # Default values with proper None handling
-                current_price = s.current_price if s.current_price is not None else 0
+                # Default values
+                current_price = s.current_price if s.current_price is not None and s.current_price > 0 else 0
                 amount_owned = s.amount_owned if s.amount_owned is not None else 0
-                total_value = s.total_value if s.total_value is not None else amount_owned * current_price
-                value_change = s.value_change if s.value_change is not None else 0
-                value_change_pct = s.value_change_pct if s.value_change_pct is not None else 0
 
-                # Get the latest historical price and date
+                # Use most recent historical data if available
+                hist_record = historical_data_dict.get(s.ticker)
+                prev_record = previous_day_dict.get(s.ticker)
+
                 latest_close = current_price
-                latest_close_date = 'N/A'
+                latest_close_date = most_recent_market_date.strftime('%Y-%m-%d')
 
-                try:
-                    # Try to get historical data
-                    historical_data = SecurityHistoricalData.query.filter_by(ticker=s.ticker).order_by(
-                        SecurityHistoricalData.date.desc()
-                    ).first()
+                if hist_record and hist_record.close_price:
+                    latest_close = float(hist_record.close_price)
+                    latest_close_date = hist_record.date.strftime('%Y-%m-%d')
 
-                    if historical_data:
-                        latest_close = float(historical_data.close_price) if historical_data.close_price else 0
-                        latest_close_date = historical_data.date.strftime('%Y-%m-%d') if historical_data.date else 'N/A'
+                    # If current price is missing or zero, use latest historical
+                    if current_price <= 0:
+                        current_price = latest_close
 
-                        # If current price is zero or null, use historical data
-                        if current_price <= 0 and latest_close > 0:
-                            current_price = latest_close
-                            total_value = amount_owned * current_price
-                except Exception as e:
-                    print(f"Error getting historical data for {s.ticker}: {e}")
+                # Calculate values
+                total_value = amount_owned * current_price
+
+                # Calculate day change using previous day data if available
+                value_change = 0
+                value_change_pct = 0
+
+                if prev_record and prev_record.close_price:
+                    day_change_per_unit = latest_close - float(prev_record.close_price)
+                    value_change = amount_owned * day_change_per_unit
+
+                    prev_value = amount_owned * float(prev_record.close_price)
+                    if prev_value > 0:
+                        value_change_pct = (value_change / prev_value) * 100
 
                 securities_data.append({
                     'id': s.id,
@@ -877,9 +942,9 @@ def get_portfolio_securities(portfolio_id):
                     'latest_close': latest_close,
                     'latest_close_date': latest_close_date
                 })
-            except Exception as sec_error:
-                print(f"Error processing security {s.ticker}: {sec_error}")
-                # Add with minimal data rather than skipping
+            except Exception as e:
+                print(f"Error processing security {s.ticker}: {e}")
+                # Include basic data if there's an error
                 securities_data.append({
                     'id': s.id,
                     'ticker': s.ticker,
@@ -890,21 +955,18 @@ def get_portfolio_securities(portfolio_id):
                     'value_change': 0,
                     'value_change_pct': 0,
                     'latest_close': 0,
-                    'latest_close_date': 'N/A'
+                    'latest_close_date': most_recent_market_date.strftime('%Y-%m-%d')
                 })
 
         # Get the latest update timestamp
-        latest_update = None
-        try:
-            latest_update = db.session.query(func.max(SecurityHistoricalData.updated_at)).scalar()
-        except Exception as e:
-            print(f"Error getting latest update timestamp: {e}")
+        latest_update = db.session.query(func.max(SecurityHistoricalData.updated_at)).scalar()
 
         return jsonify({
             'portfolio_id': portfolio_id,
             'portfolio_name': portfolio.name,
             'securities': securities_data,
-            'latest_update': latest_update.strftime('%Y-%m-%d %H:%M:%S') if latest_update else None
+            'latest_update': latest_update.strftime('%Y-%m-%d %H:%M:%S') if latest_update else datetime.now().strftime(
+                '%Y-%m-%d %H:%M:%S')
         }), 200
 
     except Exception as e:
