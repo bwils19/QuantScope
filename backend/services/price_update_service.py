@@ -20,11 +20,6 @@ from backend.celery_app import celery
 from backend.services.stock_service import is_market_open
 
 
-def _create_session(self):
-    """Create a new database session"""
-    return db.session
-
-
 class PriceUpdateService:
     """Service for updating security prices efficiently with Alpha Vantage API."""
 
@@ -48,6 +43,10 @@ class PriceUpdateService:
         # Session with retry configuration
         self.session = self._create_request_session()
         self.logger.info(f"PriceUpdateService initialized with rate_limit={rate_limit}, batch_size={batch_size}")
+
+    def _create_session(self):
+        """Create a new database session"""
+        return db.session
 
     def _create_request_session(self) -> requests.Session:
         """Create a request session with retry configuration."""
@@ -997,7 +996,7 @@ def save_closing_prices():
         service.logger.info("Market still open, skipping final price save.")
         return
 
-    session = _create_session()
+    session = db.session
     try:
         service.logger.info("Saving closing prices from StockCache into SecurityHistoricalData...")
         all_cache_entries = session.query(StockCache).all()
