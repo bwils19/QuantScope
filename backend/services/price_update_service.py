@@ -15,7 +15,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend import db
-from backend.models import StockCache, Portfolio, Security, RiskAnalysisCache
+from backend.models import StockCache, Portfolio, Security, RiskAnalysisCache, SecurityHistoricalData
+from backend.app import app
+from backend.services.celery_config import make_celery
+
+celery = make_celery(app)
 
 
 class PriceUpdateService:
@@ -968,3 +972,54 @@ class PriceUpdateService:
         except Exception as e:
             self.logger.error(f"Error getting historical price for {ticker}: {str(e)}")
             return None
+
+
+@celery.task
+def scheduled_price_update():
+    """
+    Celery task to update all portfolio prices every 5 minutes during market hours.
+    """
+    service = PriceUpdateService()
+    service.logger.info("Running scheduled price update via Celery...")
+
+    result = service.update_all_portfolio_prices()
+    service.logger.info(f"Scheduled update complete: {result}")
+
+    return result
+
+
+@celery.task
+def save_closing_prices():
+    """
+    Celery task to save the final stock prices at the end of the market day.
+    Moves the final prices from StockCache into SecurityHistoricalData.
+    """
+    service = PriceUpdateService()
+
+    if service.is_market_open():
+        service.logger.info("Market still open, skipping final price save.")
+        return
+
+    session = db.create_scoped_session()
+
+    try:
+        service.logger.info("Saving closing prices from StockCache into SecurityHistoricalData...")
+
+        all_cache_entries = session.query(StockCache).all()
+        for cache_entry in all_cache_entries:
+            historical_entry = SecurityHistoricalData(
+                ticker=cache_entry.ticker,
+                date=datetime.utcnow().date(),
+                close_price=cache_entry.data["currentPrice"]
+            )
+            session.add(historical_entry)
+
+        session.commit()
+        service.logger.info("Closing prices successfully saved.")
+
+    except Exception as e:
+        session.rollback()
+        service.logger.error(f"Error saving closing prices: {str(e)}", exc_info=True)
+
+    finally:
+        session.close()
