@@ -27,14 +27,17 @@ celery.conf.update(
 
 
 def configure_celery(app):
-    # Update celery config with any relevant Flask config
     celery.conf.update(app.config)
 
-    class ContextTask(celery.Task):
+    TaskBase = celery.Task
+
+    class ContextTask(TaskBase):
+        abstract = True
+
         def __call__(self, *args, **kwargs):
             with app.app_context():
-                return self.run(*args, **kwargs)
+                return super(ContextTask, self).__call__(*args, **kwargs)
 
-    celery.Task = ContextTask
+    celery.conf.update(task_base=ContextTask)
 
     return celery

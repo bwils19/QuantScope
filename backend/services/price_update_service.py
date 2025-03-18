@@ -17,6 +17,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from backend import db
 from backend.models import StockCache, Portfolio, Security, RiskAnalysisCache, SecurityHistoricalData
 from backend.celery_app import celery
+from backend.services.stock_service import is_market_open
+
+
+def _create_session(self):
+    """Create a new database session"""
+    return db.session
 
 
 class PriceUpdateService:
@@ -71,7 +77,7 @@ class PriceUpdateService:
 
         try:
             # Create a new session for this operation
-            session = db.create_scoped_session()
+            session = self._create_session()
             self.logger.debug("Created new database session")
 
             try:
@@ -308,7 +314,7 @@ class PriceUpdateService:
         use_provided_session = session is not None
         if not use_provided_session:
             self.logger.debug("Creating new database session")
-            session = db.create_scoped_session()
+            session = self._create_session()
 
         try:
             # Get cached prices first to avoid unnecessary API calls
@@ -540,13 +546,10 @@ class PriceUpdateService:
 
     def _get_cached_tickers(self, tickers: List[str], session) -> Dict[str, Dict[str, Any]]:
         """Get cached price data for tickers from database.
-
         Args:
             tickers: List of tickers to check
             session: Database session to use
-
-        Returns:
-            Dict mapping tickers to their cached data
+        Returns: Dict mapping tickers to their cached data
         """
         try:
             self.logger.debug(f"Getting cached data for {len(tickers)} tickers")
@@ -821,7 +824,7 @@ class PriceUpdateService:
             use_provided_session = session is not None
             if not use_provided_session:
                 self.logger.debug("Creating new session for portfolio totals update")
-                session = db.create_scoped_session()
+                session = self._create_session()
 
             try:
                 # Query portfolios to update
@@ -906,7 +909,7 @@ class PriceUpdateService:
             use_provided_session = session is not None
             if not use_provided_session:
                 self.logger.debug(f"Creating new session for risk cache invalidation (portfolio {portfolio_id})")
-                session = db.create_scoped_session()
+                session = self._create_session()
 
             try:
                 cache = session.query(RiskAnalysisCache).filter_by(portfolio_id=portfolio_id).first()
@@ -951,7 +954,7 @@ class PriceUpdateService:
             from backend.models import SecurityHistoricalData
 
             # Query for the most recent data on or before the target date
-            with db.create_scoped_session() as session:
+            with self._create_session() as session:
                 historical_data = session.query(
                     SecurityHistoricalData
                 ).filter(
@@ -994,7 +997,7 @@ def save_closing_prices():
         service.logger.info("Market still open, skipping final price save.")
         return
 
-    session = db.create_scoped_session()
+    session = _create_session()
     try:
         service.logger.info("Saving closing prices from StockCache into SecurityHistoricalData...")
         all_cache_entries = session.query(StockCache).all()
