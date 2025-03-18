@@ -1,10 +1,10 @@
 from celery import Celery
 
-
 def make_celery(app):
     """
     Configure Celery using the Flask app context.
     """
+
     celery = Celery(
         app.import_name,
         broker="redis://localhost:6379/0",
