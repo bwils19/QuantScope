@@ -11,8 +11,9 @@ from backend.services.email_service import mail
 from backend.utils.data_utils import fetch_and_process_stress_scenarios
 from backend.logging_config import setup_logging
 from flask_mail import Mail, Message
+from backend.celery_app import configure_celery, celery
 
-from backend.models import User, Portfolio, Security, StressScenario  # Import StressScenario for verification
+from backend.models import User, Portfolio, Security, StressScenario
 
 # Initialize Mail outside the app factory
 mail = Mail()
@@ -105,8 +106,9 @@ def create_app(test_config=None):
         app.cli.add_command(load_historical_data)
         from backend.utils.diagnostic import check_date_issues
         check_date_issues()
+    configure_celery(app)
 
-        # Root route
+    # Root route
     @app.route("/")
     def home():
         try:

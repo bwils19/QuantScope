@@ -16,7 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from backend import db
 from backend.models import StockCache, Portfolio, Security, RiskAnalysisCache, SecurityHistoricalData
-from backend.celery_worker import celery
+from backend.celery_app import celery
 
 
 class PriceUpdateService:
