@@ -16,20 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from backend import db
 from backend.models import StockCache, Portfolio, Security, RiskAnalysisCache, SecurityHistoricalData
-from backend.app import app
-from backend.services.celery_config import make_celery
-
-celery = None
-
-def get_celery():
-    """
-    Only initialize celery when i need it
-    """
-    global celery
-    if celery is None:
-        from backend.app import app
-        celery = make_celery(app)
-    return celery
+from backend.celery_worker import celery
 
 
 class PriceUpdateService:
@@ -984,57 +971,47 @@ class PriceUpdateService:
             return None
 
 
+@celery.task
 def scheduled_price_update():
     """
     Celery task to update all portfolio prices every 5 minutes during market hours.
     """
-    celery = get_celery()
-
-    @celery.task
-    def update():
-        service = PriceUpdateService()
-        service.logger.info("Running scheduled price update via Celery...")
-        result = service.update_all_portfolio_prices()
-        service.logger.info(f"Scheduled update COMPLETE: {result}")
-        return result
-
-    return update()
+    service = PriceUpdateService()
+    service.logger.info("Running scheduled price update via Celery...")
+    result = service.update_all_portfolio_prices()
+    service.logger.info(f"Scheduled update complete: {result}")
+    return result
 
 
+@celery.task
 def save_closing_prices():
     """
     Celery task to save the final stock prices at the end of the market day.
-    Moves the final prices from StockCache into SecurityHistoricalData.
+    Moves the final prices from StockCache to SecurityHistoricalData.
     """
-    celery = get_celery()
+    service = PriceUpdateService()
+    if service.is_market_open():
+        service.logger.info("Market still open, skipping final price save.")
+        return
 
-    @celery.task
-    def save():
-        service = PriceUpdateService()
-        if service.is_market_open():
-            service.logger.info("Market still open, skipping final price save.")
-            return
+    session = db.create_scoped_session()
+    try:
+        service.logger.info("Saving closing prices from StockCache into SecurityHistoricalData...")
+        all_cache_entries = session.query(StockCache).all()
+        for cache_entry in all_cache_entries:
+            historical_entry = SecurityHistoricalData(
+                ticker=cache_entry.ticker,
+                date=datetime.utcnow().date(),
+                close_price=cache_entry.data["currentPrice"]
+            )
+            session.add(historical_entry)
 
-        session = db.create_scoped_session()
-        try:
-            service.logger.info("Saving closing prices from StockCache into SecurityHistoricalData...")
-            all_cache_entries = session.query(StockCache).all()
-            for cache_entry in all_cache_entries:
-                historical_entry = SecurityHistoricalData(
-                    ticker=cache_entry.ticker,
-                    date=datetime.utcnow().date(),
-                    close_price=cache_entry.data["currentPrice"]
-                )
-                session.add(historical_entry)
+        session.commit()
+        service.logger.info("Closing prices successfully saved.")
 
-            session.commit()
-            service.logger.info("Closing prices successfully saved.")
+    except Exception as e:
+        session.rollback()
+        service.logger.error(f"Error saving closing prices: {str(e)}", exc_info=True)
 
-        except Exception as e:
-            session.rollback()
-            service.logger.error(f"Error saving closing prices: {str(e)}", exc_info=True)
-
-        finally:
-            session.close()
-
-    return save()
+    finally:
+        session.close()
