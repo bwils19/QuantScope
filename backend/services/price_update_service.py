@@ -45,8 +45,33 @@ class PriceUpdateService:
         self.logger.info(f"PriceUpdateService initialized with rate_limit={rate_limit}, batch_size={batch_size}")
 
     def _create_session(self):
-        """Create a new database session"""
-        return db.session
+        """Create a direct SQLAlchemy session consistent with the app's DB connection"""
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        import os
+        from dotenv import load_dotenv
+
+        # Load environment variables
+        load_dotenv()
+
+        # Get database URL - same logic as in app.py
+        database_url = os.getenv('DATABASE_URL')
+        if database_url:
+            if database_url.startswith('postgres://'):
+                database_url = database_url.replace('postgres://', 'postgresql://')
+        else:
+            # Fallback to SQLite
+            import os.path
+            basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+            database_url = f"sqlite:///{os.path.join(basedir, 'instance', 'users.db')}"
+
+        self.logger.info(f"Creating direct database session with URL: {database_url}")
+
+        # Create engine and session
+        engine = create_engine(database_url)
+        Session = sessionmaker(bind=engine)
+
+        return Session()
 
     def _create_request_session(self) -> requests.Session:
         """Create a request session with retry configuration."""
