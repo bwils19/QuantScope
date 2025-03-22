@@ -45,16 +45,14 @@ class PriceUpdateService:
         self.logger.info(f"PriceUpdateService initialized with rate_limit={rate_limit}, batch_size={batch_size}")
 
     def _create_session(self):
-        """Create a direct SQLAlchemy session consistent with the app's DB connection"""
+        """Create a direct SQLAlchemy session with connection pool management"""
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
         import os
         from dotenv import load_dotenv
 
-        # Load environment variables
         load_dotenv()
 
-        # Get database URL - same logic as in app.py
         database_url = os.getenv('DATABASE_URL')
         if database_url:
             if database_url.startswith('postgres://'):
@@ -65,12 +63,17 @@ class PriceUpdateService:
             basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
             database_url = f"sqlite:///{os.path.join(basedir, 'instance', 'users.db')}"
 
-        self.logger.info(f"Creating direct database session with URL: {database_url}")
+        # Enhanced engine with connection pool settings
+        engine = create_engine(
+            database_url,
+            pool_size=5,  # Max connections in pool
+            max_overflow=10,  # Max overflow allowed
+            pool_timeout=30,  # Sec to wait for connection
+            pool_recycle=1800,  # Recycle connections after 30 min
+            pool_pre_ping=True  # Verify connections before use
+        )
 
-        # Create engine and session
-        engine = create_engine(database_url)
         Session = sessionmaker(bind=engine)
-
         return Session()
 
     def _create_request_session(self) -> requests.Session:
