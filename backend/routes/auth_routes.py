@@ -1235,53 +1235,74 @@ def update_portfolio(portfolio_id):
 
         print("Received changes:", data)
 
-        with db.session.no_autoflush:
-            for change in changes:
-                print("Processing change:", change)
-                security_id = change.get('security_id')
-
-                if change.get('deleted'):
-                    security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
-                    if security:
-                        print(f"Deleting security {security.ticker} (ID: {security.id})")
-                        db.session.delete(security)
-
-        # Commit the deletions first to avoid constraint issues
-        db.session.commit()
+        securities_to_delete = []
+        securities_to_update = []
+        securities_to_add = []
 
         for change in changes:
             security_id = change.get('security_id')
 
             if change.get('deleted'):
-                continue
-
-            if change.get('new'):
-                print("Adding new security:", change)
-                security = Security(
-                    portfolio_id=portfolio_id,
-                    ticker=change['ticker'],
-                    name=change['name'],
-                    amount_owned=float(change['amount']),
-                    current_price=float(change['current_price']),
-                    total_value=float(change['total_value']),
-                    value_change=float(change['value_change']),
-                    value_change_pct=float(change['value_change_pct']),
-                    total_gain=float(change.get('total_gain', 0)),
-                    total_gain_pct=float(change.get('total_gain_pct', 0))
-                )
-                db.session.add(security)
-                print("New security added to session")
+                # Add to deletion list
+                securities_to_delete.append(security_id)
+            elif change.get('new'):
+                # Add to creation list
+                securities_to_add.append(change)
             elif 'amount' in change:
-                security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
-                if security:
-                    # Update amount and recalculate values
-                    security.amount_owned = float(change['amount'])
-                    security.total_value = security.amount_owned * security.current_price
+                # Add to update list
+                securities_to_update.append((security_id, change))
 
-        # Commit the other changes
+        if securities_to_delete:
+            try:
+                delete_query = f"""
+                DELETE FROM securities 
+                WHERE id IN ({','.join(['%s'] * len(securities_to_delete))})
+                AND portfolio_id = %s
+                """
+
+                with db.engine.connect() as conn:
+                    conn.execute(
+                        delete_query,
+                        [*securities_to_delete, portfolio_id]
+                    )
+                    conn.commit()
+
+                print(f"Deleted {len(securities_to_delete)} securities directly with SQL")
+            except Exception as e:
+                print(f"Error with direct SQL delete: {str(e)}")
+                print("Falling back to ORM delete...")
+                for security_id in securities_to_delete:
+                    security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
+                    if security:
+                        db.session.delete(security)
+                db.session.commit()
+
+        # Now handle additions
+        for new_security in securities_to_add:
+            security = Security(
+                portfolio_id=portfolio_id,
+                ticker=new_security['ticker'],
+                name=new_security['name'],
+                amount_owned=float(new_security['amount']),
+                current_price=float(new_security['current_price']),
+                total_value=float(new_security['total_value']),
+                value_change=float(new_security['value_change']),
+                value_change_pct=float(new_security['value_change_pct']),
+                total_gain=float(new_security.get('total_gain', 0)),
+                total_gain_pct=float(new_security.get('total_gain_pct', 0))
+            )
+            db.session.add(security)
+
+        # Handle updates
+        for security_id, change in securities_to_update:
+            security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
+            if security:
+                security.amount_owned = float(change['amount'])
+                security.total_value = security.amount_owned * security.current_price
+
         db.session.commit()
 
-        portfolio = Portfolio.query.get(portfolio_id)
+        # Update portfolio totals
         securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
 
         # Calculate totals with None checks

@@ -71,15 +71,6 @@ class Security(db.Model):
     added_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    historical_data = db.relationship(
-        'SecurityHistoricalData',
-        primaryjoin="Security.ticker==SecurityHistoricalData.ticker",
-        foreign_keys="SecurityHistoricalData.ticker",
-        cascade="all, delete",
-        backref=db.backref('security', lazy=True),
-        viewonly=True
-    )
-
 
 class SecurityHistoricalData(db.Model):
     __tablename__ = 'security_historical_data'
