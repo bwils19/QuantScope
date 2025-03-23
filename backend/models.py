@@ -18,7 +18,7 @@ class User(db.Model):
 
 class Portfolio(db.Model):
     __tablename__ = 'portfolios'
-    __table_args__ = {'extend_existing': True}
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
@@ -26,50 +26,80 @@ class Portfolio(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Portfolio metrics
-    total_holdings = db.Column(db.Integer, default=0)  # Number of different securities
-    total_value = db.Column(db.Float, default=0.0)  # Current total value
-    day_change = db.Column(db.Float, default=0.0)  # Daily value change
-    day_change_pct = db.Column(db.Float, default=0.0)  # Daily percentage change
-    total_gain = db.Column(db.Float, default=0.0)  # Total gain/loss across all positions
+    total_holdings = db.Column(db.Integer, default=0)
+    total_value = db.Column(db.Float, default=0.0)
+    day_change = db.Column(db.Float, default=0.0)
+    day_change_pct = db.Column(db.Float, default=0.0)
+    total_gain = db.Column(db.Float, default=0.0)
     total_gain_pct = db.Column(db.Float, default=0.0)
-    total_return = db.Column(db.Float, default=0.0)  # Total return including closed positions
-    total_return_pct = db.Column(db.Float, default=0.0)  # Total return percentage
+    total_return = db.Column(db.Float, default=0.0)
+    total_return_pct = db.Column(db.Float, default=0.0)
 
-    # Relationships
-    securities = db.relationship('Security', backref='portfolio', cascade='all, delete-orphan')
+    # User relationship
     user = db.relationship('User', backref=db.backref('portfolios', lazy=True))
 
+    # Get securities via the junction table (defined with backref above)
 
-class Security(db.Model):
-    __tablename__ = 'securities'
-    __table_args__ = {'extend_existing': True}
+
+class PortfolioSecurity(db.Model):
+    __tablename__ = 'portfolio_securities'
+
     id = db.Column(db.Integer, primary_key=True)
     portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'), nullable=False)
-    ticker = db.Column(db.String(20), nullable=False)
-    name = db.Column(db.String(200), nullable=False)
-    exchange = db.Column(db.String(50))
+    security_id = db.Column(db.Integer, db.ForeignKey('securities.id'), nullable=False)
 
-    # Additional categorization fields
-    asset_type = db.Column(db.String(50), default='Equity')
-    sector = db.Column(db.String(50), nullable=True)
-    currency = db.Column(db.String(3), default='USD')
-
-    # Position information
+    # Portfolio-specific metrics
     amount_owned = db.Column(db.Float, nullable=False)
     purchase_price = db.Column(db.Float)
     purchase_date = db.Column(db.Date, nullable=True)
-    current_price = db.Column(db.Float)
     total_value = db.Column(db.Float)
-
-    # Performance metrics
     value_change = db.Column(db.Float)
     value_change_pct = db.Column(db.Float)
-    total_gain = db.Column(db.Float)  # total gain/loss in dollars since purchase
+    total_gain = db.Column(db.Float)
     total_gain_pct = db.Column(db.Float)
 
     # Timestamps
     added_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    portfolio = db.relationship('Portfolio',
+                                backref=db.backref('portfolio_securities', lazy=True, cascade='all, delete-orphan'))
+    security = db.relationship('Security', backref=db.backref('portfolio_securities', lazy=True))
+
+    # Ensure a security appears only once in a portfolio
+    __table_args__ = (db.UniqueConstraint('portfolio_id', 'security_id', name='uix_portfolio_security'),)
+
+
+class Security(db.Model):
+    __tablename__ = 'securities'
+
+    id = db.Column(db.Integer, primary_key=True)
+    ticker = db.Column(db.String(20), nullable=False, unique=True)  # Make ticker unique
+    name = db.Column(db.String(200), nullable=False)
+    exchange = db.Column(db.String(50))
+
+    # Security-specific data
+    asset_type = db.Column(db.String(50), default='Equity')
+    sector = db.Column(db.String(50), nullable=True)
+    currency = db.Column(db.String(3), default='USD')
+
+    # Current market data
+    current_price = db.Column(db.Float)
+    previous_close = db.Column(db.Float)
+
+    # Timestamps
+    added_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Keep the relationship with historical data
+    historical_data = db.relationship(
+        'SecurityHistoricalData',
+        primaryjoin="Security.ticker==SecurityHistoricalData.ticker",
+        foreign_keys="SecurityHistoricalData.ticker",
+        backref=db.backref('security', lazy=True),
+        viewonly=True  # Prevents cascading operations
+    )
 
 
 class SecurityHistoricalData(db.Model):

@@ -1235,71 +1235,53 @@ def update_portfolio(portfolio_id):
 
         print("Received changes:", data)
 
+        # First, handle deletions using raw SQL
         securities_to_delete = []
-        securities_to_update = []
-        securities_to_add = []
-
         for change in changes:
-            security_id = change.get('security_id')
-
-            if change.get('deleted'):
-                # Add to deletion list
-                securities_to_delete.append(security_id)
-            elif change.get('new'):
-                # Add to creation list
-                securities_to_add.append(change)
-            elif 'amount' in change:
-                # Add to update list
-                securities_to_update.append((security_id, change))
+            if change.get('deleted') and change.get('security_id'):
+                securities_to_delete.append(change.get('security_id'))
 
         if securities_to_delete:
-            try:
-                delete_query = f"""
-                DELETE FROM securities 
-                WHERE id IN ({','.join(['%s'] * len(securities_to_delete))})
-                AND portfolio_id = %s
-                """
+            print(f"Deleting securities: {securities_to_delete}")
+            # Use database engine directly to bypass ORM
+            with db.engine.begin() as connection:
+                # Convert all IDs to strings and join with commas
+                id_list = ','.join(str(id) for id in securities_to_delete)
+                # Delete query for securities only (not touching historical data)
+                sql = f"DELETE FROM securities WHERE id IN ({id_list}) AND portfolio_id = {portfolio_id}"
+                connection.execute(db.text(sql))
 
-                with db.engine.connect() as conn:
-                    conn.execute(
-                        delete_query,
-                        [*securities_to_delete, portfolio_id]
-                    )
-                    conn.commit()
+            print(f"Deleted {len(securities_to_delete)} securities with direct SQL")
 
-                print(f"Deleted {len(securities_to_delete)} securities directly with SQL")
-            except Exception as e:
-                print(f"Error with direct SQL delete: {str(e)}")
-                print("Falling back to ORM delete...")
-                for security_id in securities_to_delete:
-                    security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
-                    if security:
-                        db.session.delete(security)
-                db.session.commit()
+        for change in changes:
+            if change.get('deleted'):
+                continue
 
-        # Now handle additions
-        for new_security in securities_to_add:
-            security = Security(
-                portfolio_id=portfolio_id,
-                ticker=new_security['ticker'],
-                name=new_security['name'],
-                amount_owned=float(new_security['amount']),
-                current_price=float(new_security['current_price']),
-                total_value=float(new_security['total_value']),
-                value_change=float(new_security['value_change']),
-                value_change_pct=float(new_security['value_change_pct']),
-                total_gain=float(new_security.get('total_gain', 0)),
-                total_gain_pct=float(new_security.get('total_gain_pct', 0))
-            )
-            db.session.add(security)
+            if change.get('new'):
+                print("Adding new security:", change)
+                security = Security(
+                    portfolio_id=portfolio_id,
+                    ticker=change['ticker'],
+                    name=change['name'],
+                    amount_owned=float(change['amount']),
+                    current_price=float(change.get('current_price', 0)),
+                    total_value=float(change.get('total_value', 0)),
+                    value_change=float(change.get('value_change', 0)),
+                    value_change_pct=float(change.get('value_change_pct', 0)),
+                    total_gain=float(change.get('total_gain', 0)),
+                    total_gain_pct=float(change.get('total_gain_pct', 0))
+                )
+                db.session.add(security)
+                print("New security added to session")
+            elif 'amount' in change and change.get('security_id'):
+                security_id = change.get('security_id')
+                security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
+                if security:
+                    security.amount_owned = float(change['amount'])
+                    if security.current_price:
+                        security.total_value = security.amount_owned * security.current_price
 
-        # Handle updates
-        for security_id, change in securities_to_update:
-            security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
-            if security:
-                security.amount_owned = float(change['amount'])
-                security.total_value = security.amount_owned * security.current_price
-
+        # Commit changes to securities
         db.session.commit()
 
         # Update portfolio totals
@@ -1311,7 +1293,7 @@ def update_portfolio(portfolio_id):
         portfolio.total_holdings = len(securities)
 
         # Safe percentage calculation for day change
-        base_value = portfolio.total_value - portfolio.day_change
+        base_value = portfolio.total_value - portfolio.day_change if portfolio.day_change else portfolio.total_value
         if base_value and base_value != 0:
             portfolio.day_change_pct = (portfolio.day_change / base_value) * 100
         else:
@@ -1349,6 +1331,8 @@ def update_portfolio(portfolio_id):
 
     except Exception as e:
         print(f"Error in update_portfolio: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         db.session.rollback()
         return jsonify({"message": f"Failed to update portfolio: {str(e)}"}), 500
 
