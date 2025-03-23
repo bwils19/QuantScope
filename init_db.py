@@ -1,39 +1,22 @@
 import psycopg2
-import os
-from dotenv import load_dotenv
 import sys
 from datetime import datetime
 
-# Load environment variables to get database connection details
-load_dotenv()
 
-
-def get_db_connection():
-    """Connect directly to the database using credentials from environment vars"""
-    # Get database connection parameters from environment variables
-    db_host = os.getenv('DB_HOST')
-    db_name = os.getenv('DB_NAME')
-    db_user = os.getenv('DB_USER')
-    db_password = os.getenv('DB_PASSWORD')
-    db_port = os.getenv('DB_PORT', '5432')  # Default PostgreSQL port
-
-    print(f"Connecting to database {db_name} on {db_host}:{db_port} as {db_user}")
-
-    # Connect to the database
-    conn = psycopg2.connect(
-        host=db_host,
-        database=db_name,
-        user=db_user,
-        password=db_password,
-        port=db_port
-    )
-
-    return conn
-
-
-def create_junction_table(conn):
+def create_junction_table():
     """Create the portfolio_securities junction table"""
     try:
+        # Replace these with your actual database connection details
+        conn = psycopg2.connect(
+            host="quantscope-fellowship-do-user-19215750-0.l.db.ondigitalocean.com",
+            # e.g., db-postgresql-nyc1-12345.db.ondigitalocean.com
+            database="defaultdb",  # e.g., quantscope
+            user="doadmin",  # e.g., doadmin
+            password="AVNS_1Wwzrqn8pdJgU_-8Hud",  # Your actual password
+            port="25060"  # Default DO Postgres port is usually 25060
+        )
+
+        print("Connected to database successfully")
         cursor = conn.cursor()
 
         # Check if the table already exists
@@ -127,32 +110,27 @@ def create_junction_table(conn):
         else:
             print("\nPortfolio securities junction table already exists.")
 
+        # Close the connection
+        cursor.close()
+        conn.close()
+        print("Database connection closed.")
+
         return True
 
     except Exception as e:
         print(f"Error: {str(e)}")
-        conn.rollback()
+        if 'conn' in locals() and conn:
+            conn.rollback()
+            conn.close()
         return False
 
 
 if __name__ == "__main__":
     print("Creating portfolio_securities junction table...")
-    try:
-        # Connect to the database
-        conn = get_db_connection()
+    success = create_junction_table()
 
-        # Create the junction table
-        success = create_junction_table(conn)
-
-        # Close the connection
-        conn.close()
-
-        if success:
-            print("Migration completed successfully!")
-        else:
-            print("Migration failed.")
-            sys.exit(1)
-
-    except Exception as e:
-        print(f"Error: {str(e)}")
+    if success:
+        print("Migration completed successfully!")
+    else:
+        print("Migration failed.")
         sys.exit(1)
