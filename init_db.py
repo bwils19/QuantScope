@@ -1,24 +1,51 @@
-from backend.app import create_app
-from backend import db
-from sqlalchemy import inspect, MetaData, Table, Column, Integer, DateTime, String, Float, Date, ForeignKey, \
-    UniqueConstraint
+import psycopg2
+import os
+from dotenv import load_dotenv
+import sys
 from datetime import datetime
-import traceback
 
-app = create_app()
+# Load environment variables to get database connection details
+load_dotenv()
 
-with app.app_context():
+
+def get_db_connection():
+    """Connect directly to the database using credentials from environment vars"""
+    # Get database connection parameters from environment variables
+    db_host = os.getenv('DB_HOST')
+    db_name = os.getenv('DB_NAME')
+    db_user = os.getenv('DB_USER')
+    db_password = os.getenv('DB_PASSWORD')
+    db_port = os.getenv('DB_PORT', '5432')  # Default PostgreSQL port
+
+    print(f"Connecting to database {db_name} on {db_host}:{db_port} as {db_user}")
+
+    # Connect to the database
+    conn = psycopg2.connect(
+        host=db_host,
+        database=db_name,
+        user=db_user,
+        password=db_password,
+        port=db_port
+    )
+
+    return conn
+
+
+def create_junction_table(conn):
+    """Create the portfolio_securities junction table"""
     try:
-        # Check for existing tables
-        inspector = inspect(db.engine)
-        existing_tables = inspector.get_table_names()
+        cursor = conn.cursor()
 
-        # Add Portfolio Securities junction table if it doesn't exist
-        if 'portfolio_securities' not in existing_tables:
+        # Check if the table already exists
+        cursor.execute(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'portfolio_securities')")
+        table_exists = cursor.fetchone()[0]
+
+        if not table_exists:
             print("\nCreating portfolio_securities junction table...")
 
-            # Use raw SQL to create the table to avoid ORM issues
-            db.session.execute(db.text("""
+            # Create the table
+            cursor.execute("""
             CREATE TABLE portfolio_securities (
                 id SERIAL PRIMARY KEY,
                 portfolio_id INTEGER NOT NULL REFERENCES portfolios(id),
@@ -35,14 +62,11 @@ with app.app_context():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 CONSTRAINT uix_portfolio_security UNIQUE (portfolio_id, security_id)
             )
-            """))
+            """)
 
-            db.session.commit()
-            print("Portfolio securities junction table created successfully.")
-
-            # Migrate existing data
-            print("\nMigrating existing securities data to junction table...")
-            db.session.execute(db.text("""
+            # Migrate data from securities table to junction table
+            print("Migrating data from securities table...")
+            cursor.execute("""
             INSERT INTO portfolio_securities (
                 portfolio_id, 
                 security_id, 
@@ -71,31 +95,64 @@ with app.app_context():
                 added_at,
                 updated_at
             FROM securities
-            """))
+            """)
 
-            db.session.commit()
-            print("Data migration completed successfully.")
+            # Get counts for verification
+            cursor.execute("SELECT COUNT(*) FROM portfolio_securities")
+            junction_count = cursor.fetchone()[0]
 
-            # Verify the table and migration
-            result = db.session.execute(
-                db.text("SELECT COUNT(*) AS junction_count FROM portfolio_securities")).fetchone()
-            junction_count = result[0]
+            cursor.execute("SELECT COUNT(*) FROM securities")
+            security_count = cursor.fetchone()[0]
 
-            security_count = db.session.execute(db.text("SELECT COUNT(*) FROM securities")).fetchone()[0]
-
-            print(f"\nVerification: {junction_count} records in junction table")
+            print(f"Verification: {junction_count} records in junction table")
             print(f"Original securities count: {security_count}")
             print(f"Migration {'successful' if junction_count == security_count else 'incomplete'}")
 
+            # Show the table structure
+            cursor.execute("""
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = 'portfolio_securities'
+            """)
+            columns = cursor.fetchall()
+
             print("\nVerifying portfolio_securities table columns:")
-            junction_columns = inspector.get_columns('portfolio_securities')
-            for column in junction_columns:
-                print(f"  - {column['name']}: {column['type']}")
+            for col_name, col_type in columns:
+                print(f"  - {col_name}: {col_type}")
+
+            # Commit the transaction
+            conn.commit()
+            print("Transaction committed successfully.")
 
         else:
             print("\nPortfolio securities junction table already exists.")
 
+        return True
+
     except Exception as e:
-        print(f"Error during migration: {str(e)}")
-        print(traceback.format_exc())
-        db.session.rollback()
+        print(f"Error: {str(e)}")
+        conn.rollback()
+        return False
+
+
+if __name__ == "__main__":
+    print("Creating portfolio_securities junction table...")
+    try:
+        # Connect to the database
+        conn = get_db_connection()
+
+        # Create the junction table
+        success = create_junction_table(conn)
+
+        # Close the connection
+        conn.close()
+
+        if success:
+            print("Migration completed successfully!")
+        else:
+            print("Migration failed.")
+            sys.exit(1)
+
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        sys.exit(1)
