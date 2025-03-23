@@ -1235,9 +1235,24 @@ def update_portfolio(portfolio_id):
 
         print("Received changes:", data)
 
+        with db.session.no_autoflush:
+            for change in changes:
+                print("Processing change:", change)
+                security_id = change.get('security_id')
+
+                if change.get('deleted'):
+                    security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
+                    if security:
+                        print(f"Deleting security {security.ticker} (ID: {security.id})")
+                        db.session.delete(security)
+
+        # Now process other changes
         for change in changes:
-            print("Processing change:", change)
             security_id = change.get('security_id')
+
+            # Skip deleted securities as they've been handled
+            if change.get('deleted'):
+                continue
 
             if change.get('new'):
                 print("Adding new security:", change)
@@ -1255,18 +1270,18 @@ def update_portfolio(portfolio_id):
                 )
                 db.session.add(security)
                 print("New security added to session")
-
-            else:
+            elif 'amount' in change:
                 security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
                 if security:
-                    if change.get('deleted'):
-                        db.session.delete(security)
-                    elif 'amount' in change:
+                    # Update amount and recalculate values
+                    security.amount_owned = float(change['amount'])
+                    security.total_value = security.amount_owned * security.current_price
 
-                        pass
+        # Commit the changes
+        db.session.commit()
 
-        # Update portfolio totals
-        db.session.flush()  # Ensure all security changes are reflected
+        # Refresh portfolio from database to ensure latest state
+        portfolio = Portfolio.query.get(portfolio_id)
         securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
 
         # Calculate totals with None checks
