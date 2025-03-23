@@ -1246,11 +1246,12 @@ def update_portfolio(portfolio_id):
                         print(f"Deleting security {security.ticker} (ID: {security.id})")
                         db.session.delete(security)
 
-        # Now process other changes
+        # Commit the deletions first to avoid constraint issues
+        db.session.commit()
+
         for change in changes:
             security_id = change.get('security_id')
 
-            # Skip deleted securities as they've been handled
             if change.get('deleted'):
                 continue
 
@@ -1277,10 +1278,9 @@ def update_portfolio(portfolio_id):
                     security.amount_owned = float(change['amount'])
                     security.total_value = security.amount_owned * security.current_price
 
-        # Commit the changes
+        # Commit the other changes
         db.session.commit()
 
-        # Refresh portfolio from database to ensure latest state
         portfolio = Portfolio.query.get(portfolio_id)
         securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
 
@@ -1299,7 +1299,7 @@ def update_portfolio(portfolio_id):
         portfolio.total_gain = sum((s.total_gain or 0) for s in securities)
 
         # Safe total cost calculation
-        total_cost = sum((s.amount_owned or 0) * (s.purchase_price or 0) for s in securities)
+        total_cost = sum((s.amount_owned or 0) * (s.purchase_price or 0) for s in securities if s.purchase_price)
         if total_cost and total_cost != 0:
             portfolio.total_gain_pct = ((portfolio.total_value / total_cost) - 1) * 100
         else:

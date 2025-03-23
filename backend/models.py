@@ -73,14 +73,21 @@ class Security(db.Model):
 
     historical_data = db.relationship(
         'SecurityHistoricalData',
-        cascade='all, delete-orphan',
-        backref=db.backref('security', lazy=True)
+        primaryjoin="Security.ticker==SecurityHistoricalData.ticker",
+        foreign_keys="SecurityHistoricalData.ticker",
+        cascade="all, delete",
+        backref=db.backref('security', lazy=True),
+        viewonly=True
     )
 
 
 class SecurityHistoricalData(db.Model):
     __tablename__ = 'security_historical_data'
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = (
+        db.UniqueConstraint('ticker', 'date', name='uix_ticker_date'),
+        db.Index('idx_security_date', 'ticker', 'date'),
+        {'extend_existing': True}
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     ticker = db.Column(db.String(20), nullable=False)
