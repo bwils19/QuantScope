@@ -417,5 +417,32 @@
         });
     });
 </script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log("===== DEBUGGING FRONTEND DATA =====");
+
+    // Access the portfolios data from the template
+    const portfoliosData = JSON.parse(document.getElementById('portfolios-data').textContent);
+    console.log("Number of portfolios:", portfoliosData.length);
+
+    portfoliosData.forEach((portfolio, i) => {
+      console.log(`Portfolio ${i+1}: ${portfolio.name}, ID: ${portfolio.id}`);
+      console.log(`  Total value: ${portfolio.total_value}`);
+      console.log(`  Day change: ${portfolio.day_change}`);
+
+      // Check if securities exist
+      if (portfolio.securities) {
+        console.log(`  Number of securities: ${portfolio.securities.length}`);
+        portfolio.securities.forEach((security, j) => {
+          console.log(`    Security ${j+1}: ${security.ticker}, Amount: ${security.amount_owned}, Current price: ${security.current_price}`);
+          console.log(`      Total value: ${security.total_value}, Day change: ${security.value_change}`);
+        });
+      } else {
+        console.log("  No securities property found on portfolio");
+        console.log("  Portfolio properties:", Object.keys(portfolio));
+      }
+    });
+  });
+</script>
 </body>
 {% endblock %}

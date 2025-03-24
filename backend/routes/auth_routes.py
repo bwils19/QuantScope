@@ -555,6 +555,27 @@ def portfolio_overview():
                     'day_change_pct': day_change_pct,
                     'latest_update': latest_price_data.date if latest_price_data else None
                 })
+
+        print("\n\n===== DEBUGGING PORTFOLIO DATA =====")
+        print(f"Number of portfolios: {len(portfolios)}")
+        for i, portfolio in enumerate(portfolios):
+            print(f"Portfolio {i + 1}: {portfolio.name}, ID: {portfolio.id}")
+            print(f"  Total value: {portfolio.total_value}")
+            print(f"  Day change: {portfolio.day_change}")
+
+            # Debug portfolio securities
+            portfolio_securities = (
+                db.session.query(PortfolioSecurity, Security)
+                .join(Security, PortfolioSecurity.security_id == Security.id)
+                .filter(PortfolioSecurity.portfolio_id == portfolio.id)
+                .all()
+            )
+            print(f"  Number of securities: {len(portfolio_securities)}")
+            for j, (ps, security) in enumerate(portfolio_securities):
+                print(
+                    f"    Security {j + 1}: {security.ticker}, Amount: {ps.amount_owned}, Current price: {security.current_price}")
+                print(f"      Total value: {ps.total_value}, Day change: {ps.value_change}")
+
         portfolio_view_data = []
         for portfolio in portfolios:
             # Get portfolio securities with their associated security data
@@ -603,6 +624,18 @@ def portfolio_overview():
                 portfolio_obj['securities'].append(security_obj)
 
             portfolio_view_data.append(portfolio_obj)
+
+        print("\n===== DEBUGGING PORTFOLIO VIEW DATA =====")
+        print(f"Number of portfolio views: {len(portfolio_view_data)}")
+        for i, p_view in enumerate(portfolio_view_data):
+            print(f"Portfolio view {i + 1}: {p_view['name']}, ID: {p_view['id']}")
+            print(f"  Total value: {p_view['total_value']}")
+            print(f"  Day change: {p_view['day_change']}")
+            print(f"  Number of securities: {len(p_view['securities'])}")
+            for j, s in enumerate(p_view['securities']):
+                print(
+                    f"    Security {j + 1}: {s['ticker']}, Amount: {s['amount_owned']}, Current price: {s['current_price']}")
+                print(f"      Total value: {s['total_value']}, Day change: {s['value_change']}")
 
         # Then modify the return statement to use portfolio_view_data
         return render_template(
