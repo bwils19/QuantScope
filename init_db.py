@@ -6,15 +6,7 @@ from datetime import datetime
 def create_junction_table():
     """Create the portfolio_securities junction table"""
     try:
-        # Replace these with your actual database connection details
-        conn = psycopg2.connect(
-            host="quantscope-fellowship-do-user-19215750-0.l.db.ondigitalocean.com",
 
-            database="defaultdb",
-            user="doadmin",
-            password="",
-            port="25060"
-        )
 
         print("Connected to database successfully")
         cursor = conn.cursor()
