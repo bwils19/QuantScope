@@ -565,13 +565,31 @@ def portfolio_overview():
                 .all()
             )
 
-            # Create a merged view of portfolio securities
-            securities_data = []
+            # Create portfolio object
+            portfolio_obj = {
+                'id': portfolio.id,
+                'name': portfolio.name,
+                'user_id': portfolio.user_id,
+                'created_at': portfolio.created_at,
+                'updated_at': portfolio.updated_at,
+                'total_holdings': portfolio.total_holdings,
+                'total_value': portfolio.total_value,
+                'day_change': portfolio.day_change,
+                'day_change_pct': portfolio.day_change_pct,
+                'total_gain': portfolio.total_gain,
+                'total_gain_pct': portfolio.total_gain_pct,
+                'total_return': portfolio.total_return,
+                'total_return_pct': portfolio.total_return_pct,
+                'securities': []
+            }
+
+            # Add securities to the portfolio object
             for ps, security in portfolio_securities:
-                securities_data.append({
-                    'id': ps.id,  # Use the junction table ID
+                security_obj = {
+                    'id': ps.id,
                     'ticker': security.ticker,
                     'name': security.name,
+                    'exchange': security.exchange,
                     'amount_owned': ps.amount_owned,
                     'purchase_date': ps.purchase_date.strftime('%Y-%m-%d') if ps.purchase_date else None,
                     'purchase_price': ps.purchase_price,
@@ -581,13 +599,12 @@ def portfolio_overview():
                     'value_change_pct': ps.value_change_pct,
                     'total_gain': ps.total_gain,
                     'total_gain_pct': ps.total_gain_pct
-                })
+                }
+                portfolio_obj['securities'].append(security_obj)
 
-            # Create a portfolio view model with attached securities
-            portfolio_data = portfolio.__dict__.copy()
-            portfolio_data['securities'] = securities_data  # Add the securities attribute
-            portfolio_view_data.append(portfolio_data)
+            portfolio_view_data.append(portfolio_obj)
 
+        # Then modify the return statement to use portfolio_view_data
         return render_template(
             'portfolio_overview.html',
             body_class='portfolio-overview-page',
@@ -899,41 +916,33 @@ def get_portfolio_securities(portfolio_id):
         if not portfolio:
             return jsonify({"message": "Portfolio not found"}), 404
 
-        result = db.session.execute(db.text("""
-        SELECT 
-            ps.id as ps_id,
-            s.ticker,
-            s.name,
-            ps.amount_owned,
-            s.current_price,
-            ps.total_value,
-            ps.value_change,
-            ps.value_change_pct,
-            ps.purchase_date,
-            ps.total_gain,
-            ps.total_gain_pct,
-            s.current_price as latest_close,
-            CURRENT_DATE as latest_close_date
-        FROM portfolio_securities ps
-        JOIN securities s ON ps.security_id = s.id
-        WHERE ps.portfolio_id = :portfolio_id
-        """), {'portfolio_id': portfolio_id}).fetchall()
+        # Query portfolio securities with joined security data
+        result = db.session.query(
+            PortfolioSecurity,
+            Security
+        ).join(
+            Security, PortfolioSecurity.security_id == Security.id
+        ).filter(
+            PortfolioSecurity.portfolio_id == portfolio_id
+        ).all()
 
         securities_data = []
 
-        for row in result:
+        for ps, security in result:
             securities_data.append({
-                'id': row.ps_id,  # junction table ID
-                'ticker': row.ticker,
-                'name': row.name,
-                'amount_owned': row.amount_owned,
-                'current_price': row.current_price,
-                'total_value': row.total_value,
-                'value_change': row.value_change,
-                'value_change_pct': row.value_change_pct,
-                'purchase_date': row.purchase_date.strftime('%Y-%m-%d') if row.purchase_date else None,
-                'latest_close': row.latest_close,
-                'latest_close_date': row.latest_close_date.strftime('%Y-%m-%d') if row.latest_close_date else None
+                'id': ps.id,  # Use junction table ID
+                'ticker': security.ticker,
+                'name': security.name,
+                'amount_owned': ps.amount_owned,
+                'current_price': security.current_price,
+                'total_value': ps.total_value,
+                'value_change': ps.value_change,
+                'value_change_pct': ps.value_change_pct,
+                'purchase_date': ps.purchase_date.strftime('%Y-%m-%d') if ps.purchase_date else None,
+                'total_gain': ps.total_gain,
+                'total_gain_pct': ps.total_gain_pct,
+                'latest_close': security.current_price, # Using current price as latest close
+                'latest_close_date': datetime.now().strftime('%Y-%m-%d')
             })
 
         # Get the latest update timestamp
