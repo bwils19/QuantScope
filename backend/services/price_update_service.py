@@ -19,7 +19,7 @@ from backend import db
 from backend.models import StockCache, Portfolio, Security, RiskAnalysisCache, SecurityHistoricalData, PortfolioSecurity
 from backend.celery_app import celery
 from backend.services.stock_service import is_market_open
-from backend.tasks import logger
+# from backend.tasks import logger
 
 
 class PriceUpdateService:
@@ -168,7 +168,7 @@ class PriceUpdateService:
     def update_prices_for_portfolio(self, portfolio_id):
         """Update prices for a specific portfolio"""
         try:
-            logger.info(f"Updating prices for portfolio {portfolio_id}")
+            # logger.info(f"Updating prices for portfolio {portfolio_id}")
 
             with db.session.begin() as session:
                 # Get the portfolio
@@ -639,7 +639,7 @@ class PriceUpdateService:
                 # Get the price data for this ticker
                 ticker = security.ticker
                 if ticker not in prices:
-                    logger.warning(f"No price data found for {ticker}")
+                    # logger.warning(f"No price data found for {ticker}")
                     continue
 
                 price_data = prices[ticker]
@@ -763,7 +763,7 @@ class PriceUpdateService:
 
     def _update_portfolio_totals(self, session=None):
         """Update portfolio totals after price updates"""
-        logger.info("Updating portfolio totals based on new prices")
+        # logger.info("Updating portfolio totals based on new prices")
 
         close_session = False
         if session is None:
@@ -771,9 +771,9 @@ class PriceUpdateService:
             close_session = True
 
         try:
-            logger.info("Updating totals for all portfolios")
+            # logger.info("Updating totals for all portfolios")
             portfolios = session.query(Portfolio).all()
-            logger.info(f"Found {len(portfolios)} portfolios to update")
+            # logger.info(f"Found {len(portfolios)} portfolios to update")
 
             for portfolio in portfolios:
                 try:
