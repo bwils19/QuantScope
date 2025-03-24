@@ -378,23 +378,25 @@ def should_update_price(cache_entry):
 @jwt_required(locations=["cookies"])
 def portfolio_overview():
     try:
+        print("\n\n===== STARTING PORTFOLIO OVERVIEW ROUTE =====")
         current_user_email = get_jwt_identity()
         user = User.query.filter_by(email=current_user_email).first()
         if not user:
             return redirect(url_for('auth.login_page'))
 
+        # Get all portfolios for this user
         portfolios = Portfolio.query.filter_by(user_id=user.id).order_by(Portfolio.created_at.desc()).all()
 
-        # Get all unique tickers for this user's portfolios
-        unique_tickers = (
+        # Get all unique tickers for this user's portfolios through portfolio_securities
+        unique_tickers_query = (
             db.session.query(Security.ticker)
             .join(PortfolioSecurity, Security.id == PortfolioSecurity.security_id)
             .join(Portfolio, Portfolio.id == PortfolioSecurity.portfolio_id)
             .filter(Portfolio.user_id == user.id)
             .distinct()
-            .all()
         )
-        tickers = [t[0] for t in unique_tickers]
+        unique_tickers = [t[0] for t in unique_tickers_query.all()]
+        print(f"Found {len(unique_tickers)} unique tickers across all portfolios")
 
         # Determine the most recent market date
         today = datetime.now().date()
@@ -404,7 +406,7 @@ def portfolio_overview():
 
         # Get the most recent historical data for each ticker
         latest_prices = {}
-        for ticker in tickers:
+        for ticker in unique_tickers:
             latest_data = db.session.query(
                 SecurityHistoricalData
             ).filter(
@@ -432,78 +434,123 @@ def portfolio_overview():
                     'has_historical': True
                 }
 
-        # Update portfolio securities with the most recent data
-        for portfolio in portfolios:
-            portfolio_total_value = 0
-            portfolio_day_change = 0
-            total_cost = 0
+        # Process portfolios and build the view data
+        portfolio_view_data = []
 
-            # Use the portfolio_securities relationship instead of securities
-            portfolio_securities = (
+        for portfolio in portfolios:
+            # Get portfolio securities with their associated security data
+            portfolio_securities_data = (
                 db.session.query(PortfolioSecurity, Security)
                 .join(Security, PortfolioSecurity.security_id == Security.id)
                 .filter(PortfolioSecurity.portfolio_id == portfolio.id)
                 .all()
             )
 
-            for ps, security in portfolio_securities:
+            # Create portfolio object for the view
+            portfolio_obj = {
+                'id': portfolio.id,
+                'name': portfolio.name,
+                'user_id': portfolio.user_id,
+                'created_at': portfolio.created_at,
+                'updated_at': portfolio.updated_at,
+                'total_holdings': portfolio.total_holdings or len(portfolio_securities_data),
+                'total_value': portfolio.total_value or 0,
+                'day_change': portfolio.day_change or 0,
+                'day_change_pct': portfolio.day_change_pct or 0,
+                'total_gain': portfolio.total_gain or 0,
+                'total_gain_pct': portfolio.total_gain_pct or 0,
+                'total_return': portfolio.total_return or 0,
+                'total_return_pct': portfolio.total_return_pct or 0,
+                'securities': []
+            }
+
+            # Recalculate portfolio totals from securities (as a fallback)
+            portfolio_total_value = 0
+            portfolio_day_change = 0
+            portfolio_total_gain = 0
+
+            # Add securities to the portfolio object
+            for ps, security in portfolio_securities_data:
+                # Use historical data if available, otherwise use current price
                 latest_data = latest_prices.get(security.ticker)
 
-                if latest_data:
-                    # Update with historical data
-                    security.current_price = latest_data['current_price']
-                    ps.total_value = ps.amount_owned * latest_data['current_price']
+                current_price = security.current_price
+                previous_close = security.previous_close
 
-                    # Calculate day change using historical data
-                    ps.value_change = ps.amount_owned * (
-                            latest_data['current_price'] - latest_data['previous_close']
-                    )
+                if latest_data and (not current_price or current_price == 0):
+                    current_price = latest_data['current_price']
+                    previous_close = latest_data['previous_close']
 
-                    base_value = ps.amount_owned * latest_data['previous_close']
-                    ps.value_change_pct = (ps.value_change / base_value) * 100 if base_value != 0 else 0
+                # Calculate values
+                total_value = ps.amount_owned * current_price
+                value_change = ps.amount_owned * (current_price - previous_close) if previous_close else 0
+                value_change_pct = (value_change / (
+                            ps.amount_owned * previous_close)) * 100 if previous_close and previous_close > 0 else 0
 
-                # Calculate total gain/loss if purchase price is available
-                position_cost = ps.amount_owned * ps.purchase_price if ps.purchase_price else 0
-                ps.total_gain = ps.total_value - position_cost
-                if position_cost and position_cost != 0:
-                    ps.total_gain_pct = ((ps.total_value / position_cost) - 1) * 100
-                else:
-                    ps.total_gain_pct = 0
+                # Calculate total gain if purchase price exists
+                total_gain = 0
+                total_gain_pct = 0
+                if ps.purchase_price:
+                    total_gain = total_value - (ps.amount_owned * ps.purchase_price)
+                    total_gain_pct = ((total_value / (
+                                ps.amount_owned * ps.purchase_price)) - 1) * 100 if ps.purchase_price > 0 else 0
 
-                # Accumulate portfolio totals
-                portfolio_total_value += ps.total_value
-                portfolio_day_change += ps.value_change
-                total_cost += position_cost
+                # Add to portfolio totals
+                portfolio_total_value += total_value
+                portfolio_day_change += value_change
+                portfolio_total_gain += total_gain
 
-            # Update portfolio metrics
-            portfolio.total_value = portfolio_total_value
-            portfolio.day_change = portfolio_day_change
+                # Create security object
+                security_obj = {
+                    'id': ps.id,
+                    'ticker': security.ticker,
+                    'name': security.name,
+                    'exchange': security.exchange,
+                    'amount_owned': ps.amount_owned,
+                    'purchase_date': ps.purchase_date.strftime('%Y-%m-%d') if ps.purchase_date else None,
+                    'purchase_price': ps.purchase_price,
+                    'current_price': current_price,
+                    'total_value': total_value,
+                    'value_change': value_change,
+                    'value_change_pct': value_change_pct,
+                    'total_gain': total_gain,
+                    'total_gain_pct': total_gain_pct
+                }
+                portfolio_obj['securities'].append(security_obj)
 
-            if total_cost > 0:
-                portfolio.total_gain = portfolio_total_value - total_cost
-                portfolio.total_gain_pct = ((portfolio_total_value / total_cost) - 1) * 100
-            else:
-                portfolio.total_gain = 0
-                portfolio.total_gain_pct = 0
+            # Use portfolio totals if they exist, otherwise use calculated totals
+            if portfolio.total_value == 0 or portfolio.total_value is None:
+                portfolio_obj['total_value'] = portfolio_total_value
+                portfolio_obj['day_change'] = portfolio_day_change
+                portfolio_obj['total_gain'] = portfolio_total_gain
 
-            if portfolio_total_value != portfolio_day_change:
-                base_value = portfolio_total_value - portfolio_day_change
-                portfolio.day_change_pct = (portfolio_day_change / base_value) * 100 if base_value != 0 else 0
-            else:
-                portfolio.day_change_pct = 0
+                # Calculate percentages
+                if portfolio_total_value > 0 and portfolio_day_change != 0:
+                    base_value = portfolio_total_value - portfolio_day_change
+                    portfolio_obj['day_change_pct'] = (portfolio_day_change / base_value) * 100 if base_value > 0 else 0
 
-        # Calculate dashboard statistics
-        total_portfolio_value = sum(p.total_value or 0 for p in portfolios) if portfolios else 0
-        total_day_change = sum(p.day_change or 0 for p in portfolios) if portfolios else 0
-        total_total_gain = sum(p.total_gain or 0 for p in portfolios) if portfolios else 0
-        total_total_gain_pct = (
-                sum(p.total_gain_pct or 0 for p in portfolios) / len(portfolios)) if portfolios else 0
+                # Calculate cost basis for total gain percentage
+                cost_basis = sum([(ps.amount_owned * ps.purchase_price) for ps, _ in portfolio_securities_data if
+                                  ps.purchase_price]) or 0
+                if cost_basis > 0:
+                    portfolio_obj['total_gain_pct'] = ((portfolio_total_value / cost_basis) - 1) * 100
 
-        if total_portfolio_value != total_day_change:
-            base_value = total_portfolio_value - total_day_change
-            total_day_change_pct = (total_day_change / base_value) * 100 if base_value != 0 else 0
-        else:
-            total_day_change_pct = 0
+            portfolio_view_data.append(portfolio_obj)
+
+        # Debug output to help diagnose issues
+        print("\n===== DEBUGGING PORTFOLIO VIEW DATA =====")
+        print(f"Number of portfolio views: {len(portfolio_view_data)}")
+        for i, p_view in enumerate(portfolio_view_data):
+            print(f"Portfolio view {i + 1}: {p_view['name']}, ID: {p_view['id']}")
+            print(f"  Total value: {p_view['total_value']}")
+            print(f"  Day change: {p_view['day_change']}")
+            print(f"  Number of securities: {len(p_view['securities'])}")
+            for j, s in enumerate(p_view['securities'][:2]):  # Just show first 2 for brevity
+                print(
+                    f"    Security {j + 1}: {s['ticker']}, Amount: {s['amount_owned']}, Current price: {s['current_price']}")
+                print(f"      Total value: {s['total_value']}, Day change: {s['value_change']}")
+            if len(p_view['securities']) > 2:
+                print(f"    ... and {len(p_view['securities']) - 2} more securities")
 
         # Get most recent historical data update timestamp
         latest_update = db.session.query(
@@ -543,7 +590,7 @@ def portfolio_overview():
 
                 day_change = (current_price - previous_close) if current_price and previous_close else None
                 day_change_pct = ((
-                                              current_price - previous_close) / previous_close * 100) if current_price and previous_close and previous_close != 0 else None
+                                          current_price - previous_close) / previous_close * 100) if current_price and previous_close and previous_close != 0 else None
 
                 watchlist_data.append({
                     'id': item.id,
@@ -556,99 +603,25 @@ def portfolio_overview():
                     'latest_update': latest_price_data.date if latest_price_data else None
                 })
 
-        print("\n\n===== DEBUGGING PORTFOLIO DATA =====")
-        print(f"Number of portfolios: {len(portfolios)}")
-        for i, portfolio in enumerate(portfolios):
-            print(f"Portfolio {i + 1}: {portfolio.name}, ID: {portfolio.id}")
-            print(f"  Total value: {portfolio.total_value}")
-            print(f"  Day change: {portfolio.day_change}")
+        print(f"===== PORTFOLIO OVERVIEW ROUTE COMPLETE =====")
 
-            # Debug portfolio securities
-            portfolio_securities = (
-                db.session.query(PortfolioSecurity, Security)
-                .join(Security, PortfolioSecurity.security_id == Security.id)
-                .filter(PortfolioSecurity.portfolio_id == portfolio.id)
-                .all()
-            )
-            print(f"  Number of securities: {len(portfolio_securities)}")
-            for j, (ps, security) in enumerate(portfolio_securities):
-                print(
-                    f"    Security {j + 1}: {security.ticker}, Amount: {ps.amount_owned}, Current price: {security.current_price}")
-                print(f"      Total value: {ps.total_value}, Day change: {ps.value_change}")
-
-        portfolio_view_data = []
-        for portfolio in portfolios:
-            # Get portfolio securities with their associated security data
-            portfolio_securities = (
-                db.session.query(PortfolioSecurity, Security)
-                .join(Security, PortfolioSecurity.security_id == Security.id)
-                .filter(PortfolioSecurity.portfolio_id == portfolio.id)
-                .all()
-            )
-
-            # Create portfolio object
-            portfolio_obj = {
-                'id': portfolio.id,
-                'name': portfolio.name,
-                'user_id': portfolio.user_id,
-                'created_at': portfolio.created_at,
-                'updated_at': portfolio.updated_at,
-                'total_holdings': portfolio.total_holdings,
-                'total_value': portfolio.total_value,
-                'day_change': portfolio.day_change,
-                'day_change_pct': portfolio.day_change_pct,
-                'total_gain': portfolio.total_gain,
-                'total_gain_pct': portfolio.total_gain_pct,
-                'total_return': portfolio.total_return,
-                'total_return_pct': portfolio.total_return_pct,
-                'securities': []
-            }
-
-            # Add securities to the portfolio object
-            for ps, security in portfolio_securities:
-                security_obj = {
-                    'id': ps.id,
-                    'ticker': security.ticker,
-                    'name': security.name,
-                    'exchange': security.exchange,
-                    'amount_owned': ps.amount_owned,
-                    'purchase_date': ps.purchase_date.strftime('%Y-%m-%d') if ps.purchase_date else None,
-                    'purchase_price': ps.purchase_price,
-                    'current_price': security.current_price,
-                    'total_value': ps.total_value,
-                    'value_change': ps.value_change,
-                    'value_change_pct': ps.value_change_pct,
-                    'total_gain': ps.total_gain,
-                    'total_gain_pct': ps.total_gain_pct
-                }
-                portfolio_obj['securities'].append(security_obj)
-
-            portfolio_view_data.append(portfolio_obj)
-
-        print("\n===== DEBUGGING PORTFOLIO VIEW DATA =====")
-        print(f"Number of portfolio views: {len(portfolio_view_data)}")
-        for i, p_view in enumerate(portfolio_view_data):
-            print(f"Portfolio view {i + 1}: {p_view['name']}, ID: {p_view['id']}")
-            print(f"  Total value: {p_view['total_value']}")
-            print(f"  Day change: {p_view['day_change']}")
-            print(f"  Number of securities: {len(p_view['securities'])}")
-            for j, s in enumerate(p_view['securities']):
-                print(
-                    f"    Security {j + 1}: {s['ticker']}, Amount: {s['amount_owned']}, Current price: {s['current_price']}")
-                print(f"      Total value: {s['total_value']}, Day change: {s['value_change']}")
-
-        # Then modify the return statement to use portfolio_view_data
+        # Render the template with all the data
         return render_template(
             'portfolio_overview.html',
             body_class='portfolio-overview-page',
             user={"first_name": user.first_name, "email": user.email},
             portfolios=portfolio_view_data,
             dashboard_stats={
-                'total_value': total_portfolio_value,
-                'day_change': total_day_change,
-                'day_change_pct': total_day_change_pct,
-                'total_gain': total_total_gain,
-                'total_gain_pct': total_total_gain_pct
+                'total_value': sum(p['total_value'] for p in portfolio_view_data),
+                'day_change': sum(p['day_change'] for p in portfolio_view_data),
+                'day_change_pct': (sum(p['day_change'] for p in portfolio_view_data) /
+                                   (sum(p['total_value'] for p in portfolio_view_data) - sum(
+                                       p['day_change'] for p in portfolio_view_data))) * 100
+                if sum(p['total_value'] for p in portfolio_view_data) - sum(
+                    p['day_change'] for p in portfolio_view_data) != 0 else 0,
+                'total_gain': sum(p['total_gain'] for p in portfolio_view_data),
+                'total_gain_pct': sum(p['total_gain_pct'] for p in portfolio_view_data) / len(
+                    portfolio_view_data) if portfolio_view_data else 0
             },
             latest_update=latest_update,
             watchlist=watchlist_data
@@ -851,6 +824,7 @@ def create_portfolio():
         data = request.json
         stocks = data.get("stocks", [])
 
+        # Create new portfolio
         portfolio = Portfolio(
             name=data["name"],
             user_id=user.id,
@@ -858,16 +832,29 @@ def create_portfolio():
         )
 
         db.session.add(portfolio)
-        db.session.flush()
+        db.session.flush()  # Get ID without committing
 
         total_value = 0
         total_cost = 0
 
         for stock in stocks:
             ticker = stock["ticker"]
-            cache = StockCache.query.filter_by(ticker=ticker).first()
 
+            # First, get or create the security
+            security = Security.query.filter_by(ticker=ticker).first()
+            if not security:
+                security = Security(
+                    ticker=ticker,
+                    name=stock["name"],
+                    exchange=stock.get("exchange", "")
+                )
+                db.session.add(security)
+                db.session.flush()  # Get ID without committing
+
+            # Get current price data
+            cache = StockCache.query.filter_by(ticker=ticker).first()
             if not cache:
+                # Create placeholder pricing data
                 stock_data = {
                     'currentPrice': stock['totalValue'] / stock['amount'],
                     'previousClose': (stock['totalValue'] - stock['valueChange']) / stock['amount'],
@@ -880,40 +867,48 @@ def create_portfolio():
                     data=stock_data
                 )
                 db.session.add(cache)
+                db.session.flush()
 
+            # Get price data from cache
             price_data = cache.data
             current_price = float(price_data['currentPrice'])
             amount = float(stock["amount"])
 
-            # Calculate cost basis and current value
-            cost_basis = amount * current_price  # Initial purchase cost
-            current_value = amount * current_price
+            # Update security prices
+            security.current_price = current_price
+            security.previous_close = float(price_data.get('previousClose', current_price))
 
-            security = Security(
+            # Create the portfolio_security relationship
+            portfolio_security = PortfolioSecurity(
                 portfolio_id=portfolio.id,
-                ticker=ticker,
-                name=stock["name"],
-                exchange=stock.get("exchange", ""),
+                security_id=security.id,
                 amount_owned=amount,
-                purchase_date=datetime.strptime(stock["purchase_date"], '%Y-%m-%d') if stock.get("purchase_date") else None,
-                purchase_price=current_price,
-                current_price=current_price,
-                total_value=current_value,
+                purchase_date=datetime.strptime(stock["purchase_date"], '%Y-%m-%d') if stock.get(
+                    "purchase_date") else None,
+                purchase_price=current_price,  # Use current price as purchase price
+                total_value=amount * current_price,
                 value_change=float(stock['valueChange']),
-                value_change_pct=float(price_data['changePercent']),
-                total_gain=current_value - cost_basis,  # Add this
-                total_gain_pct=((current_value / cost_basis) - 1) * 100
+                value_change_pct=float(price_data['changePercent'])
             )
 
-            total_value += current_value
-            total_cost += cost_basis
+            # Calculate total gain
+            position_cost = amount * current_price  # Initial purchase cost
+            portfolio_security.total_gain = 0  # Initially zero since purchase price = current price
+            portfolio_security.total_gain_pct = 0
 
-            db.session.add(security)
+            db.session.add(portfolio_security)
+
+            # Track totals
+            total_value += amount * current_price
+            total_cost += position_cost
 
         # Update portfolio metrics
         portfolio.total_value = total_value
         portfolio.day_change = sum(float(s['valueChange']) for s in stocks)
-        portfolio.day_change_pct = (portfolio.day_change / (total_value - portfolio.day_change)) * 100
+        if total_value != portfolio.day_change:
+            base_value = total_value - portfolio.day_change
+            portfolio.day_change_pct = (portfolio.day_change / base_value) * 100 if base_value != 0 else 0
+
         portfolio.total_gain = total_value - total_cost
         portfolio.total_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
 
@@ -930,7 +925,9 @@ def create_portfolio():
         })
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error creating portfolio: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         db.session.rollback()
         return jsonify({"message": str(e)}), 500
 

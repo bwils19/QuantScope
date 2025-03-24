@@ -1,6 +1,7 @@
 # backend/services/price_update_service.py
 import os
 import time
+import traceback
 from datetime import datetime, timedelta
 import threading
 import logging
@@ -15,9 +16,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend import db
-from backend.models import StockCache, Portfolio, Security, RiskAnalysisCache, SecurityHistoricalData
+from backend.models import StockCache, Portfolio, Security, RiskAnalysisCache, SecurityHistoricalData, PortfolioSecurity
 from backend.celery_app import celery
 from backend.services.stock_service import is_market_open
+from backend.tasks import logger
 
 
 class PriceUpdateService:
@@ -163,112 +165,57 @@ class PriceUpdateService:
                 'error': str(e)
             }
 
-    def update_prices_for_portfolio(self, portfolio_id: int) -> Dict[str, Any]:
-        """Update prices for a specific portfolio.
-
-        Args:
-            portfolio_id: ID of the portfolio to update
-
-        Returns:
-            Dict with update statistics
-        """
-        self.logger.info(f"=== Starting price update for portfolio {portfolio_id} ===")
-        start_time = time.time()
-
+    def update_prices_for_portfolio(self, portfolio_id):
+        """Update prices for a specific portfolio"""
         try:
-            # Get portfolio to verify it exists
-            portfolio = db.session.query(Portfolio).get(portfolio_id)
-            if not portfolio:
-                self.logger.error(f"Portfolio {portfolio_id} not found")
-                return {
-                    'success': False,
-                    'error': f'Portfolio {portfolio_id} not found'
-                }
+            logger.info(f"Updating prices for portfolio {portfolio_id}")
 
-            self.logger.info(f"Updating prices for portfolio: {portfolio.name} (ID: {portfolio_id})")
+            with db.session.begin() as session:
+                # Get the portfolio
+                portfolio = session.query(Portfolio).get(portfolio_id)
+                if not portfolio:
+                    return {
+                        'success': False,
+                        'error': f"Portfolio {portfolio_id} not found"
+                    }
 
-            # Get securities for this portfolio
-            securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
-            if not securities:
-                self.logger.warning(f"No securities found in portfolio {portfolio_id}")
-                return {
-                    'success': True,
-                    'updated_count': 0,
-                    'message': 'No securities in portfolio to update'
-                }
+                # Get all securities in this portfolio via the junction table
+                portfolio_securities = session.query(PortfolioSecurity).filter_by(portfolio_id=portfolio_id).all()
+                security_ids = [ps.security_id for ps in portfolio_securities]
+                securities = session.query(Security).filter(Security.id.in_(security_ids)).all()
 
-            tickers = [security.ticker for security in securities]
-            self.logger.info(f"Found {len(tickers)} securities to update in this portfolio")
+                if not securities:
+                    return {
+                        'success': True,
+                        'message': "No securities found in portfolio",
+                        'updated_count': 0
+                    }
 
-            # Fetch prices with retry logic
-            self.logger.info(f"Fetching prices for {len(tickers)} tickers...")
-            price_data = self._fetch_prices_with_retry(tickers)
-            self.logger.info(f"Received price data for {len(price_data)} tickers")
+                # Extract unique tickers
+                tickers = list(set([s.ticker for s in securities]))
 
-            # Check for missing tickers
-            missing_tickers = [ticker for ticker in tickers if ticker not in price_data]
-            if missing_tickers:
-                self.logger.warning(
-                    f"Failed to get prices for {len(missing_tickers)} tickers: {', '.join(missing_tickers[:5])}" +
-                    (f" and {len(missing_tickers) - 5} more" if len(missing_tickers) > 5 else ""))
+                # Fetch prices for all tickers
+                prices = self._fetch_prices(tickers)
 
-            # Update securities with new prices
-            updated_tickers = []
-            for security in securities:
-                if security.ticker in price_data:
-                    # Log original values for comparison
-                    old_price = security.current_price
-                    old_total = security.total_value
-
-                    # Update price
-                    new_price = price_data[security.ticker]['currentPrice']
-                    security.current_price = new_price
-
-                    # Calculate new total value
-                    security.total_value = security.amount_owned * new_price
-
-                    # Update value change
-                    if 'previousClose' in price_data[security.ticker]:
-                        prev_close = price_data[security.ticker]['previousClose']
-                        security.value_change = security.amount_owned * (new_price - prev_close)
-                        if prev_close != 0:  # Avoid division by zero
-                            security.value_change_pct = (new_price - prev_close) / prev_close * 100
-
-                    updated_tickers.append(security.ticker)
-
-                    # Log the update with detailed before/after values
-                    self.logger.info(f"Updated {security.ticker}: ${old_price:.2f} → ${new_price:.2f}, " +
-                                     f"Total: ${old_total:.2f} → ${security.total_value:.2f}")
-
-            if updated_tickers:
-                # Commit changes
-                self.logger.info(f"Committing updates for {len(updated_tickers)} securities")
-                db.session.commit()
+                # Update securities with new prices
+                updated_count, failed_count = self._update_securities_with_prices(session, securities, prices)
 
                 # Update portfolio totals
-                self.logger.info(f"Updating totals for portfolio {portfolio_id}")
-                self._update_portfolio_totals(portfolio_id=portfolio_id)
+                self._update_portfolio_totals_for_single_portfolio(session, portfolio)
 
-                # Invalidate risk cache
-                self.logger.info(f"Invalidating risk cache for portfolio {portfolio_id}")
-                self._invalidate_risk_cache(portfolio_id)
-            else:
-                self.logger.warning("No securities were updated, skipping commit")
-
-            elapsed = time.time() - start_time
-            self.logger.info(f"=== Portfolio update completed in {elapsed:.2f} seconds ===")
-
-            return {
-                'success': True,
-                'updated_count': len(updated_tickers),
-                'tickers_updated': updated_tickers,
-                'elapsed_time': elapsed,
-                'timestamp': datetime.utcnow().isoformat()
-            }
+                # Prepare the response
+                return {
+                    'success': True,
+                    'updated_count': updated_count,
+                    'failed_count': failed_count,
+                    'tickers_updated': list(prices.keys()),
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'portfolio_id': portfolio_id
+                }
 
         except Exception as e:
-            self.logger.error(f"Error updating portfolio {portfolio_id}: {str(e)}", exc_info=True)
-            db.session.rollback()
+            logger.error(f"Error updating prices for portfolio {portfolio_id}: {str(e)}")
+            traceback.print_exc()
             return {
                 'success': False,
                 'error': str(e)
@@ -683,84 +630,59 @@ class PriceUpdateService:
             self.logger.error(f"Database error updating cache for {ticker}: {str(e)}", exc_info=True)
             raise
 
-    def _update_securities_with_prices(self, price_data: Dict[str, Dict[str, Any]], session) -> Dict[str, Any]:
-        """Update all securities with new price data.
-        Args:
-            price_data: Dict mapping tickers to price data
-            session: Database session to use
-        Returns:
-            Dict with update statistics
-        """
+    def _update_securities_with_prices(self, session, securities, prices):
         updated_count = 0
-        updated_tickers = []
+        failed_count = 0
 
-        try:
-            # Process in batches to avoid large transactions
-            tickers = list(price_data.keys())
-            self.logger.info(f"Updating {len(tickers)} tickers in securities table")
+        for security in securities:
+            try:
+                # Get the price data for this ticker
+                ticker = security.ticker
+                if ticker not in prices:
+                    logger.warning(f"No price data found for {ticker}")
+                    continue
 
-            for i in range(0, len(tickers), self.batch_size):
-                batch_tickers = tickers[i:i + self.batch_size]
-                self.logger.info(
-                    f"Processing securities batch {i // self.batch_size + 1}/{(len(tickers) + self.batch_size - 1) // self.batch_size}")
+                price_data = prices[ticker]
+                new_price = float(price_data['currentPrice'])
 
-                # Update securities in this batch
-                securities = session.query(Security).filter(Security.ticker.in_(batch_tickers)).all()
-                self.logger.info(f"Found {len(securities)} securities for this batch of {len(batch_tickers)} tickers")
+                # Find all portfolio_securities entries for this security
+                portfolio_securities = session.query(PortfolioSecurity).filter_by(security_id=security.id).all()
 
-                batch_updated = 0
-                for security in securities:
-                    ticker_data = price_data.get(security.ticker)
-                    if not ticker_data:
-                        self.logger.warning(f"No price data for {security.ticker}")
-                        continue
+                for ps in portfolio_securities:
+                    # Calculate new values
+                    old_value = ps.total_value if ps.total_value else 0
+                    new_value = ps.amount_owned * new_price
 
-                    # Update security with new price data
-                    try:
-                        # Log before values
-                        old_price = security.current_price
-                        old_value = security.total_value
+                    # Calculate value change
+                    value_change = new_value - old_value
 
-                        # Update prices
-                        self._update_security_prices(security, ticker_data)
-                        updated_count += 1
-                        batch_updated += 1
+                    # Update the portfolio_security record
+                    ps.total_value = new_value
+                    ps.value_change = new_value - (
+                                ps.amount_owned * security.previous_close) if security.previous_close else 0
 
-                        if security.ticker not in updated_tickers:
-                            updated_tickers.append(security.ticker)
+                    # Update percentage changes
+                    base_value = ps.amount_owned * security.previous_close if security.previous_close else new_value
+                    ps.value_change_pct = (ps.value_change / base_value) * 100 if base_value > 0 else 0
 
-                        # Update cache for this ticker
-                        self._update_stock_cache(security.ticker, ticker_data, session)
+                    # Update gain/loss if purchase price exists
+                    if ps.purchase_price:
+                        ps.total_gain = new_value - (ps.amount_owned * ps.purchase_price)
+                        ps.total_gain_pct = ((new_value / (ps.amount_owned * ps.purchase_price)) - 1) * 100
 
-                        # Log the price change
-                        self.logger.debug(f"Updated {security.ticker}: ${old_price} → ${security.current_price}, " +
-                                          f"Value: ${old_value} → ${security.total_value}")
+                # Update the security record with new price
+                security.current_price = new_price
+                security.previous_close = float(price_data.get('previousClose', security.current_price))
+                security.updated_at = datetime.utcnow()
 
-                    except Exception as e:
-                        self.logger.error(f"Error updating security {security.ticker}: {str(e)}", exc_info=True)
+                updated_count += 1
 
-                self.logger.info(f"Updated {batch_updated} securities in this batch")
+            except Exception as e:
+                logger.error(f"Error updating security {security.ticker}: {str(e)}")
+                traceback.print_exc()
+                failed_count += 1
 
-                # Commit each batch separately
-                if i + self.batch_size < len(tickers):
-                    try:
-                        session.flush()
-                        self.logger.debug(f"Flushed batch {i // self.batch_size + 1}")
-                    except Exception as e:
-                        self.logger.error(f"Error flushing batch: {str(e)}", exc_info=True)
-                        raise
-
-            self.logger.info(f"Updated {updated_count} securities for {len(updated_tickers)} unique tickers")
-
-            return {
-                'success': True,
-                'updated_count': updated_count,
-                'tickers_updated': updated_tickers
-            }
-
-        except Exception as e:
-            self.logger.error(f"Error in securities update: {str(e)}", exc_info=True)
-            raise
+        return updated_count, failed_count
 
     def _update_security_prices(self, security: Security, price_data: Dict[str, Any]) -> None:
         """Update a security's price and related metrics."""
@@ -839,95 +761,72 @@ class PriceUpdateService:
         except Exception as e:
             self.logger.error(f"Unexpected error updating {security.ticker}: {str(e)}", exc_info=True)
 
-    def _update_portfolio_totals(self, portfolio_id: Optional[int] = None, session=None) -> None:
-        """Update aggregated metrics for portfolios.
+    def _update_portfolio_totals(self, session=None):
+        """Update portfolio totals after price updates"""
+        logger.info("Updating portfolio totals based on new prices")
 
-        Args:
-            portfolio_id: If provided, update only this portfolio
-            session: Database session to use
-        """
+        close_session = False
+        if session is None:
+            session = db.session()
+            close_session = True
+
         try:
-            # Use provided session or create a new one
-            use_provided_session = session is not None
-            if not use_provided_session:
-                self.logger.debug("Creating new session for portfolio totals update")
-                session = self._create_session()
+            logger.info("Updating totals for all portfolios")
+            portfolios = session.query(Portfolio).all()
+            logger.info(f"Found {len(portfolios)} portfolios to update")
 
-            try:
-                # Query portfolios to update
-                if portfolio_id:
-                    self.logger.info(f"Updating totals for portfolio {portfolio_id}")
-                    portfolios = [session.query(Portfolio).get(portfolio_id)]
-                    if not portfolios[0]:
-                        self.logger.warning(f"Portfolio {portfolio_id} not found")
-                        return
-                else:
-                    self.logger.info(f"Updating totals for all portfolios")
-                    portfolios = session.query(Portfolio).all()
+            for portfolio in portfolios:
+                try:
+                    # Get all portfolio_securities records for this portfolio
+                    portfolio_securities = session.query(PortfolioSecurity).filter_by(portfolio_id=portfolio.id).all()
 
-                self.logger.info(f"Found {len(portfolios)} portfolios to update")
+                    total_value = 0
+                    day_change = 0
+                    total_gain = 0
 
-                for portfolio in portfolios:
-                    securities = session.query(Security).filter_by(portfolio_id=portfolio.id).all()
+                    for ps in portfolio_securities:
+                        total_value += ps.total_value if ps.total_value else 0
+                        day_change += ps.value_change if ps.value_change else 0
+                        total_gain += ps.total_gain if ps.total_gain else 0
 
-                    if not securities:
-                        self.logger.info(f"No securities in portfolio {portfolio.id}, skipping totals update")
-                        continue
+                    # Update portfolio with new totals
+                    portfolio.total_value = total_value
+                    portfolio.day_change = day_change
 
-                    # Log existing values for comparison
-                    old_value = portfolio.total_value
-                    old_change = portfolio.day_change
+                    # Calculate percentages
+                    portfolio.day_change_pct = (day_change / (total_value - day_change)) * 100 if (
+                                                                                                              total_value - day_change) > 0 else 0
 
-                    # Calculate aggregated metrics
-                    portfolio.total_value = sum(s.total_value or 0 for s in securities)
-                    portfolio.day_change = sum(s.value_change or 0 for s in securities)
-                    portfolio.total_holdings = len(securities)
+                    # Update total gain
+                    portfolio.total_gain = total_gain
 
-                    # Safely calculate percentage
-                    base_value = portfolio.total_value - portfolio.day_change
-                    if base_value and base_value != 0:
-                        portfolio.day_change_pct = (portfolio.day_change / base_value) * 100
-                    else:
-                        portfolio.day_change_pct = 0
+                    # Calculate cost basis for gain percentage
+                    cost_basis = sum([(ps.amount_owned * ps.purchase_price) for ps in portfolio_securities if
+                                      ps.purchase_price]) or 0
+                    if cost_basis > 0:
+                        portfolio.total_gain_pct = ((total_value / cost_basis) - 1) * 100
 
-                    # Calculate total gain
-                    total_cost = sum((s.amount_owned or 0) * (s.purchase_price or 0) for s in securities)
-                    portfolio.total_gain = portfolio.total_value - total_cost
-                    portfolio.total_gain_pct = ((portfolio.total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
+                    # Update total holdings count
+                    portfolio.total_holdings = len(portfolio_securities)
 
-                    # Update the last updated timestamp
+                    # Update timestamp
                     portfolio.updated_at = datetime.utcnow()
 
-                    self.logger.info(
-                        f"Updated portfolio {portfolio.id} ('{portfolio.name}'): " +
-                        f"Value ${old_value or 0:.2f} → ${portfolio.total_value:.2f}, " +
-                        f"Day change ${old_change or 0:.2f} → ${portfolio.day_change:.2f} ({portfolio.day_change_pct:.2f}%), " +
-                        f"Holdings: {portfolio.total_holdings}"
-                    )
+                except Exception as e:
+                    logger.error(f"Error updating portfolio {portfolio.id}: {str(e)}")
+                    traceback.print_exc()
 
-                    # Invalidate risk cache for this portfolio
-                    self._invalidate_risk_cache(portfolio.id, session)
-
-                    # Only commit if we created our own session
-                if not use_provided_session:
-                    self.logger.debug("Committing portfolio total updates")
-                    session.commit()
-                    self.logger.info("Portfolio total updates committed")
-
-            except Exception as e:
-                self.logger.error(f"Error updating portfolio totals: {str(e)}", exc_info=True)
-                if not use_provided_session:
-                    self.logger.warning("Rolling back session due to error")
-                    session.rollback()
-                raise e
-
-            finally:
-                if not use_provided_session:
-                    self.logger.debug("Closing database session")
-                    session.close()
+            session.commit()
+            logger.info("Portfolio totals updated successfully")
 
         except Exception as e:
-            self.logger.error(f"Failed to update portfolio totals: {str(e)}", exc_info=True)
+            logger.error(f"Error updating portfolio totals: {str(e)}")
+            traceback.print_exc()
+            session.rollback()
+            raise e
+        finally:
+            if close_session:
+                session.close()
 
     def _invalidate_risk_cache(self, portfolio_id: int, session=None) -> None:
         """Invalidate risk analysis cache for a portfolio."""
@@ -999,6 +898,51 @@ class PriceUpdateService:
         except Exception as e:
             self.logger.error(f"Error getting historical price for {ticker}: {str(e)}")
             return None
+
+    def _update_portfolio_totals_for_single_portfolio(self, session, portfolio):
+        """Update totals for a single portfolio"""
+        try:
+            # Get all portfolio_securities records for this portfolio
+            portfolio_securities = session.query(PortfolioSecurity).filter_by(portfolio_id=portfolio.id).all()
+
+            total_value = 0
+            day_change = 0
+            total_gain = 0
+
+            for ps in portfolio_securities:
+                total_value += ps.total_value if ps.total_value else 0
+                day_change += ps.value_change if ps.value_change else 0
+                total_gain += ps.total_gain if ps.total_gain else 0
+
+            # Update portfolio with new totals
+            portfolio.total_value = total_value
+            portfolio.day_change = day_change
+
+            # Calculate percentages
+            portfolio.day_change_pct = (day_change / (total_value - day_change)) * 100 if (
+                                                                                                      total_value - day_change) > 0 else 0
+
+            # Update total gain
+            portfolio.total_gain = total_gain
+
+            # Calculate cost basis for gain percentage
+            cost_basis = sum(
+                [(ps.amount_owned * ps.purchase_price) for ps in portfolio_securities if ps.purchase_price]) or 0
+            if cost_basis > 0:
+                portfolio.total_gain_pct = ((total_value / cost_basis) - 1) * 100
+
+            # Update total holdings count
+            portfolio.total_holdings = len(portfolio_securities)
+
+            # Update timestamp
+            portfolio.updated_at = datetime.utcnow()
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error updating portfolio {portfolio.id} totals: {str(e)}")
+            traceback.print_exc()
+            return False
 
 
 @celery.task
