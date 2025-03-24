@@ -13,7 +13,7 @@ from flask_jwt_extended import get_csrf_token
 from sqlalchemy import func
 
 from backend import bcrypt, db
-from backend.models import User, Portfolio, Security, StockCache, SecurityHistoricalData, Watchlist
+from backend.models import User, Portfolio, Security, StockCache, SecurityHistoricalData, Watchlist, PortfolioSecurity
 from backend.models import PortfolioFiles
 
 from backend.analytics.risk_calculations import RiskAnalytics
@@ -388,7 +388,8 @@ def portfolio_overview():
         # Get all unique tickers for this user's portfolios
         unique_tickers = (
             db.session.query(Security.ticker)
-            .join(Portfolio)
+            .join(PortfolioSecurity, Security.id == PortfolioSecurity.security_id)
+            .join(Portfolio, Portfolio.id == PortfolioSecurity.portfolio_id)
             .filter(Portfolio.user_id == user.id)
             .distinct()
             .all()
