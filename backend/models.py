@@ -126,11 +126,6 @@ class SecurityHistoricalData(db.Model):
         db.Index('idx_security_date', 'ticker', 'date')
     )
 
-    security = db.relationship('Security',
-                               primaryjoin="SecurityHistoricalData.ticker==Security.ticker",
-                               foreign_keys=[ticker],
-                               backref=db.backref('historical_data', lazy='dynamic'))
-
 
 class StockCache(db.Model):
     __tablename__ = 'stock_cache'
