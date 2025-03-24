@@ -214,7 +214,7 @@ class PriceUpdateService:
                 }
 
         except Exception as e:
-            logger.error(f"Error updating prices for portfolio {portfolio_id}: {str(e)}")
+            #logger.error(f"Error updating prices for portfolio {portfolio_id}: {str(e)}")
             traceback.print_exc()
             return {
                 'success': False,
