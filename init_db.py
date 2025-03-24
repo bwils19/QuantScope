@@ -9,11 +9,11 @@ def create_junction_table():
         # Replace these with your actual database connection details
         conn = psycopg2.connect(
             host="quantscope-fellowship-do-user-19215750-0.l.db.ondigitalocean.com",
-            # e.g., db-postgresql-nyc1-12345.db.ondigitalocean.com
-            database="defaultdb",  # e.g., quantscope
-            user="doadmin",  # e.g., doadmin
-            password="AVNS_1Wwzrqn8pdJgU_-8Hud",  # Your actual password
-            port="25060"  # Default DO Postgres port is usually 25060
+
+            database="defaultdb",
+            user="doadmin",
+            password="",
+            port="25060"
         )
 
         print("Connected to database successfully")

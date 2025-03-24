@@ -858,79 +858,42 @@ def get_portfolio_securities(portfolio_id):
         if not portfolio:
             return jsonify({"message": "Portfolio not found"}), 404
 
-        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
+        result = db.session.execute(db.text("""
+        SELECT 
+            ps.id as ps_id,
+            s.ticker,
+            s.name,
+            ps.amount_owned,
+            s.current_price,
+            ps.total_value,
+            ps.value_change,
+            ps.value_change_pct,
+            ps.purchase_date,
+            ps.total_gain,
+            ps.total_gain_pct,
+            s.current_price as latest_close,
+            CURRENT_DATE as latest_close_date
+        FROM portfolio_securities ps
+        JOIN securities s ON ps.security_id = s.id
+        WHERE ps.portfolio_id = :portfolio_id
+        """), {'portfolio_id': portfolio_id}).fetchall()
+
         securities_data = []
 
-        # Determine most recent market date (handle weekends properly)
-        today = datetime.now().date()
-        days_since_friday = today.weekday() - 4 if today.weekday() > 4 else 0  # Friday is 4
-        most_recent_market_date = today - timedelta(days=days_since_friday)
-
-        for s in securities:
-            try:
-                # Default values with proper None handling
-                current_price = s.current_price if s.current_price is not None else 0
-                amount_owned = s.amount_owned if s.amount_owned is not None else 0
-                total_value = s.total_value if s.total_value is not None else amount_owned * current_price
-                value_change = s.value_change if s.value_change is not None else 0
-                value_change_pct = s.value_change_pct if s.value_change_pct is not None else 0
-
-                # Get the MOST RECENT historical price (no more than most_recent_market_date)
-                latest_close = current_price
-                latest_close_date = most_recent_market_date.strftime('%Y-%m-%d')
-
-                try:
-                    # Get historical data on or before the most recent market date
-                    historical_data = SecurityHistoricalData.query.filter(
-                        SecurityHistoricalData.ticker == s.ticker,
-                        SecurityHistoricalData.date <= most_recent_market_date
-                    ).order_by(
-                        SecurityHistoricalData.date.desc()
-                    ).first()
-
-                    if historical_data:
-                        latest_close = float(historical_data.close_price) if historical_data.close_price else 0
-                        latest_close_date = historical_data.date.strftime(
-                            '%Y-%m-%d') if historical_data.date else most_recent_market_date.strftime('%Y-%m-%d')
-
-                        # If current price is zero or null, use historical data
-                        if current_price <= 0 and latest_close > 0:
-                            current_price = latest_close
-                            total_value = amount_owned * current_price
-                    else:
-                        # If no historical data found, use today/most recent market date as close date
-                        latest_close_date = most_recent_market_date.strftime('%Y-%m-%d')
-
-                except Exception as e:
-                    print(f"Error getting historical data for {s.ticker}: {e}")
-
-                securities_data.append({
-                    'id': s.id,
-                    'ticker': s.ticker,
-                    'name': s.name if s.name else s.ticker,
-                    'amount_owned': amount_owned,
-                    'current_price': current_price,
-                    'total_value': total_value,
-                    'value_change': value_change,
-                    'value_change_pct': value_change_pct,
-                    'latest_close': latest_close,
-                    'latest_close_date': latest_close_date
-                })
-            except Exception as sec_error:
-                print(f"Error processing security {s.ticker}: {sec_error}")
-                # Add with minimal data rather than skipping
-                securities_data.append({
-                    'id': s.id,
-                    'ticker': s.ticker,
-                    'name': s.name if s.name else s.ticker,
-                    'amount_owned': s.amount_owned if s.amount_owned is not None else 0,
-                    'current_price': 0,
-                    'total_value': 0,
-                    'value_change': 0,
-                    'value_change_pct': 0,
-                    'latest_close': 0,
-                    'latest_close_date': most_recent_market_date.strftime('%Y-%m-%d')
-                })
+        for row in result:
+            securities_data.append({
+                'id': row.ps_id,  # junction table ID
+                'ticker': row.ticker,
+                'name': row.name,
+                'amount_owned': row.amount_owned,
+                'current_price': row.current_price,
+                'total_value': row.total_value,
+                'value_change': row.value_change,
+                'value_change_pct': row.value_change_pct,
+                'purchase_date': row.purchase_date.strftime('%Y-%m-%d') if row.purchase_date else None,
+                'latest_close': row.latest_close,
+                'latest_close_date': row.latest_close_date.strftime('%Y-%m-%d') if row.latest_close_date else None
+            })
 
         # Get the latest update timestamp
         latest_update = None
@@ -954,6 +917,7 @@ def get_portfolio_securities(portfolio_id):
         print(f"Error fetching portfolio securities: {e}")
         print(f"Traceback: {traceback.format_exc()}")
         return jsonify({"message": "An error occurred while fetching portfolio securities", "error": str(e)}), 500
+
 
 @auth_blueprint.route('/stock-cache/<symbol>', methods=['GET'])
 @jwt_required(locations=["cookies"])
@@ -1235,80 +1199,130 @@ def update_portfolio(portfolio_id):
 
         print("Received changes:", data)
 
-        # First, handle deletions using raw SQL
+        # Process deletions - Now we'll delete from portfolio_securities instead
         securities_to_delete = []
         for change in changes:
             if change.get('deleted') and change.get('security_id'):
                 securities_to_delete.append(change.get('security_id'))
 
         if securities_to_delete:
-            print(f"Deleting securities: {securities_to_delete}")
-            # Use database engine directly to bypass ORM
-            with db.engine.begin() as connection:
-                # Convert all IDs to strings and join with commas
-                id_list = ','.join(str(id) for id in securities_to_delete)
-                # Delete query for securities only (not touching historical data)
-                sql = f"DELETE FROM securities WHERE id IN ({id_list}) AND portfolio_id = {portfolio_id}"
-                connection.execute(db.text(sql))
+            print(f"Deleting securities from portfolio: {securities_to_delete}")
 
-            print(f"Deleted {len(securities_to_delete)} securities with direct SQL")
+            # Convert all IDs to strings and join with commas for the SQL query
+            id_list = ','.join(str(id) for id in securities_to_delete)
 
+            # Delete from portfolio_securities instead of securities
+            db.session.execute(db.text(f"""
+            DELETE FROM portfolio_securities 
+            WHERE id IN ({id_list}) AND portfolio_id = {portfolio_id}
+            """))
+
+            db.session.commit()
+            print(f"Deleted {len(securities_to_delete)} securities from portfolio")
+
+        # Process additions and updates through ORM
         for change in changes:
+            # Skip deleted securities as they've been handled
             if change.get('deleted'):
                 continue
 
             if change.get('new'):
                 print("Adding new security:", change)
-                security = Security(
-                    portfolio_id=portfolio_id,
-                    ticker=change['ticker'],
-                    name=change['name'],
-                    amount_owned=float(change['amount']),
-                    current_price=float(change.get('current_price', 0)),
-                    total_value=float(change.get('total_value', 0)),
-                    value_change=float(change.get('value_change', 0)),
-                    value_change_pct=float(change.get('value_change_pct', 0)),
-                    total_gain=float(change.get('total_gain', 0)),
-                    total_gain_pct=float(change.get('total_gain_pct', 0))
-                )
-                db.session.add(security)
-                print("New security added to session")
-            elif 'amount' in change and change.get('security_id'):
-                security_id = change.get('security_id')
-                security = Security.query.filter_by(id=security_id, portfolio_id=portfolio_id).first()
-                if security:
-                    security.amount_owned = float(change['amount'])
-                    if security.current_price:
-                        security.total_value = security.amount_owned * security.current_price
 
-        # Commit changes to securities
+                # First find or create the security
+                security = Security.query.filter_by(ticker=change['ticker']).first()
+
+                if not security:
+                    # Create the security record
+                    security = Security(
+                        ticker=change['ticker'],
+                        name=change['name'],
+                        current_price=float(change.get('current_price', 0)),
+                        # Add other security fields, but not portfolio-specific ones
+                    )
+                    db.session.add(security)
+                    db.session.flush()  # Get the ID without committing
+
+                # Now create the portfolio-security relationship
+                ps = db.session.execute(db.text("""
+                INSERT INTO portfolio_securities 
+                (portfolio_id, security_id, amount_owned, purchase_price, total_value, value_change, value_change_pct, total_gain, total_gain_pct)
+                VALUES (:portfolio_id, :security_id, :amount, :price, :total, :change, :change_pct, :gain, :gain_pct)
+                RETURNING id
+                """), {
+                    'portfolio_id': portfolio_id,
+                    'security_id': security.id,
+                    'amount': float(change['amount']),
+                    'price': float(change.get('purchase_price', 0)),
+                    'total': float(change.get('total_value', 0)),
+                    'change': float(change.get('value_change', 0)),
+                    'change_pct': float(change.get('value_change_pct', 0)),
+                    'gain': float(change.get('total_gain', 0)),
+                    'gain_pct': float(change.get('total_gain_pct', 0))
+                })
+
+                db.session.commit()
+
+            elif change.get('security_id') and 'amount' in change:
+                # Update amount in portfolio_securities table
+                db.session.execute(db.text("""
+                UPDATE portfolio_securities
+                SET amount_owned = :amount,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id AND portfolio_id = :portfolio_id
+                """), {
+                    'amount': float(change['amount']),
+                    'id': change.get('security_id'),
+                    'portfolio_id': portfolio_id
+                })
+
+                db.session.commit()
+
+        # Update portfolio totals using the junction table
+
+        # Get total value from portfolio_securities
+        result = db.session.execute(db.text("""
+        SELECT 
+            SUM(ps.total_value) as total_value,
+            SUM(ps.value_change) as day_change,
+            COUNT(*) as total_holdings,
+            SUM(ps.total_gain) as total_gain
+        FROM portfolio_securities ps
+        WHERE ps.portfolio_id = :portfolio_id
+        """), {'portfolio_id': portfolio_id}).fetchone()
+
+        # Update portfolio with new totals
+        total_value = result[0] or 0
+        day_change = result[1] or 0
+        total_holdings = result[2] or 0
+        total_gain = result[3] or 0
+
+        # Calculate percentages safely
+        day_change_pct = 0
+        if total_value and total_value != day_change:
+            base_value = total_value - day_change
+            if base_value > 0:
+                day_change_pct = (day_change / base_value) * 100
+
+        # Calculate total gain percentage from portfolio_securities
+        total_gain_pct_result = db.session.execute(db.text("""
+        SELECT AVG(ps.total_gain_pct) 
+        FROM portfolio_securities ps
+        WHERE ps.portfolio_id = :portfolio_id AND ps.total_gain_pct IS NOT NULL
+        """), {'portfolio_id': portfolio_id}).fetchone()
+
+        total_gain_pct = total_gain_pct_result[0] or 0
+
+        # Update portfolio
+        portfolio.total_value = total_value
+        portfolio.day_change = day_change
+        portfolio.day_change_pct = day_change_pct
+        portfolio.total_holdings = total_holdings
+        portfolio.total_gain = total_gain
+        portfolio.total_gain_pct = total_gain_pct
+
         db.session.commit()
 
-        # Update portfolio totals
-        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
-
-        # Calculate totals with None checks
-        portfolio.total_value = sum((s.total_value or 0) for s in securities)
-        portfolio.day_change = sum((s.value_change or 0) for s in securities)
-        portfolio.total_holdings = len(securities)
-
-        # Safe percentage calculation for day change
-        base_value = portfolio.total_value - portfolio.day_change if portfolio.day_change else portfolio.total_value
-        if base_value and base_value != 0:
-            portfolio.day_change_pct = (portfolio.day_change / base_value) * 100
-        else:
-            portfolio.day_change_pct = 0
-
-        portfolio.total_gain = sum((s.total_gain or 0) for s in securities)
-
-        # Safe total cost calculation
-        total_cost = sum((s.amount_owned or 0) * (s.purchase_price or 0) for s in securities if s.purchase_price)
-        if total_cost and total_cost != 0:
-            portfolio.total_gain_pct = ((portfolio.total_value / total_cost) - 1) * 100
-        else:
-            portfolio.total_gain_pct = 0
-
-        db.session.commit()
         print("Updated portfolio values:", {
             "total_value": portfolio.total_value,
             "total_holdings": portfolio.total_holdings,
@@ -1335,7 +1349,6 @@ def update_portfolio(portfolio_id):
         print(f"Traceback: {traceback.format_exc()}")
         db.session.rollback()
         return jsonify({"message": f"Failed to update portfolio: {str(e)}"}), 500
-
 
 @auth_blueprint.route('/portfolio/<int:portfolio_id>/update-prices', methods=['POST'])
 @jwt_required(locations=["cookies"])
