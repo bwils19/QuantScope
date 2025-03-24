@@ -555,12 +555,44 @@ def portfolio_overview():
                     'day_change_pct': day_change_pct,
                     'latest_update': latest_price_data.date if latest_price_data else None
                 })
+        portfolio_view_data = []
+        for portfolio in portfolios:
+            # Get portfolio securities with their associated security data
+            portfolio_securities = (
+                db.session.query(PortfolioSecurity, Security)
+                .join(Security, PortfolioSecurity.security_id == Security.id)
+                .filter(PortfolioSecurity.portfolio_id == portfolio.id)
+                .all()
+            )
+
+            # Create a merged view of portfolio securities
+            securities_data = []
+            for ps, security in portfolio_securities:
+                securities_data.append({
+                    'id': ps.id,  # Use the junction table ID
+                    'ticker': security.ticker,
+                    'name': security.name,
+                    'amount_owned': ps.amount_owned,
+                    'purchase_date': ps.purchase_date.strftime('%Y-%m-%d') if ps.purchase_date else None,
+                    'purchase_price': ps.purchase_price,
+                    'current_price': security.current_price,
+                    'total_value': ps.total_value,
+                    'value_change': ps.value_change,
+                    'value_change_pct': ps.value_change_pct,
+                    'total_gain': ps.total_gain,
+                    'total_gain_pct': ps.total_gain_pct
+                })
+
+            # Create a portfolio view model with attached securities
+            portfolio_data = portfolio.__dict__.copy()
+            portfolio_data['securities'] = securities_data  # Add the securities attribute
+            portfolio_view_data.append(portfolio_data)
 
         return render_template(
             'portfolio_overview.html',
             body_class='portfolio-overview-page',
             user={"first_name": user.first_name, "email": user.email},
-            portfolios=portfolios,
+            portfolios=portfolio_view_data,
             dashboard_stats={
                 'total_value': total_portfolio_value,
                 'day_change': total_day_change,
