@@ -50,7 +50,7 @@ def check_date_issues():
 
         for security in samples:
             # logger.error(f"  - {security.ticker}: portfolio_id={security.portfolio_id}, amount={security.amount_owned}")
-            logger.error(f"  - {security.ticker}: amount={security.amount_owned}")
+            logger.error(f"  - {security.ticker}: zero price detected")
 
             # Check if historical data exists for this security
             hist_data = SecurityHistoricalData.query.filter_by(
