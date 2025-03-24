@@ -438,33 +438,41 @@ def portfolio_overview():
             portfolio_day_change = 0
             total_cost = 0
 
-            for security in portfolio.securities:
+            # Use the portfolio_securities relationship instead of securities
+            portfolio_securities = (
+                db.session.query(PortfolioSecurity, Security)
+                .join(Security, PortfolioSecurity.security_id == Security.id)
+                .filter(PortfolioSecurity.portfolio_id == portfolio.id)
+                .all()
+            )
+
+            for ps, security in portfolio_securities:
                 latest_data = latest_prices.get(security.ticker)
 
                 if latest_data:
                     # Update with historical data
                     security.current_price = latest_data['current_price']
-                    security.total_value = security.amount_owned * latest_data['current_price']
+                    ps.total_value = ps.amount_owned * latest_data['current_price']
 
                     # Calculate day change using historical data
-                    security.value_change = security.amount_owned * (
+                    ps.value_change = ps.amount_owned * (
                             latest_data['current_price'] - latest_data['previous_close']
                     )
 
-                    base_value = security.amount_owned * latest_data['previous_close']
-                    security.value_change_pct = (security.value_change / base_value) * 100 if base_value != 0 else 0
+                    base_value = ps.amount_owned * latest_data['previous_close']
+                    ps.value_change_pct = (ps.value_change / base_value) * 100 if base_value != 0 else 0
 
                 # Calculate total gain/loss if purchase price is available
-                position_cost = security.amount_owned * security.purchase_price if security.purchase_price else 0
-                security.total_gain = security.total_value - position_cost
+                position_cost = ps.amount_owned * ps.purchase_price if ps.purchase_price else 0
+                ps.total_gain = ps.total_value - position_cost
                 if position_cost and position_cost != 0:
-                    security.total_gain_pct = ((security.total_value / position_cost) - 1) * 100
+                    ps.total_gain_pct = ((ps.total_value / position_cost) - 1) * 100
                 else:
-                    security.total_gain_pct = 0
+                    ps.total_gain_pct = 0
 
                 # Accumulate portfolio totals
-                portfolio_total_value += security.total_value
-                portfolio_day_change += security.value_change
+                portfolio_total_value += ps.total_value
+                portfolio_day_change += ps.value_change
                 total_cost += position_cost
 
             # Update portfolio metrics
