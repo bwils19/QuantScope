@@ -698,9 +698,10 @@ def delete_portfolio(portfolio_id):
         if not portfolio:
             return jsonify({"message": "Portfolio not found"}), 404
 
-        Security.query.filter_by(portfolio_id=portfolio_id).delete()
+        # Delete portfolio_securities junction entries first
+        PortfolioSecurity.query.filter_by(portfolio_id=portfolio_id).delete()
 
-        # Delete the portfolio
+        # Now delete the portfolio
         db.session.delete(portfolio)
         db.session.commit()
 
@@ -708,8 +709,10 @@ def delete_portfolio(portfolio_id):
 
     except Exception as e:
         print(f"Error deleting portfolio: {e}")
+        import traceback
+        traceback.print_exc()
         db.session.rollback()
-        return jsonify({"message": "Failed to delete portfolio"}), 500
+        return jsonify({"message": f"Failed to delete portfolio: {str(e)}"}), 500
 
 
 @auth_blueprint.route('/upload', methods=['POST'])
@@ -847,6 +850,7 @@ def create_portfolio():
                     ticker=ticker,
                     name=stock["name"],
                     exchange=stock.get("exchange", "")
+                    # No portfolio_id field
                 )
                 db.session.add(security)
                 db.session.flush()  # Get ID without committing
@@ -874,17 +878,20 @@ def create_portfolio():
             current_price = float(price_data['currentPrice'])
             amount = float(stock["amount"])
 
-            # Update security prices
+            # Update security prices if needed
             security.current_price = current_price
             security.previous_close = float(price_data.get('previousClose', current_price))
 
             # Create the portfolio_security relationship
+            purchase_date = None
+            if stock.get("purchase_date"):
+                purchase_date = datetime.strptime(stock["purchase_date"], '%Y-%m-%d')
+
             portfolio_security = PortfolioSecurity(
                 portfolio_id=portfolio.id,
                 security_id=security.id,
                 amount_owned=amount,
-                purchase_date=datetime.strptime(stock["purchase_date"], '%Y-%m-%d') if stock.get(
-                    "purchase_date") else None,
+                purchase_date=purchase_date,
                 purchase_price=current_price,  # Use current price as purchase price
                 total_value=amount * current_price,
                 value_change=float(stock['valueChange']),
@@ -892,7 +899,6 @@ def create_portfolio():
             )
 
             # Calculate total gain
-            position_cost = amount * current_price  # Initial purchase cost
             portfolio_security.total_gain = 0  # Initially zero since purchase price = current price
             portfolio_security.total_gain_pct = 0
 
@@ -900,7 +906,7 @@ def create_portfolio():
 
             # Track totals
             total_value += amount * current_price
-            total_cost += position_cost
+            total_cost += amount * current_price
 
         # Update portfolio metrics
         portfolio.total_value = total_value
@@ -927,7 +933,7 @@ def create_portfolio():
     except Exception as e:
         print(f"Error creating portfolio: {e}")
         import traceback
-        print(f"Traceback: {traceback.format_exc()}")
+        traceback.print_exc()
         db.session.rollback()
         return jsonify({"message": str(e)}), 500
 
@@ -1153,20 +1159,12 @@ def create_portfolio_from_file(file_id):
             # Extract unique tickers
             tickers = list(set([row['ticker'].upper() for row in valid_rows]))
 
-            # Fetch current prices for all tickers at once
-            print(f"Fetching prices for {len(tickers)} unique securities")
-            start_time = time.time()
-            price_data = fetch_prices_for_portfolio(tickers)
-            elapsed = time.time() - start_time
-            print(
-                f"Price fetching completed in {elapsed:.2f} seconds. Found prices for {len(price_data)} of {len(tickers)} securities.")
-
             # Now add securities with the fetched prices
             total_value = 0
             total_cost = 0
             securities_with_prices = 0
 
-            # Process in batches to avoid large transactions
+            # Process in batches to avoid large transactions, this shit keeps crashing...
             batch_size = 50
             for i in range(0, len(valid_rows), batch_size):
                 batch = valid_rows[i:i + batch_size]
@@ -1174,42 +1172,61 @@ def create_portfolio_from_file(file_id):
 
                 for row in batch:
                     ticker = row['ticker'].upper()
+
+                    # First find or create the Security record
+                    security = Security.query.filter_by(ticker=ticker).first()
+
+                    if not security:
+                        # Create a new Security (without portfolio_id)
+                        security = Security(
+                            ticker=ticker,
+                            name=row.get('name', ticker),
+                            exchange=row.get('exchange', '')
+                            # No portfolio_id field anymore
+                        )
+                        db.session.add(security)
+                        db.session.flush()  # Get the ID without committing
+
+                    # Get or calculate prices
                     current_price = 0
-
-                    # Use fetched price if available
-                    if ticker in price_data:
-                        current_price = price_data[ticker]['currentPrice']
-                        securities_with_prices += 1
-
-                    # Fallback to purchase price if available and no current price
                     purchase_price = float(row.get('purchase_price', 0)) if row.get('purchase_price') else 0
 
-                    security = Security(
+                    # Check StockCache for current price
+                    cache = StockCache.query.filter_by(ticker=ticker).first()
+                    if cache and cache.data:
+                        current_price = cache.data.get('currentPrice', 0)
+                        securities_with_prices += 1
+
+                    # If no price, use purchase price as fallback
+                    if current_price == 0 and purchase_price > 0:
+                        current_price = purchase_price
+
+                    # Update security price if there is one
+                    if current_price > 0:
+                        security.current_price = current_price
+
+                    # Create the PortfolioSecurity entry (the junction table record)
+                    amount = float(row['amount'])
+                    purchase_date = datetime.strptime(row['purchase_date'], '%Y-%m-%d').date()
+
+                    portfolio_security = PortfolioSecurity(
                         portfolio_id=portfolio.id,
-                        ticker=ticker,
-                        name=row.get('name', ticker),
-                        amount_owned=float(row['amount']),
-                        purchase_date=datetime.strptime(row['purchase_date'], '%Y-%m-%d').date(),
+                        security_id=security.id,
+                        amount_owned=amount,
+                        purchase_date=purchase_date,
                         purchase_price=purchase_price,
-                        current_price=current_price,
-                        sector=row.get('sector', '')
+                        total_value=amount * current_price,
+                        value_change=0,  # Will be calculated later
+                        value_change_pct=0,
+                        total_gain=amount * current_price - amount * purchase_price if purchase_price > 0 else 0,
+                        total_gain_pct=((current_price / purchase_price) - 1) * 100 if purchase_price > 0 else 0
                     )
 
-                    # Calculate values
-                    security.total_value = security.amount_owned * security.current_price
-                    security.value_change = 0  # Will be updated later if historical data exists
-                    security.value_change_pct = 0
+                    db.session.add(portfolio_security)
 
                     # Track totals for portfolio
-                    total_value += security.total_value
-                    total_cost += security.amount_owned * security.purchase_price
-
-                    db.session.add(security)
-
-                    if current_price > 0:
-                        print(f"Added security: {security.ticker} with price: ${security.current_price}")
-                    else:
-                        print(f"Added security: {security.ticker} with NO PRICE")
+                    total_value += amount * current_price
+                    total_cost += amount * purchase_price
 
                 # Commit each batch separately
                 db.session.commit()
@@ -1256,10 +1273,9 @@ def create_portfolio_from_file(file_id):
                 db.session.rollback()
             return jsonify({"message": f"Error creating portfolio: {str(e)}"}), 500
 
-    except Exception as token_error:  # This is the missing block!
+    except Exception as token_error:
         print(f"Token refresh error: {str(token_error)}")
         return jsonify({"message": "Authentication error. Please log in again."}), 401
-
 
 @auth_blueprint.route('/portfolio/<int:portfolio_id>/update', methods=['POST'])
 @jwt_required(locations=["cookies"])

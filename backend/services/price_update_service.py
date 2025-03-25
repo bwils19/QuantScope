@@ -631,6 +631,7 @@ class PriceUpdateService:
             raise
 
     def _update_securities_with_prices(self, session, securities, prices):
+        """Update securities with new prices and recalculate portfolio securities values"""
         updated_count = 0
         failed_count = 0
 
@@ -639,48 +640,44 @@ class PriceUpdateService:
                 # Get the price data for this ticker
                 ticker = security.ticker
                 if ticker not in prices:
-                    # logger.warning(f"No price data found for {ticker}")
                     continue
 
                 price_data = prices[ticker]
                 new_price = float(price_data['currentPrice'])
+                prev_close = float(price_data.get('previousClose', security.current_price or new_price))
+
+                # Update the security's current price
+                old_price = security.current_price
+                security.current_price = new_price
+                security.previous_close = prev_close
+                security.updated_at = datetime.utcnow()
 
                 # Find all portfolio_securities entries for this security
                 portfolio_securities = session.query(PortfolioSecurity).filter_by(security_id=security.id).all()
 
+                # Update each portfolio security
                 for ps in portfolio_securities:
                     # Calculate new values
-                    old_value = ps.total_value if ps.total_value else 0
-                    new_value = ps.amount_owned * new_price
+                    ps.total_value = ps.amount_owned * new_price
+                    ps.value_change = ps.amount_owned * (new_price - prev_close)
 
-                    # Calculate value change
-                    value_change = new_value - old_value
+                    # Calculate percentage changes
+                    if prev_close and prev_close > 0:
+                        ps.value_change_pct = (ps.value_change / (ps.amount_owned * prev_close)) * 100
 
-                    # Update the portfolio_security record
-                    ps.total_value = new_value
-                    ps.value_change = new_value - (
-                                ps.amount_owned * security.previous_close) if security.previous_close else 0
-
-                    # Update percentage changes
-                    base_value = ps.amount_owned * security.previous_close if security.previous_close else new_value
-                    ps.value_change_pct = (ps.value_change / base_value) * 100 if base_value > 0 else 0
-
-                    # Update gain/loss if purchase price exists
+                    # Update total gain if purchase price exists
                     if ps.purchase_price:
-                        ps.total_gain = new_value - (ps.amount_owned * ps.purchase_price)
-                        ps.total_gain_pct = ((new_value / (ps.amount_owned * ps.purchase_price)) - 1) * 100
-
-                # Update the security record with new price
-                security.current_price = new_price
-                security.previous_close = float(price_data.get('previousClose', security.current_price))
-                security.updated_at = datetime.utcnow()
+                        ps.total_gain = ps.total_value - (ps.amount_owned * ps.purchase_price)
+                        if ps.purchase_price > 0:
+                            ps.total_gain_pct = ((ps.total_value / (ps.amount_owned * ps.purchase_price)) - 1) * 100
 
                 updated_count += 1
 
             except Exception as e:
-                logger.error(f"Error updating security {security.ticker}: {str(e)}")
-                traceback.print_exc()
                 failed_count += 1
+                # logger.error(f"Error updating security {security.ticker}: {str(e)}")
+                import traceback
+                # logger.error(traceback.format_exc())
 
         return updated_count, failed_count
 
@@ -762,7 +759,7 @@ class PriceUpdateService:
             self.logger.error(f"Unexpected error updating {security.ticker}: {str(e)}", exc_info=True)
 
     def _update_portfolio_totals(self, session=None):
-        """Update portfolio totals after price updates"""
+        """Update portfolio totals based on portfolio_securities values"""
         # logger.info("Updating portfolio totals based on new prices")
 
         close_session = False
@@ -777,53 +774,57 @@ class PriceUpdateService:
 
             for portfolio in portfolios:
                 try:
-                    # Get all portfolio_securities records for this portfolio
-                    portfolio_securities = session.query(PortfolioSecurity).filter_by(portfolio_id=portfolio.id).all()
+                    # Calculate aggregates directly in the database for efficiency
+                    aggregates = session.query(
+                        func.sum(PortfolioSecurity.total_value).label('total_value'),
+                        func.sum(PortfolioSecurity.value_change).label('day_change'),
+                        func.sum(PortfolioSecurity.total_gain).label('total_gain'),
+                        func.count().label('count')
+                    ).filter(
+                        PortfolioSecurity.portfolio_id == portfolio.id
+                    ).first()
 
-                    total_value = 0
-                    day_change = 0
-                    total_gain = 0
+                    if aggregates:
+                        # Update portfolio with aggregate values
+                        portfolio.total_value = aggregates.total_value or 0
+                        portfolio.day_change = aggregates.day_change or 0
+                        portfolio.total_gain = aggregates.total_gain or 0
+                        portfolio.total_holdings = aggregates.count
 
-                    for ps in portfolio_securities:
-                        total_value += ps.total_value if ps.total_value else 0
-                        day_change += ps.value_change if ps.value_change else 0
-                        total_gain += ps.total_gain if ps.total_gain else 0
+                        # Calculate percentages
+                        if portfolio.total_value > 0:
+                            # Day change percentage
+                            base_value = portfolio.total_value - portfolio.day_change
+                            if base_value > 0:
+                                portfolio.day_change_pct = (portfolio.day_change / base_value) * 100
 
-                    # Update portfolio with new totals
-                    portfolio.total_value = total_value
-                    portfolio.day_change = day_change
+                            # Calculate cost basis for gain percentage
+                            cost_basis_result = session.query(
+                                func.sum(PortfolioSecurity.amount_owned * PortfolioSecurity.purchase_price)
+                            ).filter(
+                                PortfolioSecurity.portfolio_id == portfolio.id,
+                                PortfolioSecurity.purchase_price.isnot(None)
+                            ).scalar()
 
-                    # Calculate percentages
-                    portfolio.day_change_pct = (day_change / (total_value - day_change)) * 100 if (
-                                                                                                              total_value - day_change) > 0 else 0
+                            cost_basis = cost_basis_result or 0
+                            if cost_basis > 0:
+                                portfolio.total_gain_pct = ((portfolio.total_value / cost_basis) - 1) * 100
 
-                    # Update total gain
-                    portfolio.total_gain = total_gain
-
-                    # Calculate cost basis for gain percentage
-                    cost_basis = sum([(ps.amount_owned * ps.purchase_price) for ps in portfolio_securities if
-                                      ps.purchase_price]) or 0
-                    if cost_basis > 0:
-                        portfolio.total_gain_pct = ((total_value / cost_basis) - 1) * 100
-
-                    # Update total holdings count
-                    portfolio.total_holdings = len(portfolio_securities)
-
-                    # Update timestamp
                     portfolio.updated_at = datetime.utcnow()
 
                 except Exception as e:
-                    logger.error(f"Error updating portfolio {portfolio.id}: {str(e)}")
-                    traceback.print_exc()
+                    print(f"Error updating portfolio {portfolio.id}: {str(e)}")
+                    # logger.error(f"Error updating portfolio {portfolio.id}: {str(e)}")
 
+            # Commit changes
             session.commit()
-            logger.info("Portfolio totals updated successfully")
+            # logger.info("Portfolio totals updated successfully")
 
         except Exception as e:
-            logger.error(f"Error updating portfolio totals: {str(e)}")
-            traceback.print_exc()
+            # logger.error(f"Error updating portfolio totals: {str(e)}")
+            import traceback
+            # logger.error(traceback.format_exc())
             session.rollback()
-            raise e
         finally:
             if close_session:
                 session.close()
@@ -940,7 +941,7 @@ class PriceUpdateService:
             return True
 
         except Exception as e:
-            logger.error(f"Error updating portfolio {portfolio.id} totals: {str(e)}")
+            # logger.error(f"Error updating portfolio {portfolio.id} totals: {str(e)}")
             traceback.print_exc()
             return False
 
