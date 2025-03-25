@@ -962,33 +962,55 @@ def get_portfolio_securities(portfolio_id):
             PortfolioSecurity.portfolio_id == portfolio_id
         ).all()
 
+        # Query the most recent historical data for day change calculation
+        today = datetime.now().date()
+
         securities_data = []
 
         for ps, security in result:
+            # Get the most recent historical data
+            latest_historical = db.session.query(SecurityHistoricalData) \
+                .filter_by(ticker=security.ticker) \
+                .order_by(SecurityHistoricalData.date.desc()) \
+                .first()
+
+            # Get previous day historical data for day change
+            previous_day_historical = db.session.query(SecurityHistoricalData) \
+                .filter(
+                SecurityHistoricalData.ticker == security.ticker,
+                SecurityHistoricalData.date < latest_historical.date if latest_historical else today
+            ) \
+                .order_by(SecurityHistoricalData.date.desc()) \
+                .first()
+
+            # Use historical data if available, otherwise use security current price
+            latest_close = latest_historical.close_price if latest_historical else security.current_price
+            close_date = latest_historical.date if latest_historical else None
+
+            # Calculate day change using historical data
+            previous_close = previous_day_historical.close_price if previous_day_historical else latest_close
+            day_change = (latest_close - previous_close) * ps.amount_owned
+            day_change_pct = ((latest_close / previous_close) - 1) * 100 if previous_close > 0 else 0
+
             securities_data.append({
-                'id': ps.id,  # Use junction table ID
+                'id': ps.id,
                 'ticker': security.ticker,
                 'name': security.name,
                 'amount_owned': ps.amount_owned,
                 'current_price': security.current_price,
-                'total_value': ps.total_value,
-                'value_change': ps.value_change,
-                'value_change_pct': ps.value_change_pct,
+                'total_value': ps.amount_owned * security.current_price,
+                'value_change': day_change,
+                'value_change_pct': day_change_pct,
                 'purchase_date': ps.purchase_date.strftime('%Y-%m-%d') if ps.purchase_date else None,
                 'total_gain': ps.total_gain,
                 'total_gain_pct': ps.total_gain_pct,
-                'latest_close': security.current_price, # Using current price as latest close
-                'latest_close_date': datetime.now().strftime('%Y-%m-%d')
+                'latest_close': latest_close,
+                'latest_close_date': close_date.strftime('%Y-%m-%d') if close_date else None
             })
 
         # Get the latest update timestamp
-        latest_update = None
-        try:
-            latest_update = db.session.query(func.max(SecurityHistoricalData.updated_at)).scalar()
-            if not latest_update:
-                latest_update = datetime.now()
-        except Exception as e:
-            print(f"Error getting latest update timestamp: {e}")
+        latest_update = db.session.query(func.max(SecurityHistoricalData.updated_at)).scalar()
+        if not latest_update:
             latest_update = datetime.now()
 
         return jsonify({
