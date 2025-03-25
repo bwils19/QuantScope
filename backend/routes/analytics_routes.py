@@ -8,7 +8,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 
 from backend.models import User, Portfolio, Security, HistoricalDataUpdateLog, SecurityHistoricalData, SecurityMetadata, \
-    RiskAnalysisCache
+    RiskAnalysisCache, PortfolioSecurity
 from backend.analytics.risk_calculations import RiskAnalytics, calculate_credit_risk
 from backend import db
 from backend.services.cache_service import get_cached_risk_components
@@ -39,16 +39,27 @@ def get_portfolio_risk(portfolio_id):
         if not portfolio:
             return jsonify({"error": "Portfolio not found"}), 404
 
-        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
+        # Get securities for this portfolio using the junction table
+        portfolio_securities = (
+            db.session.query(PortfolioSecurity, Security)
+            .join(Security, PortfolioSecurity.security_id == Security.id)
+            .filter(PortfolioSecurity.portfolio_id == portfolio_id)
+            .all()
+        )
+
         risk_analyzer = RiskAnalytics()
 
-        securities_data = [{
-            'ticker': s.ticker,
-            'amount_owned': s.amount_owned,
-            'purchase_date': s.purchase_date.strftime("%Y-%m-%d") if s.purchase_date else None,
-            'current_price': s.current_price,
-            'total_value': s.total_value
-        } for s in securities]
+        # Convert to the format expected by the risk calculator
+        securities_data = []
+        for ps, security in portfolio_securities:
+            security_data = {
+                'ticker': security.ticker,
+                'amount_owned': ps.amount_owned,
+                'purchase_date': ps.purchase_date.strftime("%Y-%m-%d") if ps.purchase_date else None,
+                'current_price': security.current_price,
+                'total_value': ps.total_value
+            }
+            securities_data.append(security_data)
 
         # calculate metrics
         var_data = risk_analyzer.calculate_dynamic_var(securities_data)
@@ -256,8 +267,14 @@ def get_portfolio_composition(portfolio_id, view_type):
             print(f"Portfolio {portfolio_id} not found for user {current_user_email}")
             return jsonify({"error": "Portfolio not found"}), 404
 
-        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
-        print(f"Found {len(securities)} securities in portfolio")
+        # Get securities for this portfolio using the junction table
+        portfolio_securities = (
+            db.session.query(PortfolioSecurity, Security)
+            .join(Security, PortfolioSecurity.security_id == Security.id)
+            .filter(PortfolioSecurity.portfolio_id == portfolio_id)
+            .all()
+        )
+        print(f"Found {len(portfolio_securities)} securities in portfolio")
 
         if view_type == 'risk':
             try:
@@ -270,13 +287,16 @@ def get_portfolio_composition(portfolio_id, view_type):
                     print("Calculating fresh VaR components...")
                     # Calculate if not cached
                     risk_analyzer = RiskAnalytics()
-                    securities_data = [{
-                        'ticker': s.ticker,
-                        'amount_owned': s.amount_owned,
-                        'total_value': s.total_value,
-                        'purchase_date': s.purchase_date.strftime("%Y-%m-%d") if s.purchase_date else None,
-                        'current_price': s.current_price
-                    } for s in securities]
+                    securities_data = []
+                    for ps, security in portfolio_securities:
+                        security_data = {
+                            'ticker': security.ticker,
+                            'amount_owned': ps.amount_owned,
+                            'total_value': ps.total_value,
+                            'purchase_date': ps.purchase_date.strftime("%Y-%m-%d") if ps.purchase_date else None,
+                            'current_price': security.current_price
+                        }
+                        securities_data.append(security_data)
                     var_components = risk_analyzer.get_var_components(securities_data)
 
                 if not var_components:
@@ -319,17 +339,17 @@ def get_portfolio_composition(portfolio_id, view_type):
         composition_data = []
         total_value = 0
 
-        for security in securities:
+        for ps, security in portfolio_securities:
             metadata = SecurityMetadata.query.filter_by(ticker=security.ticker).first()
             if metadata:
                 composition_data.append({
                     'ticker': security.ticker,
-                    'value': security.total_value,
+                    'value': ps.total_value,  # Use the value from portfolio_securities
                     'sector': metadata.sector or 'Unknown',
                     'asset_type': metadata.asset_type or 'Unknown',
                     'currency': metadata.currency or 'USD'
                 })
-                total_value += security.total_value
+                total_value += ps.total_value
 
         # Group and calculate percentages based on view type
         groups = {}
