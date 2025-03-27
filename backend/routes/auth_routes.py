@@ -15,7 +15,8 @@ from sqlalchemy import func
 from backend import bcrypt, db
 from backend.models import User, Portfolio, Security, StockCache, SecurityHistoricalData, Watchlist, PortfolioSecurity
 from backend.models import PortfolioFiles
-
+from backend.services.validators import validate_ticker
+from backend.services.price_update_service import PriceUpdateService
 from backend.analytics.risk_calculations import RiskAnalytics
 
 from contextlib import contextmanager
@@ -919,7 +920,8 @@ def create_portfolio():
         portfolio.total_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
 
         db.session.commit()
-
+        price_service = PriceUpdateService()
+        metrics_result = price_service.update_portfolio_metrics(portfolio.id)
         return jsonify({
             "message": "Portfolio created successfully!",
             "portfolio": {
@@ -1110,6 +1112,31 @@ def preview_portfolio_file():
             df, validation_summary = parse_portfolio_file(filepath)
             preview_data = format_preview_data(df)
 
+            # add in the ticker validation
+            from backend.services.validators import validate_ticker
+
+            # Validate each ticker in the preview data
+            for row in preview_data:
+                # Only validate if not already validated
+                if row['validation_status'] != 'invalid':
+                    ticker = row.get('ticker', '').strip().upper()
+                    is_valid, company_name = validate_ticker(ticker)
+
+                    if is_valid:
+                        # If we have a company name and the row doesn't, use it
+                        if company_name and not row.get('name'):
+                            row['name'] = company_name
+                        row['validation_status'] = 'valid'
+                    else:
+                        row['validation_status'] = 'invalid'
+                        row['validation_message'] = 'Invalid ticker symbol'
+
+            # Update validation summary based on additional validation
+            valid_count = sum(1 for row in preview_data if row['validation_status'] == 'valid')
+            invalid_count = len(preview_data) - valid_count
+            validation_summary['valid_rows'] = valid_count
+            validation_summary['invalid_rows'] = invalid_count
+
             # Create a record in PortfolioFiles
             portfolio_file = PortfolioFiles(
                 user_id=user.id,
@@ -1276,6 +1303,11 @@ def create_portfolio_from_file(file_id):
 
             # Report success statistics
             price_success_rate = (securities_with_prices / len(valid_rows)) * 100 if valid_rows else 0
+            price_service = PriceUpdateService()
+            metrics_result = price_service.update_portfolio_metrics(portfolio.id)
+
+            if not metrics_result.get('success', False):
+                print(f"Warning: Failed to update portfolio metrics: {metrics_result.get('error')}")
 
             return jsonify({
                 "message": f"Portfolio created successfully with {len(valid_rows)} securities.",
@@ -1438,6 +1470,12 @@ def update_portfolio(portfolio_id):
         portfolio.total_holdings = total_holdings
         portfolio.total_gain = total_gain
         portfolio.total_gain_pct = total_gain_pct
+
+        price_service = PriceUpdateService()
+        metrics_result = price_service.update_portfolio_metrics(portfolio_id)
+
+        if not metrics_result.get('success', False):
+            print(f"Warning: Failed to update portfolio metrics: {metrics_result.get('error')}")
 
         db.session.commit()
 

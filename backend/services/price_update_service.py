@@ -945,6 +945,147 @@ class PriceUpdateService:
             traceback.print_exc()
             return False
 
+    def update_portfolio_metrics(self, portfolio_id):
+        self.logger.info(f"Updating comprehensive metrics for portfolio {portfolio_id}")
+
+        try:
+            with db.session.begin() as session:
+                # Get the portfolio
+                portfolio = session.query(Portfolio).get(portfolio_id)
+                if not portfolio:
+                    self.logger.warning(f"Portfolio {portfolio_id} not found")
+                    return {"success": False, "error": "Portfolio not found"}
+
+                # Get all portfolio securities with joined security data
+                portfolio_securities = (
+                    session.query(PortfolioSecurity, Security)
+                    .join(Security, PortfolioSecurity.security_id == Security.id)
+                    .filter(PortfolioSecurity.portfolio_id == portfolio_id)
+                    .all()
+                )
+
+                # Track totals
+                total_value = 0
+                total_cost_basis = 0
+                day_change = 0
+                total_gain = 0
+
+                for ps, security in portfolio_securities:
+                    # Use consistent price data
+                    current_price = security.current_price or 0
+                    previous_close = security.previous_close or current_price
+
+                    # Calculate security metrics
+                    security_value = ps.amount_owned * current_price
+                    security_day_change = ps.amount_owned * (current_price - previous_close)
+
+                    # Update portfolio_security values
+                    ps.total_value = security_value
+                    ps.value_change = security_day_change
+
+                    # Calculate percentage changes only if denominators are non-zero
+                    prev_day_value = ps.amount_owned * previous_close
+                    if prev_day_value > 0:
+                        ps.value_change_pct = (security_day_change / prev_day_value) * 100
+                    else:
+                        ps.value_change_pct = 0
+
+                    # Calculate gain/loss using purchase price
+                    if ps.purchase_price and ps.purchase_price > 0:
+                        security_cost = ps.amount_owned * ps.purchase_price
+                        security_gain = security_value - security_cost
+
+                        ps.total_gain = security_gain
+                        ps.total_gain_pct = (security_gain / security_cost) * 100 if security_cost > 0 else 0
+
+                        # Add to portfolio totals
+                        total_cost_basis += security_cost
+                        total_gain += security_gain
+                    else:
+                        ps.total_gain = 0
+                        ps.total_gain_pct = 0
+
+                    # Add to portfolio totals
+                    total_value += security_value
+                    day_change += security_day_change
+
+                # Update portfolio totals
+                portfolio.total_value = total_value
+                portfolio.day_change = day_change
+
+                # Calculate percentage changes for portfolio
+                day_base = total_value - day_change
+                if day_base > 0:
+                    portfolio.day_change_pct = (day_change / day_base) * 100
+                else:
+                    portfolio.day_change_pct = 0
+
+                portfolio.total_gain = total_gain
+                if total_cost_basis > 0:
+                    portfolio.total_gain_pct = (total_gain / total_cost_basis) * 100
+                else:
+                    portfolio.total_gain_pct = 0
+
+                self.calculate_total_return(portfolio, session)
+                portfolio.updated_at = datetime.utcnow()
+                session.commit()
+
+                self.logger.info(f"Portfolio {portfolio_id} metrics updated successfully")
+                return {
+                    "success": True,
+                    "portfolio_id": portfolio_id,
+                    "total_value": total_value,
+                    "day_change": day_change,
+                    "total_gain": total_gain
+                }
+
+        except Exception as e:
+            self.logger.error(f"Error updating portfolio metrics: {str(e)}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    def calculate_total_return(self, portfolio, session=None):
+        close_session = False
+        if session is None:
+            session = db.session()
+            close_session = True
+
+        try:
+            # Get current portfolio value
+            current_value = portfolio.total_value
+
+            # Get initial investment (sum of purchase prices * amounts)
+            portfolio_securities = session.query(PortfolioSecurity).filter_by(
+                portfolio_id=portfolio.id
+            ).all()
+
+            initial_value = sum(
+                ps.purchase_price * ps.amount_owned
+                for ps in portfolio_securities
+                if ps.purchase_price is not None
+            )
+
+            if initial_value > 0:
+                # Calculate return
+                absolute_return = current_value - initial_value
+                percent_return = (current_value / initial_value - 1) * 100
+
+                # Update portfolio
+                portfolio.total_return = absolute_return
+                portfolio.total_return_pct = percent_return
+            else:
+                portfolio.total_return = 0
+                portfolio.total_return_pct = 0
+
+        except Exception as e:
+            self.logger.error(f"Error calculating total return: {str(e)}")
+
+        finally:
+            if close_session:
+                session.close()
+
 
 @celery.task
 def scheduled_price_update():
@@ -990,3 +1131,5 @@ def save_closing_prices():
 
     finally:
         session.close()
+
+
