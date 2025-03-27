@@ -1,8 +1,8 @@
 import time
-from app import db
+from backend.app import db
 from models import Security
 from datetime import datetime
-from services.price_update_service import PriceUpdateService as pus
+from backend.services.price_update_service import PriceUpdateService as pus
 
 
 def enrich_all_securities():
