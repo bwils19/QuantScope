@@ -1,5 +1,5 @@
 import time
-from backend.app import db
+from backend import db
 from models import Security
 from datetime import datetime
 from backend.services.price_update_service import PriceUpdateService as pus
