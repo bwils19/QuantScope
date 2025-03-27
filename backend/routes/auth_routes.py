@@ -1331,6 +1331,7 @@ def create_portfolio_from_file(file_id):
         print(f"Token refresh error: {str(token_error)}")
         return jsonify({"message": "Authentication error. Please log in again."}), 401
 
+
 @auth_blueprint.route('/portfolio/<int:portfolio_id>/update', methods=['POST'])
 @jwt_required(locations=["cookies"])
 def update_portfolio(portfolio_id):

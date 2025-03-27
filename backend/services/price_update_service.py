@@ -1086,6 +1086,26 @@ class PriceUpdateService:
             if close_session:
                 session.close()
 
+    # functions to rebuild the securities table with complete information
+    def get_security_overview(self, ticker):
+        BASE_URL = "https://www.alphavantage.co/query"
+        response = requests.get(BASE_URL, params={
+            "function": "OVERVIEW",
+            "symbol": ticker,
+            "apikey": self.api_key
+        })
+        return response.json()
+
+    def get_global_quote(self, ticker):
+        BASE_URL = "https://www.alphavantage.co/query"
+        response = requests.get(BASE_URL, params={
+            "function": "GLOBAL_QUOTE",
+            "symbol": ticker,
+            "apikey": self.api_key
+        })
+        return response.json()
+
+
 
 @celery.task
 def scheduled_price_update():
@@ -1131,5 +1151,4 @@ def save_closing_prices():
 
     finally:
         session.close()
-
 
