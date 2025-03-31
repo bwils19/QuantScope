@@ -139,7 +139,18 @@ class RiskAnalytics:
         }
 
     def calculate_portfolio_beta(self, securities_data: List[Dict], lookback_days: int = 252) -> Dict:
+        
         """Calculate comprehensive beta metrics for the portfolio."""
+        print("\n==== DEBUG: calculate_portfolio_beta ====")
+        print(f"Number of securities: {len(securities_data)}")
+        print(f"First security: {securities_data[0] if securities_data else None}")
+        print(f"Lookback days: {lookback_days}")
+        
+        # Get dates for lookback period
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=lookback_days)
+        print(f"Date range: {start_date} to {end_date}")
+
 
         print(f"\n==== DEBUG: calculate_portfolio_beta ====")
         print(f"Number of securities: {len(securities_data)}")
@@ -257,32 +268,134 @@ class RiskAnalytics:
             benchmark_returns: np.ndarray
     ) -> float:
         """Calculate standard beta using regression."""
+        print("\n==== DEBUG: _calculate_standard_beta ====")
+        print(f"portfolio_returns type: {type(portfolio_returns)}")
+        print(f"benchmark_returns type: {type(benchmark_returns)}")
+        
+        # Check for None values
+        if portfolio_returns is None:
+            print("ERROR: portfolio_returns is None, returning default beta 1.0")
+            return 1.0
+            
+        if benchmark_returns is None:
+            print("ERROR: benchmark_returns is None, returning default beta 1.0")
+            return 1.0
+        
+        # Check for empty arrays
+        if len(portfolio_returns) == 0:
+            print("ERROR: portfolio_returns is empty, returning default beta 1.0")
+            return 1.0
+            
+        if len(benchmark_returns) == 0:
+            print("ERROR: benchmark_returns is empty, returning default beta 1.0")
+            return 1.0
+        
+        print(f"portfolio_returns length: {len(portfolio_returns)}")
+        print(f"benchmark_returns length: {len(benchmark_returns)}")
+        
+        # Print first few values for debugging
+        print(f"First 5 portfolio returns: {portfolio_returns[:5]}")
+        print(f"First 5 benchmark returns: {benchmark_returns[:5]}")
+        
+        # Check for NaN or Inf values
+        if np.isnan(portfolio_returns).any():
+            print("ERROR: portfolio_returns contains NaN values")
+            # Print positions of NaN values
+            nan_positions = np.where(np.isnan(portfolio_returns))[0]
+            print(f"NaN positions in portfolio_returns: {nan_positions[:10]}")
+            
+            # Replace NaN values with zeros for calculation
+            portfolio_returns = np.nan_to_num(portfolio_returns, nan=0.0)
+            print("Replaced NaN values with zeros in portfolio_returns")
+        
+        if np.isnan(benchmark_returns).any():
+            print("ERROR: benchmark_returns contains NaN values")
+            # Print positions of NaN values
+            nan_positions = np.where(np.isnan(benchmark_returns))[0]
+            print(f"NaN positions in benchmark_returns: {nan_positions[:10]}")
+            
+            # Replace NaN values with zeros for calculation
+            benchmark_returns = np.nan_to_num(benchmark_returns, nan=0.0)
+            print("Replaced NaN values with zeros in benchmark_returns")
+        
+        if np.isinf(portfolio_returns).any():
+            print("ERROR: portfolio_returns contains Inf values")
+            # Print positions of Inf values
+            inf_positions = np.where(np.isinf(portfolio_returns))[0]
+            print(f"Inf positions in portfolio_returns: {inf_positions[:10]}")
+            
+            # Replace Inf values with zeros for calculation
+            portfolio_returns = np.nan_to_num(portfolio_returns, posinf=0.0, neginf=0.0)
+            print("Replaced Inf values with zeros in portfolio_returns")
+        
+        if np.isinf(benchmark_returns).any():
+            print("ERROR: benchmark_returns contains Inf values")
+            # Print positions of Inf values
+            inf_positions = np.where(np.isinf(benchmark_returns))[0]
+            print(f"Inf positions in benchmark_returns: {inf_positions[:10]}")
+            
+            # Replace Inf values with zeros for calculation
+            benchmark_returns = np.nan_to_num(benchmark_returns, posinf=0.0, neginf=0.0)
+            print("Replaced Inf values with zeros in benchmark_returns")
+            
+        # Align the lengths
         if len(portfolio_returns) != len(benchmark_returns):
-            # Align the lengths by taking the minimum length
+            print(f"WARNING: Length mismatch - portfolio: {len(portfolio_returns)}, benchmark: {len(benchmark_returns)}")
             min_length = min(len(portfolio_returns), len(benchmark_returns))
             portfolio_returns = portfolio_returns[:min_length]
             benchmark_returns = benchmark_returns[:min_length]
+            print(f"Aligned lengths to: {min_length}")
             
             # If we don't have enough data, return a default
-            if min_length < 20:  # Need at least 20 data points for a meaningful beta
+            if min_length < 20:
+                print(f"ERROR: Not enough data points after alignment ({min_length} < 20), returning default beta 1.0")
                 return 1.0
 
         # Check for zero variance in benchmark returns
-        if np.var(benchmark_returns) == 0:
-            return 1.0  # Default if benchmark returns are constant
+        benchmark_var = np.var(benchmark_returns)
+        print(f"Benchmark variance: {benchmark_var}")
+        
+        if benchmark_var == 0:
+            print("ERROR: Zero variance in benchmark returns, returning default beta 1.0")
+            return 1.0
+            
+        if np.isnan(benchmark_var):
+            print("ERROR: NaN variance in benchmark returns, returning default beta 1.0")
+            return 1.0
 
         try:
-            slope, _, r_value, _, _ = stats.linregress(benchmark_returns, portfolio_returns)
+            # Calculate beta using linear regression
+            slope, intercept, r_value, p_value, std_err = stats.linregress(benchmark_returns, portfolio_returns)
+            print(f"Regression results:")
+            print(f"  Slope (beta): {slope}")
+            print(f"  Intercept: {intercept}")
+            print(f"  R-value: {r_value}")
+            print(f"  R-squared: {r_value**2}")
+            print(f"  P-value: {p_value}")
+            print(f"  Standard error: {std_err}")
             
             # Check for NaN or infinite values
-            if np.isnan(slope) or np.isinf(slope):
-                return 1.0  # Default if regression fails
+            if np.isnan(slope):
+                print("ERROR: Calculated beta is NaN, returning default beta 1.0")
+                return 1.0
                 
+            if np.isinf(slope):
+                print("ERROR: Calculated beta is Inf, returning default beta 1.0")
+                return 1.0
+                
+            # Check for unreasonable values
+            if slope < -10 or slope > 10:
+                print(f"ERROR: Calculated beta ({slope}) is outside reasonable range (-10 to 10), returning default beta 1.0")
+                return 1.0
+                
+            print(f"SUCCESS: Returning calculated beta: {slope}")
             return slope
+            
         except Exception as e:
-            print(f"Error in beta calculation: {str(e)}")
-            return 1.0  # Default if regression fails
-    def _get_portfolio_returns(self, securities_data: List[Dict], start_date: datetime.date,
+            print(f"ERROR in beta calculation: {str(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+            return 1.0def _get_portfolio_returns(self, securities_data: List[Dict], start_date: datetime.date,
                              end_date: datetime.date) -> Optional[np.ndarray]:
         """Calculate portfolio returns using historical data."""
         try:
@@ -345,6 +458,23 @@ class RiskAnalytics:
                 # Replace NaN and Inf values with zeros
                 portfolio_returns = np.nan_to_num(portfolio_returns, nan=0.0, posinf=0.0, neginf=0.0)
                 
+            print("\n==== DEBUG: _get_portfolio_returns ====")
+            print(f"Final portfolio returns shape: {portfolio_returns.shape if portfolio_returns is not None else None}")
+            print(f"Final portfolio returns first 5 values: {portfolio_returns[:5] if portfolio_returns is not None else None}")
+            print(f"Final portfolio returns last 5 values: {portfolio_returns[-5:] if portfolio_returns is not None else None}")
+            
+            # Check for NaN or Inf values
+            if portfolio_returns is not None:
+                if np.isnan(portfolio_returns).any():
+                    print("WARNING: Final portfolio returns contain NaN values")
+                    nan_count = np.isnan(portfolio_returns).sum()
+                    print(f"Number of NaN values: {nan_count}")
+                
+                if np.isinf(portfolio_returns).any():
+                    print("WARNING: Final portfolio returns contain Inf values")
+                    inf_count = np.isinf(portfolio_returns).sum()
+                    print(f"Number of Inf values: {inf_count}")
+            
             return portfolio_returns
 
         except Exception as e:
