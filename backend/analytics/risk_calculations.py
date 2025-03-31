@@ -243,35 +243,7 @@ class RiskAnalytics:
             self,
             portfolio_returns: np.ndarray,
             benchmark_returns: np.ndarray
-    ) -> float:
-    # IMPROVED VERSION:
-    # def _calculate_standard_beta(
-    #         self,
-    #         portfolio_returns: np.ndarray,
-    #         benchmark_returns: np.ndarray
-    # ) -> float:
-    #     """Calculate standard beta using regression."""
-    #     if len(portfolio_returns) != len(benchmark_returns):
-    #         # Align the lengths by taking the minimum length
-    #         min_length = min(len(portfolio_returns), len(benchmark_returns))
-    #         portfolio_returns = portfolio_returns[:min_length]
-    #         benchmark_returns = benchmark_returns[:min_length]
-    #         
-    #         # If we don't have enough data, return a default
-    #         if min_length < 20:  # Need at least 20 data points for a meaningful beta
-    #             return 1.0
-    #
-    #     # Check for zero variance in benchmark returns
-    #     if np.var(benchmark_returns) == 0:
-    #         return 1.0  # Default if benchmark returns are constant
-    #
-    #     try:
-    #         slope, _, r_value, _, _ = stats.linregress(benchmark_returns, portfolio_returns)
-    #         
-    #         # Check for NaN or infinite values
-    #         if np.isnan(slope) or np.isinf(slope):
-    #             return 1.0  # Default if regression fails
-    #             
+    ) -> float:    #             
     #         return slope
     #     except Exception as e:
     #         print(f"Error in beta calculation: {str(e)}")

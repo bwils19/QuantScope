@@ -1,11 +1,3 @@
-
-{# 
-SUGGESTED FIX:
-Replace all occurrences of risk_metrics.beta.beta with:
-(risk_metrics.beta.beta if risk_metrics.beta.beta != 0 else 1.0)
-
-This ensures that if the beta value is 0.0, it will display 1.0 instead.
-#}
 {% extends "base.html" %}
 
 {% block content %}
