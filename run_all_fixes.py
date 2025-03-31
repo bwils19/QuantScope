@@ -6,6 +6,7 @@ This will:
 2. Fix missing company names
 3. Fix previous_close values using historical data
 4. Update all portfolio metrics
+5. Analyze and fix portfolio view synchronization
 """
 
 import os
@@ -72,8 +73,16 @@ def main():
         logger.info("Successfully updated portfolio metrics")
     else:
         logger.error("Failed to update portfolio metrics")
+        if not input("Continue anyway? (y/n): ").lower().startswith('y'):
+            return
     
-    # Step 5: Show instructions for fixing the upload function
+    # Step 5: Analyze and fix portfolio view synchronization
+    if run_script("fix_portfolio_view_sync.py"):
+        logger.info("Successfully analyzed portfolio view synchronization")
+    else:
+        logger.error("Failed to analyze portfolio view synchronization")
+    
+    # Step 6: Show instructions for fixing the upload function
     logger.info("Showing instructions for fixing the upload function...")
     run_script("fix_upload_function.py")
     
