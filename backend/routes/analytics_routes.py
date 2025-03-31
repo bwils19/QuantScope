@@ -24,7 +24,7 @@ def get_portfolio_risk(portfolio_id):
         # Check if force_refresh is requested
         force_refresh = request.args.get('force_refresh', '').lower() == 'true'
 
-        if False:  # Bypass cache temporarily
+        if not force_refresh:
             # try to get cached results
             cached_data = RiskAnalysisCache.get_cache(portfolio_id)
             if cached_data:
@@ -64,23 +64,7 @@ def get_portfolio_risk(portfolio_id):
         # calculate metrics
         var_data = risk_analyzer.calculate_dynamic_var(securities_data)
         credit_risk = calculate_credit_risk(securities_data)
-        # beta_data = risk_analyzer.calculate_portfolio_beta(securities_data)
-        # Force beta value for testing
-        beta_data = {
-            'beta': 1.5,
-            'downside_beta': 1.2,
-            'rolling_betas': [1.5] * 60,
-            'r_squared': 0.8,
-            'standard_error': 0.1,
-            'confidence': {
-                'high': 1.7,
-                'low': 1.3
-            },
-            'analysis': {
-                'trend': 'stable',
-                'stability': 'high'
-            }
-        }
+        beta_data = risk_analyzer.calculate_portfolio_beta(securities_data)
         var_components = risk_analyzer.get_var_components(securities_data)
 
         latest_update = db.session.query(
