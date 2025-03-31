@@ -13,8 +13,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Import after environment variables are loaded
-from backend import db, create_app
-from backend.routes.auth_routes import create_portfolio_from_file
+from backend import db
+from backend.app import create_app  # Correct import for create_app
 
 def patch_create_portfolio_from_file():
     """
@@ -103,7 +103,9 @@ This change ensures that both current_price and previous_close are properly set 
 
 def main():
     """Main function"""
-    patch_create_portfolio_from_file()
+    app = create_app()
+    with app.app_context():
+        patch_create_portfolio_from_file()
 
 if __name__ == "__main__":
     main()

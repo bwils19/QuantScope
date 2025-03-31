@@ -12,7 +12,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Import after environment variables are loaded
-from backend import db, create_app
+from backend import db
+from backend.app import create_app  # Correct import for create_app
 from backend.models import Portfolio, PortfolioSecurity, Security
 from backend.services.price_update_service import PriceUpdateService
 
