@@ -32,3 +32,4 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 README_FIX_DAY_CHANGE.md
+implement_view_sync.md
