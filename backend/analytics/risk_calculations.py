@@ -242,12 +242,7 @@ class RiskAnalytics:
             self,
             portfolio_returns: np.ndarray,
             benchmark_returns: np.ndarray
-    ) -> float:    #             
-    #         return slope
-    #     except Exception as e:
-    #         print(f"Error in beta calculation: {str(e)}")
-    #         return 1.0  # Default if regression fails
-    
+    ) -> float:
         """Calculate standard beta using regression."""
         if len(portfolio_returns) != len(benchmark_returns):
             # Align the lengths by taking the minimum length
@@ -274,7 +269,6 @@ class RiskAnalytics:
         except Exception as e:
             print(f"Error in beta calculation: {str(e)}")
             return 1.0  # Default if regression fails
-
     def _get_portfolio_returns(self, securities_data: List[Dict], start_date: datetime.date,
                              end_date: datetime.date) -> Optional[np.ndarray]:
         """Calculate portfolio returns using historical data."""
