@@ -47,3 +47,4 @@ implement_beta_fix.py
 update_portfolio_metrics.py
 revert_changes.pycheck_fixes.py
 manual_fixes.py
+revert_changes.py
