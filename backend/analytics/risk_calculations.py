@@ -335,6 +335,16 @@ class RiskAnalytics:
                 # Replace NaN and Inf values with zeros
                 portfolio_returns = np.nan_to_num(portfolio_returns, nan=0.0, posinf=0.0, neginf=0.0)
                 
+            # Validate portfolio returns before returning
+            if portfolio_returns is None or len(portfolio_returns) == 0:
+                print("Warning: Empty portfolio returns")
+                return None
+                
+            if np.isnan(portfolio_returns).any() or np.isinf(portfolio_returns).any():
+                print("Warning: Portfolio returns contain NaN or Inf values")
+                # Replace NaN and Inf values with zeros
+                portfolio_returns = np.nan_to_num(portfolio_returns, nan=0.0, posinf=0.0, neginf=0.0)
+                
             return portfolio_returns
 
         except Exception as e:

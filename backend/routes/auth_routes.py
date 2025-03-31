@@ -2105,6 +2105,17 @@ def debug_view():
     user = User.query.filter_by(email=current_user_email).first()
 
     if not user or user.email != 'info@prophetanalytics.com':
+        
+        # Clear the risk analysis cache for this portfolio
+        try:
+            from backend.models import RiskAnalysisCache
+            RiskAnalysisCache.query.filter_by(portfolio_id=portfolio_id).delete()
+            db.session.commit()
+            print(f"Cleared risk analysis cache for portfolio {portfolio_id}")
+        except Exception as e:
+            print(f"Error clearing risk analysis cache: {str(e)}")
+            # Continue without clearing cache
+        
         return jsonify({"message": "Not authorized"}), 403
 
     # Run diagnostics
