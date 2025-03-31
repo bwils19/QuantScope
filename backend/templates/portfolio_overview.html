@@ -418,5 +418,52 @@
     });
 </script>
 
+
+<script>
+// Set up tooltips with minimal delay
+function setupTooltips() {
+    const tooltips = document.querySelectorAll('.metric-label i');
+    tooltips.forEach(tooltip => {
+        const title = tooltip.getAttribute('title');
+        if (title) {
+            // Remove the title attribute to prevent the default tooltip
+            tooltip.removeAttribute('title');
+            
+            // Create a custom tooltip element
+            const tooltipElement = document.createElement('div');
+            tooltipElement.className = 'custom-tooltip';
+            tooltipElement.textContent = title;
+            tooltipElement.style.display = 'none';
+            tooltipElement.style.position = 'absolute';
+            tooltipElement.style.backgroundColor = '#333';
+            tooltipElement.style.color = 'white';
+            tooltipElement.style.padding = '5px 10px';
+            tooltipElement.style.borderRadius = '4px';
+            tooltipElement.style.whiteSpace = 'nowrap';
+            tooltipElement.style.zIndex = '1000';
+            tooltipElement.style.bottom = '100%';
+            tooltipElement.style.left = '50%';
+            tooltipElement.style.transform = 'translateX(-50%)';
+            
+            // Add the tooltip element to the DOM
+            tooltip.style.position = 'relative';
+            tooltip.appendChild(tooltipElement);
+            
+            // Show the tooltip on mouseover with minimal delay
+            tooltip.addEventListener('mouseover', () => {
+                tooltipElement.style.display = 'block';
+            });
+            
+            // Hide the tooltip on mouseout
+            tooltip.addEventListener('mouseout', () => {
+                tooltipElement.style.display = 'none';
+            });
+        }
+    });
+}
+
+// Call the function when the DOM is loaded
+document.addEventListener('DOMContentLoaded', setupTooltips);
+</script>
 </body>
 {% endblock %}
