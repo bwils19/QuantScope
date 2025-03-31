@@ -139,8 +139,12 @@ class RiskAnalytics:
         }
 
     def calculate_portfolio_beta(self, securities_data: List[Dict], lookback_days: int = 252) -> Dict:
-        # Add debugging
-        print(f"==== DEBUG: calculate_portfolio_beta ====")
+        """Calculate comprehensive beta metrics for the portfolio."""
+        try:
+            print(f"\n==== DEBUG: calculate_portfolio_beta ====")
+            print(f"Number of securities: {len(securities_data)}")
+            print(f"Securities data: {securities_data[:2]}")  # Print first 2 securities
+_portfolio_beta ====")
         print(f"Number of securities: {len(securities_data)}")
         """Calculate comprehensive beta metrics for the portfolio."""
         try:
@@ -153,22 +157,26 @@ class RiskAnalytics:
 
             # Calculate portfolio returns
             portfolio_returns = self._get_portfolio_returns(securities_data, start_date, end_date)
+            print(f"Portfolio returns: {portfolio_returns[:5] if portfolio_returns is not None else None}")
             if portfolio_returns is None:
                 print("Failed to get portfolio returns, returning default metrics")
                 return self._get_default_beta_metrics()
 
             # Get benchmark returns
             with self.app.app_context():
-                benchmark_data = self._get_historical_data('SPY', start_date, end_date)
+                benchmark_data = self._get_historical_data("SPY", start_date, end_date)
+                print(f"Benchmark data: {benchmark_data[:2] if benchmark_data else None}")
                 if not benchmark_data:
                     print("Failed to get benchmark returns")
                     return self._get_default_beta_metrics()
 
                 benchmark_prices = np.array([float(data.adjusted_close) for data in benchmark_data])
                 benchmark_returns = np.diff(np.log(benchmark_prices))
+                print(f"Benchmark returns: {benchmark_returns[:5] if len(benchmark_returns) > 0 else []}")
 
             # Calculate beta metrics
             standard_beta = self._calculate_standard_beta(portfolio_returns, benchmark_returns)
+            print(f"Standard beta: {standard_beta}")
             print(f"DEBUG: standard_beta = {standard_beta}")
             rolling_betas = self._calculate_rolling_beta(portfolio_returns, benchmark_returns)
             downside_beta = self._calculate_downside_beta(portfolio_returns, benchmark_returns)
