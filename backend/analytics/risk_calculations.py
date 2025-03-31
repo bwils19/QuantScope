@@ -198,8 +198,8 @@ class RiskAnalytics:
                 'analysis': {
                     'trend': 'stable',
                     'stability': 'high'
-                }
-            }
+                }   
+                
             }
 
         except Exception as e:
