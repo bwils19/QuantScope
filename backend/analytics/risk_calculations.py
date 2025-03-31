@@ -139,6 +139,10 @@ class RiskAnalytics:
         }
 
     def calculate_portfolio_beta(self, securities_data: List[Dict], lookback_days: int = 252) -> Dict:
+        # Add debugging
+        print(f"
+==== DEBUG: calculate_portfolio_beta ====")
+        print(f"Number of securities: {len(securities_data)}")
         """Calculate comprehensive beta metrics for the portfolio."""
         try:
             print(f"Calculating beta for {len(securities_data)} securities")
@@ -166,12 +170,14 @@ class RiskAnalytics:
 
             # Calculate beta metrics
             standard_beta = self._calculate_standard_beta(portfolio_returns, benchmark_returns)
+            print(f"DEBUG: standard_beta = {standard_beta}")
             rolling_betas = self._calculate_rolling_beta(portfolio_returns, benchmark_returns)
             downside_beta = self._calculate_downside_beta(portfolio_returns, benchmark_returns)
 
             # Calculate confidence metrics
             r_squared, std_error = self._calculate_beta_statistics(portfolio_returns, benchmark_returns)
 
+            print(f"DEBUG: Returning beta dictionary with beta = {standard_beta}")
             return {
                 'beta': standard_beta,
                 'downside_beta': downside_beta,
@@ -238,6 +244,39 @@ class RiskAnalytics:
             portfolio_returns: np.ndarray,
             benchmark_returns: np.ndarray
     ) -> float:
+    # IMPROVED VERSION:
+    # def _calculate_standard_beta(
+    #         self,
+    #         portfolio_returns: np.ndarray,
+    #         benchmark_returns: np.ndarray
+    # ) -> float:
+    #     """Calculate standard beta using regression."""
+    #     if len(portfolio_returns) != len(benchmark_returns):
+    #         # Align the lengths by taking the minimum length
+    #         min_length = min(len(portfolio_returns), len(benchmark_returns))
+    #         portfolio_returns = portfolio_returns[:min_length]
+    #         benchmark_returns = benchmark_returns[:min_length]
+    #         
+    #         # If we don't have enough data, return a default
+    #         if min_length < 20:  # Need at least 20 data points for a meaningful beta
+    #             return 1.0
+    #
+    #     # Check for zero variance in benchmark returns
+    #     if np.var(benchmark_returns) == 0:
+    #         return 1.0  # Default if benchmark returns are constant
+    #
+    #     try:
+    #         slope, _, r_value, _, _ = stats.linregress(benchmark_returns, portfolio_returns)
+    #         
+    #         # Check for NaN or infinite values
+    #         if np.isnan(slope) or np.isinf(slope):
+    #             return 1.0  # Default if regression fails
+    #             
+    #         return slope
+    #     except Exception as e:
+    #         print(f"Error in beta calculation: {str(e)}")
+    #         return 1.0  # Default if regression fails
+    
         """Calculate standard beta using regression."""
         if len(portfolio_returns) != len(benchmark_returns):
             # Align the lengths by taking the minimum length
@@ -249,8 +288,21 @@ class RiskAnalytics:
             if min_length < 20:  # Need at least 20 data points for a meaningful beta
                 return 1.0
 
-        slope, _, r_value, _, _ = stats.linregress(benchmark_returns, portfolio_returns)
-        return slope
+        # Check for zero variance in benchmark returns
+        if np.var(benchmark_returns) == 0:
+            return 1.0  # Default if benchmark returns are constant
+
+        try:
+            slope, _, r_value, _, _ = stats.linregress(benchmark_returns, portfolio_returns)
+            
+            # Check for NaN or infinite values
+            if np.isnan(slope) or np.isinf(slope):
+                return 1.0  # Default if regression fails
+                
+            return slope
+        except Exception as e:
+            print(f"Error in beta calculation: {str(e)}")
+            return 1.0  # Default if regression fails
 
     def _get_portfolio_returns(self, securities_data: List[Dict], start_date: datetime.date,
                              end_date: datetime.date) -> Optional[np.ndarray]:

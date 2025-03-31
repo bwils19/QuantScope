@@ -1,3 +1,20 @@
+
+# TOTAL RETURN CALCULATION:
+# Make sure to add the following code after calculating total_gain_pct:
+#
+# # Calculate total return
+# total_return = 0
+# total_return_pct = 0
+# 
+# if total_cost_basis > 0:
+#     total_return = total_value - total_cost_basis
+#     total_return_pct = (total_value / total_cost_basis - 1) * 100
+# 
+# portfolio.total_return = total_return
+# portfolio.total_return_pct = total_return_pct
+#
+# This calculates total return as the difference between current value and cost basis,
+# and total return percentage as the percentage change from cost basis to current value.
 #!/usr/bin/env python3
 """
 Script to update all portfolio metrics after securities have been updated.
