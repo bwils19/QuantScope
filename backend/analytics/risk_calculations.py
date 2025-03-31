@@ -197,15 +197,20 @@ class RiskAnalytics:
 
             print(f"DEBUG: Returning beta dictionary with beta = {standard_beta}")
             return {
-                'beta': 1.5,  # Forced beta value for testing
-                'downside_beta': 1.2,
-                'rolling_betas': [1.5] * 60,
-                'r_squared': 0.8,
-                'standard_error': 0.1,
+                'beta': standard_beta,
+                'downside_beta': downside_beta,
+                'rolling_betas': rolling_betas.tolist(),
+                'r_squared': r_squared,
+                'standard_error': std_error,
                 'confidence': {
-                    'high': 1.7,
-                    'low': 1.3
+                    'high': standard_beta + (1.96 * std_error),
+                    'low': standard_beta - (1.96 * std_error)
                 },
+                'analysis': {
+                    'trend': 'stable',
+                    'stability': 'high'
+                }
+            },
                 'analysis': {
                     'trend': 'stable',
                     'stability': 'high'
@@ -539,14 +544,14 @@ class RiskAnalytics:
     def _get_default_beta_metrics(self) -> Dict:
         """Return default beta metrics when calculation fails."""
         return {
-            'beta': 1.0,
-            'downside_beta': 1.0,
-            'rolling_betas': [1.0] * 60,
+            'beta': 0.7,  # Changed from 1.0 to 0.7
+            'downside_beta': 0.65,  # Changed from 1.0 to 0.65
+            'rolling_betas': [0.7] * 60,  # Changed from 1.0 to 0.7
             'r_squared': 0.0,
             'standard_error': 0.0,
             'confidence': {
-                'high': 1.2,
-                'low': 0.8
+                'high': 0.8,  # Changed from 1.2 to 0.8
+                'low': 0.6  # Changed from 0.8 to 0.6
             },
             'analysis': {
                 'trend': 'stable',

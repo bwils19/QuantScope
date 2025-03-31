@@ -127,8 +127,7 @@ async function renderRiskDashboard(data) {
             console.log("Setting beta value in DOM");
             console.log("Beta data:", data.beta);
             console.log("Beta value:", data.beta.beta);
-            // Force beta value to 0.7 for testing
-            document.getElementById('portfolioBeta').textContent = 0.7.toFixed(2);
+            document.getElementById('portfolioBeta').textContent = data.beta.beta.toFixed(2);
             renderBetaChart(data.beta);
         } else {
             console.error('Invalid or missing beta data:', data.beta);
