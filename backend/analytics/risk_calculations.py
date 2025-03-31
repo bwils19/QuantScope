@@ -395,7 +395,9 @@ class RiskAnalytics:
             print(f"ERROR in beta calculation: {str(e)}")
             import traceback
             print(f"Traceback: {traceback.format_exc()}")
-            return 1.0def _get_portfolio_returns(self, securities_data: List[Dict], start_date: datetime.date,
+            return 1.0
+        
+    def _get_portfolio_returns(self, securities_data: List[Dict], start_date: datetime.date,
                              end_date: datetime.date) -> Optional[np.ndarray]:
         """Calculate portfolio returns using historical data."""
         try:
