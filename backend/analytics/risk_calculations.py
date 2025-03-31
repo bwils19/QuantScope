@@ -140,8 +140,7 @@ class RiskAnalytics:
 
     def calculate_portfolio_beta(self, securities_data: List[Dict], lookback_days: int = 252) -> Dict:
         # Add debugging
-        print(f"
-==== DEBUG: calculate_portfolio_beta ====")
+        print(f"==== DEBUG: calculate_portfolio_beta ====")
         print(f"Number of securities: {len(securities_data)}")
         """Calculate comprehensive beta metrics for the portfolio."""
         try:
