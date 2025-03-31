@@ -1244,6 +1244,8 @@ def create_portfolio_from_file(file_id):
                     cache = StockCache.query.filter_by(ticker=ticker).first()
                     if cache and cache.data:
                         current_price = cache.data.get('currentPrice', 0)
+                        previous_close = cache.data.get('previousClose', current_price)
+                        cache.data.get('previousClose', current_price)
                         securities_with_prices += 1
 
                     # If no price, use purchase price as fallback
@@ -1253,6 +1255,7 @@ def create_portfolio_from_file(file_id):
                     # Update security price if there is one
                     if current_price > 0:
                         security.current_price = current_price
+                        security.previous_close = previous_close
 
                     # Create the PortfolioSecurity entry (the junction table record)
                     amount = float(row['amount'])
