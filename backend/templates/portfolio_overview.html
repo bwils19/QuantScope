@@ -437,13 +437,17 @@ function setupTooltips() {
             tooltipElement.style.position = 'absolute';
             tooltipElement.style.backgroundColor = '#333';
             tooltipElement.style.color = 'white';
-            tooltipElement.style.padding = '5px 10px';
+            tooltipElement.style.padding = '4px 8px';
             tooltipElement.style.borderRadius = '4px';
-            tooltipElement.style.whiteSpace = 'nowrap';
+            tooltipElement.style.fontSize = '12px';
+            tooltipElement.style.maxWidth = '200px';
+            tooltipElement.style.textAlign = 'center';
+            tooltipElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
             tooltipElement.style.zIndex = '1000';
             tooltipElement.style.bottom = '100%';
             tooltipElement.style.left = '50%';
             tooltipElement.style.transform = 'translateX(-50%)';
+            tooltipElement.style.marginBottom = '5px';
             
             // Add the tooltip element to the DOM
             tooltip.style.position = 'relative';
