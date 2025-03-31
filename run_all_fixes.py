@@ -3,8 +3,9 @@
 Script to run all fix scripts in sequence.
 This will:
 1. Fix securities with complete information from Alpha Vantage API
-2. Fix previous_close values using historical data
-3. Update all portfolio metrics
+2. Fix missing company names
+3. Fix previous_close values using historical data
+4. Update all portfolio metrics
 """
 
 import os
@@ -50,7 +51,15 @@ def main():
         if not input("Continue anyway? (y/n): ").lower().startswith('y'):
             return
     
-    # Step 2: Fix previous_close values
+    # Step 2: Fix missing company names
+    if run_script("fix_missing_names.py"):
+        logger.info("Successfully fixed missing company names")
+    else:
+        logger.error("Failed to fix missing company names")
+        if not input("Continue anyway? (y/n): ").lower().startswith('y'):
+            return
+    
+    # Step 3: Fix previous_close values
     if run_script("fix_previous_close.py"):
         logger.info("Successfully fixed previous_close values")
     else:
@@ -58,13 +67,13 @@ def main():
         if not input("Continue anyway? (y/n): ").lower().startswith('y'):
             return
     
-    # Step 3: Update portfolio metrics
+    # Step 4: Update portfolio metrics
     if run_script("update_portfolio_metrics.py"):
         logger.info("Successfully updated portfolio metrics")
     else:
         logger.error("Failed to update portfolio metrics")
     
-    # Step 4: Show instructions for fixing the upload function
+    # Step 5: Show instructions for fixing the upload function
     logger.info("Showing instructions for fixing the upload function...")
     run_script("fix_upload_function.py")
     
