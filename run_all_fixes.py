@@ -7,6 +7,7 @@ This will:
 3. Fix previous_close values using historical data
 4. Update all portfolio metrics
 5. Analyze and fix portfolio view synchronization
+6. Fix beta calculation and formatting issues
 """
 
 import os
@@ -81,8 +82,26 @@ def main():
         logger.info("Successfully analyzed portfolio view synchronization")
     else:
         logger.error("Failed to analyze portfolio view synchronization")
+        if not input("Continue anyway? (y/n): ").lower().startswith('y'):
+            return
     
-    # Step 6: Show instructions for fixing the upload function
+    # Step 6: Fix beta calculation and formatting issues
+    if run_script("fix_beta_calculation.py"):
+        logger.info("Successfully analyzed beta calculation and formatting issues")
+    else:
+        logger.error("Failed to analyze beta calculation and formatting issues")
+        if not input("Continue anyway? (y/n): ").lower().startswith('y'):
+            return
+    
+    # Step 7: Implement fixes for beta calculation and formatting
+    if run_script("implement_fixes.py"):
+        logger.info("Successfully implemented fixes for beta calculation and formatting")
+    else:
+        logger.error("Failed to implement fixes for beta calculation and formatting")
+        if not input("Continue anyway? (y/n): ").lower().startswith('y'):
+            return
+    
+    # Step 8: Show instructions for fixing the upload function
     logger.info("Showing instructions for fixing the upload function...")
     run_script("fix_upload_function.py")
     

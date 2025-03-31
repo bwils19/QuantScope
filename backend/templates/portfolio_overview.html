@@ -108,7 +108,7 @@
                 <div class="metric-item">
                   <span class="metric-label">Total Return</span>
                   <span class="metric-value {% if portfolio.total_return > 0 %}positive{% elif portfolio.total_return < 0 %}negative{% endif %}">
-                    ${{ "%.2f"|format(portfolio.total_return|default(0)) }}
+                    ${{ "{:,.2f}".format(portfolio.total_return|default(0)) }}
                     ({{ "%.2f"|format(portfolio.total_return_pct|default(0)) }}%)
                   </span>
                 </div>

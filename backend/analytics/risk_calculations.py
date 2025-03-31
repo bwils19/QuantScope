@@ -240,7 +240,14 @@ class RiskAnalytics:
     ) -> float:
         """Calculate standard beta using regression."""
         if len(portfolio_returns) != len(benchmark_returns):
-            return 1.0
+            # Align the lengths by taking the minimum length
+            min_length = min(len(portfolio_returns), len(benchmark_returns))
+            portfolio_returns = portfolio_returns[:min_length]
+            benchmark_returns = benchmark_returns[:min_length]
+            
+            # If we don't have enough data, return a default
+            if min_length < 20:  # Need at least 20 data points for a meaningful beta
+                return 1.0
 
         slope, _, r_value, _, _ = stats.linregress(benchmark_returns, portfolio_returns)
         return slope
