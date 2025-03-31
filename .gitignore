@@ -33,3 +33,17 @@ frontend/dist/
 Thumbs.db
 README_FIX_DAY_CHANGE.md
 implement_view_sync.md
+
+
+# Fix scripts
+fix_beta_calculation.py
+implement_fixes.py
+run_all_fixes.py
+direct_fixes.py
+add_info_icon.py
+create_portfolio_trigger.sql
+fix_beta_value.py
+implement_beta_fix.py
+update_portfolio_metrics.py
+revert_changes.pycheck_fixes.py
+manual_fixes.py
