@@ -1245,17 +1245,46 @@ def create_portfolio_from_file(file_id):
                     if cache and cache.data:
                         current_price = cache.data.get('currentPrice', 0)
                         previous_close = cache.data.get('previousClose', current_price)
-                        cache.data.get('previousClose', current_price)
                         securities_with_prices += 1
 
-                    # If no price, use purchase price as fallback
-                    if current_price == 0 and purchase_price > 0:
-                        current_price = purchase_price
+                        # If no price, use purchase price as fallback
+                        if current_price == 0 and purchase_price > 0:
+                            current_price = purchase_price
 
-                    # Update security price if there is one
-                    if current_price > 0:
-                        security.current_price = current_price
-                        security.previous_close = previous_close
+                        # Update security price if there is one
+                        if current_price > 0:
+                            security.current_price = current_price
+                            security.previous_close = previous_close
+                    else:
+                        # If no cache data, try to get from historical data
+                        historical_data = db.session.query(SecurityHistoricalData) \
+                            .filter(SecurityHistoricalData.ticker == ticker) \
+                            .order_by(SecurityHistoricalData.date.desc()) \
+                            .limit(2) \
+                            .all()
+
+                        if len(historical_data) >= 2:
+                            # Use the most recent day for current_price and the day before for previous_close
+                            current_price = historical_data[0].close_price
+                            previous_close = historical_data[1].close_price
+
+                            # Update the security
+                            security.current_price = current_price
+                            security.previous_close = previous_close
+                        elif len(historical_data) == 1:
+                            # If only one day of data, use it for both
+                            current_price = historical_data[0].close_price
+                            previous_close = current_price
+
+                            security.current_price = current_price
+                            security.previous_close = previous_close
+                        elif purchase_price > 0:
+                            # If no historical data but we have purchase price, use it
+                            current_price = purchase_price
+                            previous_close = purchase_price
+
+                            security.current_price = current_price
+                            security.previous_close = previous_close
 
                     # Create the PortfolioSecurity entry (the junction table record)
                     amount = float(row['amount'])
@@ -1650,17 +1679,63 @@ def get_portfolio_risk(portfolio_id):
         if not portfolio:
             return jsonify({"error": "Portfolio not found"}), 404
 
-        # Get securities for this portfolio
-        securities = Security.query.filter_by(portfolio_id=portfolio_id).all()
+        # Check if benchmark data exists
+        try:
+            benchmark_ticker = 'SPY'  # S&P 500 ETF
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=252)  # One year lookback
+            
+            benchmark_data = db.session.query(SecurityHistoricalData).filter(
+                SecurityHistoricalData.ticker == benchmark_ticker,
+                SecurityHistoricalData.date >= start_date,
+                SecurityHistoricalData.date <= end_date
+            ).order_by(SecurityHistoricalData.date.desc()).first()
+            
+            if not benchmark_data:
+                print(f"WARNING: No recent benchmark data found for {benchmark_ticker}")
+                # Check if any data exists at all
+                any_benchmark = db.session.query(SecurityHistoricalData).filter(
+                    SecurityHistoricalData.ticker == benchmark_ticker
+                ).first()
+                
+                if any_benchmark:
+                    print(f"Some benchmark data exists, but not in the required date range")
+                else:
+                    print(f"No benchmark data exists at all - beta calculation will fail")
+        except Exception as e:
+            print(f"Error checking benchmark data: {str(e)}")
+
+        # Get portfolio securities with their associated security data
+        # This needs to use the junction table
+        portfolio_securities = (
+            db.session.query(PortfolioSecurity, Security)
+            .join(Security, PortfolioSecurity.security_id == Security.id)
+            .filter(PortfolioSecurity.portfolio_id == portfolio_id)
+            .all()
+        )
 
         # Convert securities to list of dicts with required data
-        securities_data = [{
-            'ticker': s.ticker,
-            'total_value': s.amount_owned * s.current_price,
-            'amount_owned': s.amount_owned,
-            'current_price': s.current_price,
-            'purchase_date': s.purchase_date.strftime("%Y-%m-%d") if s.purchase_date else None
-        } for s in securities]
+        securities_data = []
+        for ps, security in portfolio_securities:
+            security_data = {
+                'ticker': security.ticker,
+                'amount_owned': ps.amount_owned,
+                'purchase_date': ps.purchase_date.strftime("%Y-%m-%d") if ps.purchase_date else None,
+                'current_price': security.current_price,
+                'total_value': ps.total_value
+            }
+            securities_data.append(security_data)
+
+        # Add detailed logging for securities data
+        print("\n===== DEBUG: Securities Data for Beta Calculation =====")
+        print(f"Number of securities: {len(securities_data)}")
+        for sec in securities_data[:2]:  # Print first two for brevity
+            print(f"Security details: {sec}")
+        print("=====")
+
+        # Diagnose beta calculation before attempting it
+        beta_diagnostics = risk_analytics.diagnose_beta_calculation(securities_data)
+        print(f"Beta diagnostics: {beta_diagnostics}")
 
         # Calculate risk metrics
         risk_metrics = risk_analytics.calculate_portfolio_risk(portfolio_id, securities_data)
@@ -1672,6 +1747,8 @@ def get_portfolio_risk(portfolio_id):
 
     except Exception as e:
         print(f"Error fetching risk metrics: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": "Failed to fetch risk metrics"}), 500
 
 
@@ -2105,17 +2182,6 @@ def debug_view():
     user = User.query.filter_by(email=current_user_email).first()
 
     if not user or user.email != 'info@prophetanalytics.com':
-        
-        # Clear the risk analysis cache for this portfolio
-        try:
-            from backend.models import RiskAnalysisCache
-            RiskAnalysisCache.query.filter_by(portfolio_id=portfolio_id).delete()
-            db.session.commit()
-            print(f"Cleared risk analysis cache for portfolio {portfolio_id}")
-        except Exception as e:
-            print(f"Error clearing risk analysis cache: {str(e)}")
-            # Continue without clearing cache
-        
         return jsonify({"message": "Not authorized"}), 403
 
     # Run diagnostics
