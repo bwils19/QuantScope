@@ -52,42 +52,18 @@ class RiskAnalytics:
             'EMERGING': 'EEM'  # iShares MSCI Emerging Markets ETF
         }
 
-@lru_cache(maxsize=100)
-def _get_historical_data(self, ticker: str, start_date: datetime.date,
-                         end_date: datetime.date) -> Optional[List]:
-    """Cached historical data retrieval with application context"""
-    with self.app.app_context():
-        # Add this debugging line
-        print(f"Fetching historical data for {ticker} from {start_date} to {end_date}")
-        
-        hist_data = SecurityHistoricalData.query.filter(
-            SecurityHistoricalData.ticker == ticker,
-            SecurityHistoricalData.date >= start_date,
-            SecurityHistoricalData.date <= end_date
-        ).order_by(SecurityHistoricalData.date).all()
+    @lru_cache(maxsize=100)
+    def _get_historical_data(self, ticker: str, start_date: datetime.date,
+                             end_date: datetime.date) -> Optional[List]:
+        """Cached historical data retrieval with application context"""
+        with self.app.app_context():
+            hist_data = SecurityHistoricalData.query.filter(
+                SecurityHistoricalData.ticker == ticker,
+                SecurityHistoricalData.date >= start_date,
+                SecurityHistoricalData.date <= end_date
+            ).order_by(SecurityHistoricalData.date).all()
 
-        # Add these improved diagnostic statements
-        if not hist_data:
-            print(f"No historical data found for {ticker} between {start_date} and {end_date}")
-            # Check what date range does exist in the database
-            first_record = SecurityHistoricalData.query.filter(
-                SecurityHistoricalData.ticker == ticker
-            ).order_by(SecurityHistoricalData.date).first()
-            
-            last_record = SecurityHistoricalData.query.filter(
-                SecurityHistoricalData.ticker == ticker
-            ).order_by(SecurityHistoricalData.date.desc()).first()
-            
-            if first_record and last_record:
-                print(f"Available date range for {ticker}: {first_record.date} to {last_record.date}")
-                print(f"Total records available: {SecurityHistoricalData.query.filter(SecurityHistoricalData.ticker == ticker).count()}")
-            else:
-                print(f"No historical data exists at all for {ticker}")
-        else:
-            print(f"Found {len(hist_data)} data points for {ticker}")
-            print(f"Date range: {hist_data[0].date} to {hist_data[-1].date}")
-
-        return hist_data if hist_data else None
+            return hist_data if hist_data else None
 
     def _process_security_returns(self, security: Dict, portfolio_value: float,
                                   start_date: datetime.date,
