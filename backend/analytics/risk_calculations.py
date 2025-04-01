@@ -139,78 +139,69 @@ class RiskAnalytics:
         }
 
     def calculate_portfolio_beta(self, securities_data: List[Dict], lookback_days: int = 252) -> Dict:
+        
+        """Calculate comprehensive beta metrics for the portfolio."""
+        print("\n==== DEBUG: calculate_portfolio_beta ====")
+        print(f"Number of securities: {len(securities_data)}")
+        print(f"First security: {securities_data[0] if securities_data else None}")
+        print(f"Lookback days: {lookback_days}")
+        
+        # Get dates for lookback period
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=lookback_days)
+        print(f"Date range: {start_date} to {end_date}")
+
+
+        print(f"\n==== DEBUG: calculate_portfolio_beta ====")
+        print(f"Number of securities: {len(securities_data)}")
+        print(f"Securities data: {securities_data[:2]}")  # Print first 2 securities
+
+        print(f"Number of securities: {len(securities_data)}")
         """Calculate comprehensive beta metrics for the portfolio."""
         try:
-            print("\n==== DEBUG: calculate_portfolio_beta ====")
-            print(f"Number of securities: {len(securities_data)}")
-            print(f"First security: {securities_data[0] if securities_data else None}")
-            print(f"Lookback days: {lookback_days}")
-            
+            print(f"Calculating beta for {len(securities_data)} securities")
+
             # Get dates for lookback period
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=lookback_days)
             print(f"Date range: {start_date} to {end_date}")
-            
+
             # Calculate portfolio returns
             portfolio_returns = self._get_portfolio_returns(securities_data, start_date, end_date)
             print(f"Portfolio returns: {portfolio_returns[:5] if portfolio_returns is not None else None}")
-            if portfolio_returns is None or len(portfolio_returns) < 30:  # Require at least 30 data points
-                print("Failed to get sufficient portfolio returns, returning default metrics")
+            if portfolio_returns is None:
+                print("Failed to get portfolio returns, returning default metrics")
                 return self._get_default_beta_metrics()
-            
+
             # Get benchmark returns
             with self.app.app_context():
                 benchmark_data = self._get_historical_data("SPY", start_date, end_date)
                 print(f"Benchmark data: {benchmark_data[:2] if benchmark_data else None}")
-                if not benchmark_data or len(benchmark_data) < 30:  # Require at least 30 data points
-                    print("Failed to get sufficient benchmark returns")
+                if not benchmark_data:
+                    print("Failed to get benchmark returns")
                     return self._get_default_beta_metrics()
-                
+
                 benchmark_prices = np.array([float(data.adjusted_close) for data in benchmark_data])
                 benchmark_returns = np.diff(np.log(benchmark_prices))
                 print(f"Benchmark returns: {benchmark_returns[:5] if len(benchmark_returns) > 0 else []}")
-            
-            # Ensure arrays are the same length
-            if len(portfolio_returns) != len(benchmark_returns):
-                print(f"WARNING: Length mismatch - portfolio: {len(portfolio_returns)}, benchmark: {len(benchmark_returns)}")
-                min_length = min(len(portfolio_returns), len(benchmark_returns))
-                portfolio_returns = portfolio_returns[:min_length]
-                benchmark_returns = benchmark_returns[:min_length]
-                print(f"Aligned lengths to: {min_length}")
-                
-                if min_length < 30:  # Require at least 30 data points after alignment
-                    print(f"Insufficient data points after alignment ({min_length} < 30)")
-                    return self._get_default_beta_metrics()
-            
+
             # Calculate beta metrics
-            try:
-                standard_beta = self._calculate_standard_beta(portfolio_returns, benchmark_returns)
-                print(f"Standard beta: {standard_beta}")
-                print(f"DEBUG: standard_beta = {standard_beta}")
-            except Exception as e:
-                print(f"Error calculating standard beta: {str(e)}")
-                standard_beta = 0.7  # Default value
-            
-            try:
-                rolling_betas = self._calculate_rolling_beta(portfolio_returns, benchmark_returns)
-                print(f"Rolling betas calculated: {rolling_betas[:5]}...")
-            except Exception as e:
-                print(f"Error calculating rolling betas: {str(e)}")
-                rolling_betas = np.array([round(0.65 + i * 0.002, 3) for i in range(60)])
-            
+            standard_beta = self._calculate_standard_beta(portfolio_returns, benchmark_returns)
+            print(f"Standard beta: {standard_beta}")
+            print(f"DEBUG: standard_beta = {standard_beta}")
+            print("Calculating rolling betas...")
+            rolling_betas = self._calculate_rolling_beta(portfolio_returns, benchmark_returns)
+            print(f"Rolling betas calculated: {rolling_betas[:5]}...")
             try:
                 downside_beta = self._calculate_downside_beta(portfolio_returns, benchmark_returns)
             except Exception as e:
                 print(f"Error calculating downside beta: {str(e)}")
-                downside_beta = standard_beta * 0.9  # Default to 90% of standard beta
-            
+                print(f"Using standard beta as downside beta")
+                downside_beta = standard_beta
+
             # Calculate confidence metrics
-            try:
-                r_squared, std_error = self._calculate_beta_statistics(portfolio_returns, benchmark_returns)
-            except Exception as e:
-                print(f"Error calculating beta statistics: {str(e)}")
-                r_squared, std_error = 0.0, 0.0
-            
+            r_squared, std_error = self._calculate_beta_statistics(portfolio_returns, benchmark_returns)
+
             print(f"DEBUG: Returning beta dictionary with beta = {standard_beta}")
             print("\n==== DEBUG: Final beta value ====")
             print(f"standard_beta: {standard_beta}")
@@ -236,14 +227,13 @@ class RiskAnalytics:
             }
             print(f"Returning result: {result}")
             return result
-        
+
         except Exception as e:
             print(f"Error calculating beta: {str(e)}")
             print(f"Traceback: {traceback.format_exc()}")
             return self._get_default_beta_metrics()
-        
 
-def _get_benchmark_returns(self, start_date: datetime.date, end_date: datetime.date) -> np.ndarray:
+    def _get_benchmark_returns(self, start_date: datetime.date, end_date: datetime.date) -> np.ndarray:
         """Get benchmark returns from historical data table."""
         try:
             print(f"Getting benchmark returns from {start_date} to {end_date}")
@@ -287,218 +277,231 @@ def _get_benchmark_returns(self, start_date: datetime.date, end_date: datetime.d
             print(f"Traceback: {traceback.format_exc()}")
             return None
 
-def _calculate_standard_beta(
-        self,
-        portfolio_returns: np.ndarray,
-        benchmark_returns: np.ndarray
-) -> float:
-    """Calculate standard beta using regression."""
-    print("\n==== DEBUG: _calculate_standard_beta ====")
-    print(f"portfolio_returns type: {type(portfolio_returns)}")
-    print(f"benchmark_returns type: {type(benchmark_returns)}")
-    
-    # Check for None values
-    if portfolio_returns is None:
-        print("ERROR: portfolio_returns is None, returning default beta 1.0")
-        return 1.0
+    def _calculate_standard_beta(
+            self,
+            portfolio_returns: np.ndarray,
+            benchmark_returns: np.ndarray
+    ) -> float:
+        """Calculate standard beta using regression."""
+        print("\n==== DEBUG: _calculate_standard_beta ====")
+        print(f"portfolio_returns type: {type(portfolio_returns)}")
+        print(f"benchmark_returns type: {type(benchmark_returns)}")
         
-    if benchmark_returns is None:
-        print("ERROR: benchmark_returns is None, returning default beta 1.0")
-        return 1.0
-    
-    # Check for empty arrays
-    if len(portfolio_returns) == 0:
-        print("ERROR: portfolio_returns is empty, returning default beta 1.0")
-        return 1.0
+        # Check for None values
+        if portfolio_returns is None:
+            print("ERROR: portfolio_returns is None, returning default beta 1.0")
+            return 1.0
+            
+        if benchmark_returns is None:
+            print("ERROR: benchmark_returns is None, returning default beta 1.0")
+            return 1.0
         
-    if len(benchmark_returns) == 0:
-        print("ERROR: benchmark_returns is empty, returning default beta 1.0")
-        return 1.0
-    
-    print(f"portfolio_returns length: {len(portfolio_returns)}")
-    print(f"benchmark_returns length: {len(benchmark_returns)}")
-    
-    # Print first few values for debugging
-    print(f"First 5 portfolio returns: {portfolio_returns[:5]}")
-    print(f"First 5 benchmark returns: {benchmark_returns[:5]}")
-    
-    # Check for NaN or Inf values
-    if np.isnan(portfolio_returns).any():
-        print("ERROR: portfolio_returns contains NaN values")
-        # Print positions of NaN values
-        nan_positions = np.where(np.isnan(portfolio_returns))[0]
-        print(f"NaN positions in portfolio_returns: {nan_positions[:10]}")
+        # Check for empty arrays
+        if len(portfolio_returns) == 0:
+            print("ERROR: portfolio_returns is empty, returning default beta 1.0")
+            return 1.0
+            
+        if len(benchmark_returns) == 0:
+            print("ERROR: benchmark_returns is empty, returning default beta 1.0")
+            return 1.0
         
-        # Replace NaN values with zeros for calculation
-        portfolio_returns = np.nan_to_num(portfolio_returns, nan=0.0)
-        print("Replaced NaN values with zeros in portfolio_returns")
-    
-    if np.isnan(benchmark_returns).any():
-        print("ERROR: benchmark_returns contains NaN values")
-        # Print positions of NaN values
-        nan_positions = np.where(np.isnan(benchmark_returns))[0]
-        print(f"NaN positions in benchmark_returns: {nan_positions[:10]}")
+        print(f"portfolio_returns length: {len(portfolio_returns)}")
+        print(f"benchmark_returns length: {len(benchmark_returns)}")
         
-        # Replace NaN values with zeros for calculation
-        benchmark_returns = np.nan_to_num(benchmark_returns, nan=0.0)
-        print("Replaced NaN values with zeros in benchmark_returns")
-    
-    if np.isinf(portfolio_returns).any():
-        print("ERROR: portfolio_returns contains Inf values")
-        # Print positions of Inf values
-        inf_positions = np.where(np.isinf(portfolio_returns))[0]
-        print(f"Inf positions in portfolio_returns: {inf_positions[:10]}")
+        # Print first few values for debugging
+        print(f"First 5 portfolio returns: {portfolio_returns[:5]}")
+        print(f"First 5 benchmark returns: {benchmark_returns[:5]}")
         
-        # Replace Inf values with zeros for calculation
-        portfolio_returns = np.nan_to_num(portfolio_returns, posinf=0.0, neginf=0.0)
-        print("Replaced Inf values with zeros in portfolio_returns")
-    
-    if np.isinf(benchmark_returns).any():
-        print("ERROR: benchmark_returns contains Inf values")
-        # Print positions of Inf values
-        inf_positions = np.where(np.isinf(benchmark_returns))[0]
-        print(f"Inf positions in benchmark_returns: {inf_positions[:10]}")
+        # Check for NaN or Inf values
+        if np.isnan(portfolio_returns).any():
+            print("ERROR: portfolio_returns contains NaN values")
+            # Print positions of NaN values
+            nan_positions = np.where(np.isnan(portfolio_returns))[0]
+            print(f"NaN positions in portfolio_returns: {nan_positions[:10]}")
+            
+            # Replace NaN values with zeros for calculation
+            portfolio_returns = np.nan_to_num(portfolio_returns, nan=0.0)
+            print("Replaced NaN values with zeros in portfolio_returns")
         
-        # Replace Inf values with zeros for calculation
-        benchmark_returns = np.nan_to_num(benchmark_returns, posinf=0.0, neginf=0.0)
-        print("Replaced Inf values with zeros in benchmark_returns")
+        if np.isnan(benchmark_returns).any():
+            print("ERROR: benchmark_returns contains NaN values")
+            # Print positions of NaN values
+            nan_positions = np.where(np.isnan(benchmark_returns))[0]
+            print(f"NaN positions in benchmark_returns: {nan_positions[:10]}")
+            
+            # Replace NaN values with zeros for calculation
+            benchmark_returns = np.nan_to_num(benchmark_returns, nan=0.0)
+            print("Replaced NaN values with zeros in benchmark_returns")
         
-    # Align the lengths
-    if len(portfolio_returns) != len(benchmark_returns):
-        print(f"WARNING: Length mismatch - portfolio: {len(portfolio_returns)}, benchmark: {len(benchmark_returns)}")
-        min_length = min(len(portfolio_returns), len(benchmark_returns))
-        portfolio_returns = portfolio_returns[:min_length]
-        benchmark_returns = benchmark_returns[:min_length]
-        print(f"Aligned lengths to: {min_length}")
+        if np.isinf(portfolio_returns).any():
+            print("ERROR: portfolio_returns contains Inf values")
+            # Print positions of Inf values
+            inf_positions = np.where(np.isinf(portfolio_returns))[0]
+            print(f"Inf positions in portfolio_returns: {inf_positions[:10]}")
+            
+            # Replace Inf values with zeros for calculation
+            portfolio_returns = np.nan_to_num(portfolio_returns, posinf=0.0, neginf=0.0)
+            print("Replaced Inf values with zeros in portfolio_returns")
         
-        # If we don't have enough data, return a default
-        if min_length < 20:
-            print(f"ERROR: Not enough data points after alignment ({min_length} < 20), returning default beta 1.0")
+        if np.isinf(benchmark_returns).any():
+            print("ERROR: benchmark_returns contains Inf values")
+            # Print positions of Inf values
+            inf_positions = np.where(np.isinf(benchmark_returns))[0]
+            print(f"Inf positions in benchmark_returns: {inf_positions[:10]}")
+            
+            # Replace Inf values with zeros for calculation
+            benchmark_returns = np.nan_to_num(benchmark_returns, posinf=0.0, neginf=0.0)
+            print("Replaced Inf values with zeros in benchmark_returns")
+            
+        # Align the lengths
+        if len(portfolio_returns) != len(benchmark_returns):
+            print(f"WARNING: Length mismatch - portfolio: {len(portfolio_returns)}, benchmark: {len(benchmark_returns)}")
+            min_length = min(len(portfolio_returns), len(benchmark_returns))
+            portfolio_returns = portfolio_returns[:min_length]
+            benchmark_returns = benchmark_returns[:min_length]
+            print(f"Aligned lengths to: {min_length}")
+            
+            # If we don't have enough data, return a default
+            if min_length < 20:
+                print(f"ERROR: Not enough data points after alignment ({min_length} < 20), returning default beta 1.0")
+                return 1.0
+
+        # Check for zero variance in benchmark returns
+        benchmark_var = np.var(benchmark_returns)
+        print(f"Benchmark variance: {benchmark_var}")
+        
+        if benchmark_var == 0:
+            print("ERROR: Zero variance in benchmark returns, returning default beta 1.0")
+            return 1.0
+            
+        if np.isnan(benchmark_var):
+            print("ERROR: NaN variance in benchmark returns, returning default beta 1.0")
             return 1.0
 
-    # Check for zero variance in benchmark returns
-    benchmark_var = np.var(benchmark_returns)
-    print(f"Benchmark variance: {benchmark_var}")
-    
-    if benchmark_var == 0:
-        print("ERROR: Zero variance in benchmark returns, returning default beta 1.0")
-        return 1.0
-        
-    if np.isnan(benchmark_var):
-        print("ERROR: NaN variance in benchmark returns, returning default beta 1.0")
-        return 1.0
-
-    try:
-        # Calculate beta using linear regression
-        slope, intercept, r_value, p_value, std_err = stats.linregress(benchmark_returns, portfolio_returns)
-        print(f"Regression results:")
-        print(f"  Slope (beta): {slope}")
-        print(f"  Intercept: {intercept}")
-        print(f"  R-value: {r_value}")
-        print(f"  R-squared: {r_value**2}")
-        print(f"  P-value: {p_value}")
-        print(f"  Standard error: {std_err}")
-        
-        # Check for NaN or infinite values
-        if np.isnan(slope):
-            print("ERROR: Calculated beta is NaN, returning default beta 1.0")
-            return 1.0
-            
-        if np.isinf(slope):
-            print("ERROR: Calculated beta is Inf, returning default beta 1.0")
-            return 1.0
-            
-        # Check for unreasonable values
-        if slope < -10 or slope > 10:
-            print(f"ERROR: Calculated beta ({slope}) is outside reasonable range (-10 to 10), returning default beta 1.0")
-            return 1.0
-            
-        print(f"SUCCESS: Returning calculated beta: {slope}")
-        return slope
-        
-    except Exception as e:
-        print(f"ERROR in beta calculation: {str(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        return 1.0
-        
-def _get_portfolio_returns(self, securities_data: List[Dict], start_date: datetime.date,
-                            end_date: datetime.date) -> Optional[np.ndarray]:
-    """Calculate portfolio returns using historical data."""
-    try:
-        print(f"\n==== DEBUG: _get_portfolio_returns ====")
-        print(f"securities_data: {securities_data[:2] if securities_data else None}")
-        print(f"start_date: {start_date}")
-        print(f"end_date: {end_date}")
-        
-        if not securities_data:
-            print("No securities data provided")
-            return None
-        
-        # Calculate total portfolio value
         try:
-            portfolio_value = sum(s.get('total_value', 0) for s in securities_data)
-            if portfolio_value <= 0:
-                print("Portfolio value is zero or negative")
-                portfolio_value = sum(s.get('amount_owned', 0) * s.get('current_price', 0) for s in securities_data)
-                if portfolio_value <= 0:
-                    print("Still couldn't calculate a positive portfolio value")
-                    return None
+            # Calculate beta using linear regression
+            slope, intercept, r_value, p_value, std_err = stats.linregress(benchmark_returns, portfolio_returns)
+            print(f"Regression results:")
+            print(f"  Slope (beta): {slope}")
+            print(f"  Intercept: {intercept}")
+            print(f"  R-value: {r_value}")
+            print(f"  R-squared: {r_value**2}")
+            print(f"  P-value: {p_value}")
+            print(f"  Standard error: {std_err}")
+            
+            # Check for NaN or infinite values
+            if np.isnan(slope):
+                print("ERROR: Calculated beta is NaN, returning default beta 1.0")
+                return 1.0
+                
+            if np.isinf(slope):
+                print("ERROR: Calculated beta is Inf, returning default beta 1.0")
+                return 1.0
+                
+            # Check for unreasonable values
+            if slope < -10 or slope > 10:
+                print(f"ERROR: Calculated beta ({slope}) is outside reasonable range (-10 to 10), returning default beta 1.0")
+                return 1.0
+                
+            print(f"SUCCESS: Returning calculated beta: {slope}")
+            return slope
+            
         except Exception as e:
-            print(f"Error calculating portfolio value: {str(e)}")
-            return None
+            print(f"ERROR in beta calculation: {str(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+            return 1.0
         
-        print(f"Portfolio value: {portfolio_value}")
-        print(f"Number of securities: {len(securities_data)}")
-        
-        all_returns = []
-        weights = []
-        
-        # Process each security within app context
-        with self.app.app_context():
-            for security in securities_data:
-                try:
+    def _get_portfolio_returns(self, securities_data: List[Dict], start_date: datetime.date,
+                             end_date: datetime.date) -> Optional[np.ndarray]:
+        """Calculate portfolio returns using historical data."""
+        try:
+            portfolio_value = sum(s['total_value'] for s in securities_data)
+            print(f"\nCalculating portfolio returns:")
+            print(f"Date range: {start_date} to {end_date}")
+            print(f"Portfolio value: {portfolio_value}")
+            print(f"Number of securities: {len(securities_data)}")
+
+            all_returns = []
+            weights = []
+
+            # Process each security within app context
+            with self.app.app_context():
+                for security in securities_data:
                     returns, weight = self._process_security_returns(
                         security, portfolio_value, start_date, end_date
                     )
-                    if returns is not None and weight is not None and len(returns) > 0:
+                    if returns is not None and weight is not None:
                         all_returns.append(returns)
                         weights.append(weight)
-                except Exception as e:
-                    print(f"Error processing security {security.get('ticker', 'unknown')}: {str(e)}")
-                    continue
-        
-        if not all_returns:
-            print("No valid returns data found for any security")
+
+            if not all_returns:
+                print("No valid returns calculated")
+                return None
+
+            # Align return series lengths
+            min_length = min(len(returns) for returns in all_returns)
+            print(f"\nAligning return series to length: {min_length}")
+            all_returns = [returns[:min_length] for returns in all_returns]
+
+            # Calculate weighted portfolio returns
+            portfolio_returns = np.sum(
+                [returns * weight for returns, weight in zip(all_returns, weights)],
+                axis=0
+            )
+
+            print("\nPortfolio returns statistics:")
+            print(f"Mean: {np.mean(portfolio_returns):.6f}")
+            print(f"Std: {np.std(portfolio_returns):.6f}")
+            print(f"Length: {len(portfolio_returns)}")
+
+            # Validate portfolio returns before returning
+            if portfolio_returns is None or len(portfolio_returns) == 0:
+                print("Warning: Empty portfolio returns")
+                return None
+                
+            if np.isnan(portfolio_returns).any() or np.isinf(portfolio_returns).any():
+                print("Warning: Portfolio returns contain NaN or Inf values")
+                # Replace NaN and Inf values with zeros
+                portfolio_returns = np.nan_to_num(portfolio_returns, nan=0.0, posinf=0.0, neginf=0.0)
+                
+            # Validate portfolio returns before returning
+            if portfolio_returns is None or len(portfolio_returns) == 0:
+                print("Warning: Empty portfolio returns")
+                return None
+                
+            if np.isnan(portfolio_returns).any() or np.isinf(portfolio_returns).any():
+                print("Warning: Portfolio returns contain NaN or Inf values")
+                # Replace NaN and Inf values with zeros
+                portfolio_returns = np.nan_to_num(portfolio_returns, nan=0.0, posinf=0.0, neginf=0.0)
+                
+            print("\n==== DEBUG: _get_portfolio_returns ====")
+            print(f"Final portfolio returns shape: {portfolio_returns.shape if portfolio_returns is not None else None}")
+            print(f"Final portfolio returns first 5 values: {portfolio_returns[:5] if portfolio_returns is not None else None}")
+            print(f"Final portfolio returns last 5 values: {portfolio_returns[-5:] if portfolio_returns is not None else None}")
+            
+            # Check for NaN or Inf values
+            if portfolio_returns is not None:
+                if np.isnan(portfolio_returns).any():
+                    print("WARNING: Final portfolio returns contain NaN values")
+                    nan_count = np.isnan(portfolio_returns).sum()
+                    print(f"Number of NaN values: {nan_count}")
+                
+                if np.isinf(portfolio_returns).any():
+                    print("WARNING: Final portfolio returns contain Inf values")
+                    inf_count = np.isinf(portfolio_returns).sum()
+                    print(f"Number of Inf values: {inf_count}")
+            
+            print(f"Returning portfolio returns with shape: {portfolio_returns.shape if portfolio_returns is not None else None}")
+            print(f"First few portfolio returns: {portfolio_returns[:5] if portfolio_returns is not None else None}")
+            return portfolio_returns
+
+        except Exception as e:
+            print(f"Error calculating portfolio returns: {str(e)}")
+            print(f"Traceback: {traceback.format_exc()}")
             return None
-        
-        print(f"Collected returns for {len(all_returns)} securities")
-        
-        # Align return series lengths
-        min_length = min(len(returns) for returns in all_returns)
-        if min_length < 30:  # Require at least 30 data points
-            print(f"Insufficient data points: {min_length} < 30")
-            return None
-        
-        all_returns = [returns[:min_length] for returns in all_returns]
-        
-        # Convert to numpy array for calculations
-        returns_array = np.array(all_returns)
-        weights_array = np.array(weights)
-        
-        # Calculate portfolio returns considering weights
-        portfolio_returns = np.sum(returns_array * weights_array[:, np.newaxis], axis=0)
-        
-        print(f"Returning portfolio returns with shape: {portfolio_returns.shape if portfolio_returns is not None else None}")
-        print(f"First few portfolio returns: {portfolio_returns[:5] if portfolio_returns is not None else None}")
-        return portfolio_returns
-    
-    except Exception as e:
-        print(f"Error in _get_portfolio_returns: {str(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        return None
-def _calculate_rolling_beta(
+
+    def _calculate_rolling_beta(
             self,
             portfolio_returns: np.ndarray,
             benchmark_returns: np.ndarray,
@@ -516,22 +519,37 @@ def _calculate_rolling_beta(
         print(f"Calculated {len(result)} rolling betas: {result[:5]}...")
         return result
 
-def _calculate_downside_beta(
+    def _calculate_downside_beta(
             self,
             portfolio_returns: np.ndarray,
             benchmark_returns: np.ndarray
     ) -> float:
         """Calculate downside beta (beta during negative benchmark returns)."""
+        print(f"\n==== DEBUG: _calculate_downside_beta ====")
+        print(f"portfolio_returns shape: {portfolio_returns.shape}")
+        print(f"benchmark_returns shape: {benchmark_returns.shape}")
+        
+        # Ensure arrays are the same length
+        if len(portfolio_returns) != len(benchmark_returns):
+            print(f"WARNING: Length mismatch - portfolio: {len(portfolio_returns)}, benchmark: {len(benchmark_returns)}")
+            min_length = min(len(portfolio_returns), len(benchmark_returns))
+            portfolio_returns = portfolio_returns[:min_length]
+            benchmark_returns = benchmark_returns[:min_length]
+            print(f"Aligned lengths to: {min_length}")
+        
         mask = benchmark_returns < 0
         if not any(mask):
+            print("No negative benchmark returns, using standard beta")
             return self._calculate_standard_beta(portfolio_returns, benchmark_returns)
-
+        
         down_portfolio = portfolio_returns[mask]
         down_benchmark = benchmark_returns[mask]
-
+        
+        print(f"Negative benchmark returns: {sum(mask)}/{len(mask)}")
+        print(f"down_portfolio shape: {down_portfolio.shape}")
+        print(f"down_benchmark shape: {down_benchmark.shape}")
+        
         return self._calculate_standard_beta(down_portfolio, down_benchmark)
-
-
 def _calculate_beta_statistics(
             self,
             portfolio_returns: np.ndarray,
