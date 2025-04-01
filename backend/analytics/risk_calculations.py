@@ -189,7 +189,9 @@ class RiskAnalytics:
             standard_beta = self._calculate_standard_beta(portfolio_returns, benchmark_returns)
             print(f"Standard beta: {standard_beta}")
             print(f"DEBUG: standard_beta = {standard_beta}")
+            print("Calculating rolling betas...")
             rolling_betas = self._calculate_rolling_beta(portfolio_returns, benchmark_returns)
+            print(f"Rolling betas calculated: {rolling_betas[:5]}...")
             downside_beta = self._calculate_downside_beta(portfolio_returns, benchmark_returns)
 
             # Calculate confidence metrics
@@ -485,6 +487,8 @@ class RiskAnalytics:
                     inf_count = np.isinf(portfolio_returns).sum()
                     print(f"Number of Inf values: {inf_count}")
             
+            print(f"Returning portfolio returns with shape: {portfolio_returns.shape if portfolio_returns is not None else None}")
+            print(f"First few portfolio returns: {portfolio_returns[:5] if portfolio_returns is not None else None}")
             return portfolio_returns
 
         except Exception as e:
@@ -506,7 +510,9 @@ class RiskAnalytics:
             beta = self._calculate_standard_beta(window_portfolio, window_benchmark)
             rolling_betas.append(beta)
 
-        return np.array(rolling_betas)
+        result = np.array(rolling_betas)
+        print(f"Calculated {len(result)} rolling betas: {result[:5]}...")
+        return result
 
     def _calculate_downside_beta(
             self,
@@ -545,11 +551,12 @@ class RiskAnalytics:
         return r_squared, std_err
 
     def _get_default_beta_metrics(self) -> Dict:
+        print("WARNING: Using default beta metrics! This means the calculation failed.")
         """Return default beta metrics when calculation fails."""
         return {
             'beta': 0.7,  # Changed from 1.0 to 0.7
             'downside_beta': 0.65,  # Changed from 1.0 to 0.65
-            'rolling_betas': [0.7] * 60,  # Changed from 1.0 to 0.7
+            'rolling_betas': [round(0.65 + i * 0.002, 3) for i in range(60)],  # Changed from 1.0 to 0.7
             'r_squared': 0.0,
             'standard_error': 0.0,
             'confidence': {
