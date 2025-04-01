@@ -203,7 +203,7 @@ class RiskAnalytics:
             print(f"r_squared: {r_squared}")
             print(f"std_error: {std_error}")
             
-            result = return {
+            result = {
                 'beta': standard_beta,
                 'downside_beta': downside_beta,
                 'rolling_betas': rolling_betas.tolist(),
@@ -212,14 +212,14 @@ class RiskAnalytics:
                 'confidence': {
                     'high': standard_beta + (1.96 * std_error),
                     'low': standard_beta - (1.96 * std_error)
-                }
-            print(f"Returning result: {result}")
-            return result,
+                },
                 'analysis': {
                     'trend': 'stable',
                     'stability': 'high'
                 }
             }
+            print(f"Returning result: {result}")
+            return result
 
         except Exception as e:
             print(f"Error calculating beta: {str(e)}")
