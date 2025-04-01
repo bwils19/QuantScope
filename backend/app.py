@@ -158,6 +158,16 @@ def create_app(test_config=None):
     #         for scenario in scenarios:
     #             print(
     #                 f"Scenario: {scenario.event_name}, Index: {scenario.index_name}, Price Change: {scenario.price_change_pct}%")
+    
+    # Clear the RiskAnalysisCache table on startup
+    with app.app_context():
+        try:
+            from backend.models import RiskAnalysisCache
+            RiskAnalysisCache.query.delete()
+            db.session.commit()
+            print("Cleared RiskAnalysisCache table on startup")
+        except Exception as e:
+            print(f"Error clearing RiskAnalysisCache table: {str(e)}")
     #     except Exception as e:
     #         print(f"Error processing stress scenarios: {e}")
     @app.cli.command('load_stress_scenarios')
@@ -193,21 +203,9 @@ def send_update_notification(status, details):
         Time: {datetime.now()}
         Details: {details}
 
-        Tickers Updated: {detail
-    # Clear the RiskAnalysisCache table on startup
-    with app.app_context():
-        try:
-            from backend.models import RiskAnalysisCache
-            RiskAnalysisCache.query.delete()
-            db.session.commit()
-            print("Cleared RiskAnalysisCache table on startup")
-        except Exception as e:
-            print(f"Error clearing RiskAnalysisCache table: {str(e)}")
-
-    s.get('tickers_updated', 0)}
+        Tickers Updated: {details.get('tickers_updated', 0)}
         Records Added: {details.get('records_added', 0)}
         Status: {details.get('status', 'Unknown')}
-
         Error (if any): {details.get('error', 'None')}
         """
 
@@ -215,6 +213,8 @@ def send_update_notification(status, details):
         print(f"Notification email sent: {status}")
     except Exception as e:
         print(f"Failed to send email notification: {e}")
+
+# Add code to clear the RiskAnalysisCache table in the create_app function
 
 
 if __name__ == "__main__":
