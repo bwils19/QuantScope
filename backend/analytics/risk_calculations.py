@@ -192,7 +192,7 @@ class RiskAnalytics:
             print("Calculating rolling betas...")
             rolling_betas = self._calculate_rolling_beta(portfolio_returns, benchmark_returns)
             print(f"Rolling betas calculated: {rolling_betas[:5]}...")
-                        try:
+            try:
                 downside_beta = self._calculate_downside_beta(portfolio_returns, benchmark_returns)
             except Exception as e:
                 print(f"Error calculating downside beta: {str(e)}")
