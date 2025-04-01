@@ -117,7 +117,7 @@ def get_portfolio_risk(portfolio_id):
             }
         }
         
-        # Create hardcoded VaR data
+        # Create hardcoded VaR data with regime distribution
         var_data = {
             'var_95': portfolio.total_value * 0.05 if portfolio and portfolio.total_value else 1000,
             'var_99': portfolio.total_value * 0.08 if portfolio and portfolio.total_value else 1600,
@@ -125,7 +125,12 @@ def get_portfolio_risk(portfolio_id):
             'cvar_99': portfolio.total_value * 0.1 if portfolio and portfolio.total_value else 2000,
             'expected_shortfall': portfolio.total_value * 0.06 if portfolio and portfolio.total_value else 1200,
             'max_drawdown': portfolio.total_value * 0.15 if portfolio and portfolio.total_value else 3000,
-            'volatility': 0.12
+            'volatility': 0.12,
+            'regime_distribution': {
+                'normal': 0.6,
+                'stress': 0.3,
+                'crisis': 0.1
+            }
         }
         
         # Create hardcoded credit risk data
@@ -135,12 +140,22 @@ def get_portfolio_risk(portfolio_id):
             'credit_var': portfolio.total_value * 0.03 if portfolio and portfolio.total_value else 600
         }
         
-        # Create hardcoded VaR components
-        var_components = {
-            'market_risk': portfolio.total_value * 0.04 if portfolio and portfolio.total_value else 800,
-            'specific_risk': portfolio.total_value * 0.02 if portfolio and portfolio.total_value else 400,
-            'total_risk': portfolio.total_value * 0.06 if portfolio and portfolio.total_value else 1200
-        }
+        # Create hardcoded VaR components as a list of components
+        var_components = []
+        
+        # Add some sample securities to the components
+        tickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META']
+        weights = [0.25, 0.2, 0.2, 0.15, 0.2]
+        volatilities = [0.2, 0.18, 0.22, 0.25, 0.28]
+        var_contributions = [1200, 900, 1100, 800, 1000]
+        
+        for i in range(len(tickers)):
+            var_components.append({
+                'ticker': tickers[i],
+                'weight': weights[i],
+                'volatility': volatilities[i],
+                'var_contribution': var_contributions[i]
+            })
         
         # Create response data
         response_data = {
@@ -154,9 +169,7 @@ def get_portfolio_risk(portfolio_id):
             'latest_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'cached': False,
             'fallback': True  # Indicate that this is fallback data
-        }
-        
-        return jsonify(response_data)
+        }return jsonify(response_data)
 
 
 # helper functions for caching responses
