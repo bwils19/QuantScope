@@ -196,7 +196,14 @@ class RiskAnalytics:
             r_squared, std_error = self._calculate_beta_statistics(portfolio_returns, benchmark_returns)
 
             print(f"DEBUG: Returning beta dictionary with beta = {standard_beta}")
-            return {
+            print("\n==== DEBUG: Final beta value ====")
+            print(f"standard_beta: {standard_beta}")
+            print(f"downside_beta: {downside_beta}")
+            print(f"rolling_betas: {rolling_betas[:5]}...")
+            print(f"r_squared: {r_squared}")
+            print(f"std_error: {std_error}")
+            
+            result = return {
                 'beta': standard_beta,
                 'downside_beta': downside_beta,
                 'rolling_betas': rolling_betas.tolist(),
@@ -205,7 +212,9 @@ class RiskAnalytics:
                 'confidence': {
                     'high': standard_beta + (1.96 * std_error),
                     'low': standard_beta - (1.96 * std_error)
-                },
+                }
+            print(f"Returning result: {result}")
+            return result,
                 'analysis': {
                     'trend': 'stable',
                     'stability': 'high'
