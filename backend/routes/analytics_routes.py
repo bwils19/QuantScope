@@ -169,7 +169,8 @@ def get_portfolio_risk(portfolio_id):
             'latest_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'cached': False,
             'fallback': True  # Indicate that this is fallback data
-        }return jsonify(response_data)
+        }
+        return jsonify(response_data)
 
 
 # helper functions for caching responses
