@@ -944,6 +944,7 @@ def create_portfolio():
 @jwt_required(locations=["cookies"])
 def get_portfolio_securities(portfolio_id):
     try:
+        print(f"\n===== Loading securities for portfolio {portfolio_id} =====")
         current_user_email = get_jwt_identity()
         user = User.query.filter_by(email=current_user_email).first()
 
@@ -954,61 +955,121 @@ def get_portfolio_securities(portfolio_id):
         if not portfolio:
             return jsonify({"message": "Portfolio not found"}), 404
 
+        # Log basic portfolio information
+        print(f"Portfolio: {portfolio.name}, ID: {portfolio_id}, User: {user.email}")
+
         # Query portfolio securities with joined security data
-        result = db.session.query(
-            PortfolioSecurity,
-            Security
-        ).join(
-            Security, PortfolioSecurity.security_id == Security.id
-        ).filter(
-            PortfolioSecurity.portfolio_id == portfolio_id
-        ).all()
+        try:
+            result = db.session.query(
+                PortfolioSecurity,
+                Security
+            ).join(
+                Security, PortfolioSecurity.security_id == Security.id
+            ).filter(
+                PortfolioSecurity.portfolio_id == portfolio_id
+            ).all()
+            
+            print(f"Found {len(result)} securities in portfolio")
+            
+            # Debug info for each security
+            for i, (ps, security) in enumerate(result):
+                print(f"Security #{i+1}: {security.ticker} - Amount: {ps.amount_owned}, Current price: {security.current_price}")
+                if security.current_price is None or security.current_price == 0:
+                    print(f"WARNING: {security.ticker} has zero/null price")
+        except Exception as query_error:
+            print(f"Error querying portfolio securities: {str(query_error)}")
+            import traceback
+            print(f"Query traceback: {traceback.format_exc()}")
+            return jsonify({"message": "Error querying portfolio securities"}), 500
 
         # Query the most recent historical data for day change calculation
         today = datetime.now().date()
 
         securities_data = []
 
+        # Process each security with careful error handling
         for ps, security in result:
-            # Get the most recent historical data
-            latest_historical = db.session.query(SecurityHistoricalData) \
-                .filter_by(ticker=security.ticker) \
-                .order_by(SecurityHistoricalData.date.desc()) \
-                .first()
+            try:
+                # Log the processing of each security
+                print(f"Processing {security.ticker} data...")
+                
+                # Get the most recent historical data
+                latest_historical = db.session.query(SecurityHistoricalData) \
+                    .filter_by(ticker=security.ticker) \
+                    .order_by(SecurityHistoricalData.date.desc()) \
+                    .first()
 
-            # Get previous day historical data for day change
-            previous_day_historical = db.session.query(SecurityHistoricalData) \
-                .filter(
-                SecurityHistoricalData.ticker == security.ticker,
-                SecurityHistoricalData.date < latest_historical.date if latest_historical else today
-            ) \
-                .order_by(SecurityHistoricalData.date.desc()) \
-                .first()
+                # Get previous day historical data for day change
+                previous_day_historical = None
+                if latest_historical:
+                    previous_day_historical = db.session.query(SecurityHistoricalData) \
+                        .filter(
+                        SecurityHistoricalData.ticker == security.ticker,
+                        SecurityHistoricalData.date < latest_historical.date
+                    ) \
+                        .order_by(SecurityHistoricalData.date.desc()) \
+                        .first()
 
-            # Use historical data if available, otherwise use security current price
-            latest_close = latest_historical.close_price if latest_historical else security.current_price
-            close_date = latest_historical.date if latest_historical else None
+                # Use historical data if available, otherwise use security current price
+                latest_close = None
+                close_date = None
+                
+                if latest_historical:
+                    latest_close = latest_historical.close_price
+                    close_date = latest_historical.date
+                    print(f"  Found historical data: {latest_close} on {close_date}")
+                elif security.current_price:
+                    latest_close = security.current_price
+                    print(f"  Using current price: {latest_close}")
+                else:
+                    print(f"  WARNING: No price data for {security.ticker}")
+                    latest_close = 0  # Fallback to zero
 
-            # Calculate day change using historical data
-            previous_close = previous_day_historical.close_price if previous_day_historical else latest_close
-            day_change = (latest_close - previous_close) * ps.amount_owned
-            day_change_pct = ((latest_close / previous_close) - 1) * 100 if previous_close > 0 else 0
-
-            securities_data.append({
-                'id': ps.id,
-                'ticker': security.ticker,
-                'name': security.name,
-                'amount_owned': ps.amount_owned,
-                'current_price': security.current_price,
-                'total_value': ps.amount_owned * security.current_price,
-                'value_change': day_change,
-                'value_change_pct': day_change_pct,
-                'purchase_date': ps.purchase_date.strftime('%Y-%m-%d') if ps.purchase_date else None,
-                'total_gain': ps.total_gain,
-                'total_gain_pct': ps.total_gain_pct,
-                'latest_close': latest_close,
-                'latest_close_date': close_date.strftime('%Y-%m-%d') if close_date else None
-            })
+                # Calculate day change using historical data
+                previous_close = None
+                day_change = 0
+                day_change_pct = 0
+                
+                if previous_day_historical:
+                    previous_close = previous_day_historical.close_price
+                    print(f"  Previous close: {previous_close} on {previous_day_historical.date}")
+                elif security.previous_close:
+                    previous_close = security.previous_close
+                    print(f"  Using stored previous close: {previous_close}")
+                else:
+                    previous_close = latest_close
+                    print(f"  No previous close, using current: {previous_close}")
+                
+                if previous_close and previous_close > 0:
+                    day_change = (latest_close - previous_close) * ps.amount_owned
+                    day_change_pct = ((latest_close / previous_close) - 1) * 100
+                
+                # Create security data dictionary with safe calculations
+                security_data = {
+                    'id': ps.id,
+                    'ticker': security.ticker,
+                    'name': security.name or security.ticker,
+                    'amount_owned': ps.amount_owned,
+                    'current_price': security.current_price or 0,
+                    'total_value': (ps.amount_owned * (security.current_price or 0)) if ps.amount_owned else 0,
+                    'value_change': day_change,
+                    'value_change_pct': day_change_pct,
+                    'purchase_date': ps.purchase_date.strftime('%Y-%m-%d') if ps.purchase_date else None,
+                    'total_gain': ps.total_gain or 0,
+                    'total_gain_pct': ps.total_gain_pct or 0,
+                    'latest_close': latest_close or 0,
+                    'latest_close_date': close_date.strftime('%Y-%m-%d') if close_date else None
+                }
+                
+                securities_data.append(security_data)
+                print(f"  Successfully processed {security.ticker}")
+                
+            except Exception as sec_error:
+                print(f"Error processing security {security.ticker}: {str(sec_error)}")
+                import traceback
+                print(f"Security traceback: {traceback.format_exc()}")
+                # Skip this security but continue processing others
+                continue
 
         # Get the latest update timestamp
         latest_update = db.session.query(func.max(SecurityHistoricalData.updated_at)).scalar()
