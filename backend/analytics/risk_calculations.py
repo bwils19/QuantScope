@@ -192,7 +192,12 @@ class RiskAnalytics:
             print("Calculating rolling betas...")
             rolling_betas = self._calculate_rolling_beta(portfolio_returns, benchmark_returns)
             print(f"Rolling betas calculated: {rolling_betas[:5]}...")
-            downside_beta = self._calculate_downside_beta(portfolio_returns, benchmark_returns)
+                        try:
+                downside_beta = self._calculate_downside_beta(portfolio_returns, benchmark_returns)
+            except Exception as e:
+                print(f"Error calculating downside beta: {str(e)}")
+                print(f"Using standard beta as downside beta")
+                downside_beta = standard_beta
 
             # Calculate confidence metrics
             r_squared, std_error = self._calculate_beta_statistics(portfolio_returns, benchmark_returns)
@@ -520,20 +525,32 @@ class RiskAnalytics:
             benchmark_returns: np.ndarray
     ) -> float:
         """Calculate downside beta (beta during negative benchmark returns)."""
+        print(f"\n==== DEBUG: _calculate_downside_beta ====")
+        print(f"portfolio_returns shape: {portfolio_returns.shape}")
+        print(f"benchmark_returns shape: {benchmark_returns.shape}")
+        
+        # Ensure arrays are the same length
+        if len(portfolio_returns) != len(benchmark_returns):
+            print(f"WARNING: Length mismatch - portfolio: {len(portfolio_returns)}, benchmark: {len(benchmark_returns)}")
+            min_length = min(len(portfolio_returns), len(benchmark_returns))
+            portfolio_returns = portfolio_returns[:min_length]
+            benchmark_returns = benchmark_returns[:min_length]
+            print(f"Aligned lengths to: {min_length}")
+        
         mask = benchmark_returns < 0
         if not any(mask):
+            print("No negative benchmark returns, using standard beta")
             return self._calculate_standard_beta(portfolio_returns, benchmark_returns)
-
+        
         down_portfolio = portfolio_returns[mask]
         down_benchmark = benchmark_returns[mask]
-
-        if len(down_portfolio) < 2:
-            return 1.0
-
-        slope, _, _, _, _ = stats.linregress(down_benchmark, down_portfolio)
-        return slope
-
-    def _calculate_beta_statistics(
+        
+        print(f"Negative benchmark returns: {sum(mask)}/{len(mask)}")
+        print(f"down_portfolio shape: {down_portfolio.shape}")
+        print(f"down_benchmark shape: {down_benchmark.shape}")
+        
+        return self._calculate_standard_beta(down_portfolio, down_benchmark)
+def _calculate_beta_statistics(
             self,
             portfolio_returns: np.ndarray,
             benchmark_returns: np.ndarray
