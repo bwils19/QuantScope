@@ -517,47 +517,19 @@ def _calculate_rolling_beta(
         return result
 
 def _calculate_downside_beta(
-        self,
-        portfolio_returns: np.ndarray,
-        benchmark_returns: np.ndarray
-) -> float:
-    """Calculate downside beta (beta during negative benchmark returns)."""
-    try:
-        print(f"\n==== DEBUG: _calculate_downside_beta ====")
-        print(f"portfolio_returns shape: {portfolio_returns.shape if hasattr(portfolio_returns, 'shape') else 'N/A'}")
-        print(f"benchmark_returns shape: {benchmark_returns.shape if hasattr(benchmark_returns, 'shape') else 'N/A'}")
-        
-        # Ensure arrays are the same length
-        if len(portfolio_returns) != len(benchmark_returns):
-            print(f"WARNING: Length mismatch - portfolio: {len(portfolio_returns)}, benchmark: {len(benchmark_returns)}")
-            min_length = min(len(portfolio_returns), len(benchmark_returns))
-            portfolio_returns = portfolio_returns[:min_length]
-            benchmark_returns = benchmark_returns[:min_length]
-            print(f"Aligned lengths to: {min_length}")
-        
-        # Check if there are any negative benchmark returns
+            self,
+            portfolio_returns: np.ndarray,
+            benchmark_returns: np.ndarray
+    ) -> float:
+        """Calculate downside beta (beta during negative benchmark returns)."""
         mask = benchmark_returns < 0
-        if not np.any(mask):
-            print("No negative benchmark returns, using standard beta")
+        if not any(mask):
             return self._calculate_standard_beta(portfolio_returns, benchmark_returns)
-        
-        # Extract returns during negative benchmark periods
+
         down_portfolio = portfolio_returns[mask]
         down_benchmark = benchmark_returns[mask]
-        
-        print(f"Negative benchmark returns: {np.sum(mask)}/{len(mask)}")
-        print(f"down_portfolio shape: {down_portfolio.shape if hasattr(down_portfolio, 'shape') else 'N/A'}")
-        print(f"down_benchmark shape: {down_benchmark.shape if hasattr(down_benchmark, 'shape') else 'N/A'}")
-        
-        # Calculate downside beta
-        return self._calculate_standard_beta(down_portfolio, down_benchmark)
-    except Exception as e:
-        print(f"Error in _calculate_downside_beta: {str(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        # Return standard beta as a fallback
-        return self._calculate_standard_beta(portfolio_returns, benchmark_returns)
-def _calculate_beta_statistics(
+
+        return self._calculate_standard_beta(down_portfolio, down_benchmark)def _calculate_beta_statistics(
             self,
             portfolio_returns: np.ndarray,
             benchmark_returns: np.ndarray
