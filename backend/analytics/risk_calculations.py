@@ -242,7 +242,7 @@ class RiskAnalytics:
             print(f"Traceback: {traceback.format_exc()}")
             return self._get_default_beta_metrics()
         
-        
+
 def _get_benchmark_returns(self, start_date: datetime.date, end_date: datetime.date) -> np.ndarray:
         """Get benchmark returns from historical data table."""
         try:
@@ -529,7 +529,10 @@ def _calculate_downside_beta(
         down_portfolio = portfolio_returns[mask]
         down_benchmark = benchmark_returns[mask]
 
-        return self._calculate_standard_beta(down_portfolio, down_benchmark)def _calculate_beta_statistics(
+        return self._calculate_standard_beta(down_portfolio, down_benchmark)
+
+
+def _calculate_beta_statistics(
             self,
             portfolio_returns: np.ndarray,
             benchmark_returns: np.ndarray
