@@ -540,7 +540,7 @@ function renderBetaChart(betaData) {
     });
 
     // Update beta metrics card
-    document.getElementById('portfolioBeta').textContent = betaData.beta.toFixed(2);
+            document.getElementById('portfolioBeta').textContent = data.beta.beta.toFixed(2);
 
     // Add additional beta metrics to the card
     const betaContext = document.querySelector('.beta-metrics');

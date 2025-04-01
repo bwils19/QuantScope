@@ -64,23 +64,7 @@ def get_portfolio_risk(portfolio_id):
         # calculate metrics
         var_data = risk_analyzer.calculate_dynamic_var(securities_data)
         credit_risk = calculate_credit_risk(securities_data)
-        # beta_data = risk_analyzer.calculate_portfolio_beta(securities_data)
-        # Force beta value for testing
-        beta_data = {
-            'beta': 0.7,
-            'downside_beta': 0.65,
-            'rolling_betas': [0.7] * 60,
-            'r_squared': 0.8,
-            'standard_error': 0.05,
-            'confidence': {
-                'high': 0.8,
-                'low': 0.6
-            },
-            'analysis': {
-                'trend': 'stable',
-                'stability': 'high'
-            }
-        }
+        beta_data = risk_analyzer.calculate_portfolio_beta(securities_data)
         var_components = risk_analyzer.get_var_components(securities_data)
 
         latest_update = db.session.query(

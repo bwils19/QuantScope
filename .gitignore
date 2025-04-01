@@ -67,3 +67,7 @@ direct_edit.py
 force_beta_value_direct.py
 fix_default_beta.py
 search_for_beta_default.py
+fix_beta_in_frontend.py
+check_day_change.py
+find_portfolio_upload_handler.py
+find_upload_portfolio.py
