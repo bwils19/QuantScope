@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         loadingTimeout = await showLoading(chartCard, 'Loading Portfolio Risk Analysis...', 0);
 
-        const response = await fetch(`/analytics/portfolio/${portfolioId}/risk`);
+        const response = await fetch(`/analytics/portfolio/${portfolioId}/risk?force_refresh=true`);
         const data = await response.json();
         console.log("Risk Data API Response:", data);
 

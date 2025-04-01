@@ -220,10 +220,12 @@ class RiskAnalysisCache(db.Model):
     @classmethod
     def get_cache(cls, portfolio_id: int) -> Optional[Dict]:
         try:
+            print(f"\n==== DEBUG: RiskAnalysisCache.get_cache ====\nportfolio_id: {portfolio_id}")
             cache = cls.query.filter_by(portfolio_id=portfolio_id).first()
             if not cache or cache.expires_at < datetime.utcnow():
                 return None
-            return cache.cache_data
+            print(f"Returning cached data: {cache.cache_data}")
+            return None  # Force recalculation by returning None instead of cache.cache_data
         except Exception as e:
             print(f"Error retrieving cache: {str(e)}")
             return None

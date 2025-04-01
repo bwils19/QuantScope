@@ -24,6 +24,17 @@ def create_app(test_config=None):
     load_dotenv()
 
     app = Flask(__name__)
+
+    # Clear the RiskAnalysisCache table on startup
+    @app.before_first_request
+    def clear_risk_analysis_cache():
+        try:
+            from backend.models import RiskAnalysisCache
+            RiskAnalysisCache.query.delete()
+            db.session.commit()
+            print("Cleared RiskAnalysisCache table on startup")
+        except Exception as e:
+            print(f"Error clearing RiskAnalysisCache table: {str(e)}")
     loggers = setup_logging(app)
 
     if test_config is None:
