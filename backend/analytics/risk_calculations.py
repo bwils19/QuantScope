@@ -520,6 +520,16 @@ class RiskAnalytics:
             benchmark_returns: np.ndarray
     ) -> float:
         """Calculate downside beta (beta during negative benchmark returns)."""
+        # Check for length mismatch and align if needed
+        if len(portfolio_returns) != len(benchmark_returns):
+            print(f"Length mismatch in downside beta calculation - portfolio: {len(portfolio_returns)}, benchmark: {len(benchmark_returns)}")
+            # Use the smaller length for both arrays
+            min_len = min(len(portfolio_returns), len(benchmark_returns))
+            portfolio_returns = portfolio_returns[:min_len]
+            benchmark_returns = benchmark_returns[:min_len]
+            print(f"Aligned arrays to length {min_len}")
+        
+        # Now create the mask and proceed
         mask = benchmark_returns < 0
         if not any(mask):
             return self._calculate_standard_beta(portfolio_returns, benchmark_returns)
@@ -530,8 +540,13 @@ class RiskAnalytics:
         if len(down_portfolio) < 2:
             return 1.0
 
-        slope, _, _, _, _ = stats.linregress(down_benchmark, down_portfolio)
-        return slope
+        try:
+            slope, _, _, _, _ = stats.linregress(down_benchmark, down_portfolio)
+            return slope
+        except Exception as e:
+            print(f"Error in downside beta calculation: {str(e)}")
+            # Fall back to standard beta
+            return self._calculate_standard_beta(portfolio_returns, benchmark_returns)
 
     def _calculate_beta_statistics(
             self,
