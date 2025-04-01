@@ -128,6 +128,7 @@ async function renderRiskDashboard(data) {
             console.log("Beta data:", data.beta);
             console.log("Beta value:", data.beta.beta);
             document.getElementById('portfolioBeta').textContent = data.beta.beta.toFixed(2);
+            console.log('DEBUG: Setting beta value to ' + data.beta.beta.toFixed(2));
             renderBetaChart(data.beta);
         } else {
             console.error('Invalid or missing beta data:', data.beta);
@@ -541,6 +542,7 @@ function renderBetaChart(betaData) {
 
     // Update beta metrics card
             document.getElementById('portfolioBeta').textContent = data.beta.beta.toFixed(2);
+            console.log('DEBUG: Setting beta value to ' + data.beta.beta.toFixed(2));
 
     // Add additional beta metrics to the card
     const betaContext = document.querySelector('.beta-metrics');

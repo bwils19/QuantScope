@@ -65,6 +65,7 @@ def get_portfolio_risk(portfolio_id):
         var_data = risk_analyzer.calculate_dynamic_var(securities_data)
         credit_risk = calculate_credit_risk(securities_data)
         beta_data = risk_analyzer.calculate_portfolio_beta(securities_data)
+        print(f"DEBUG: Beta data from risk_analyzer: {beta_data}")
         var_components = risk_analyzer.get_var_components(securities_data)
 
         latest_update = db.session.query(
