@@ -36,38 +36,3 @@ implement_view_sync.md
 
 
 # Fix scripts
-fix_beta_calculation.py
-implement_fixes.py
-run_all_fixes.py
-direct_fixes.py
-add_info_icon.py
-create_portfolio_trigger.sql
-fix_beta_value.py
-implement_beta_fix.py
-update_portfolio_metrics.py
-revert_changes.pycheck_fixes.py
-manual_fixes.py
-revert_changes.py
-check_benchmark.py
-fix_beta_and_tooltip.py
-fix_beta_and_tooltip_v2.py
-force_beta_fix.py
-fix_cache_and_tooltip.py
-
-fix_beta_calculation_final.py
-implement_auto_cache_invalidation.py
-simple_clear_cache.py
-check_and_fix_hardcoded_beta.py
-fix_beta_display.py
-debug_beta_calculation.py
-backend/routes/analytics_routes.py.bak
-backend/static/js/risk_analysis.js.bak
-backend/templates/risk_analysis.html.bak
-direct_edit.py
-force_beta_value_direct.py
-fix_default_beta.py
-search_for_beta_default.py
-fix_beta_in_frontend.py
-check_day_change.py
-find_portfolio_upload_handler.py
-find_upload_portfolio.py
