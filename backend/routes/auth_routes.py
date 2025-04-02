@@ -606,6 +606,52 @@ def portfolio_overview():
 
         print(f"===== PORTFOLIO OVERVIEW ROUTE COMPLETE =====")
 
+        # adding debugging to see what is being populated when rendering the template
+        for i, p in enumerate(portfolios):
+            print(f"\n===== Portfolio #{i+1}: {p.name} (ID: {p.id}) =====")
+            print(f"Total value: {p.total_value}")
+            print(f"Day change: {p.day_change}")
+            print(f"Day change %: {p.day_change_pct}")
+            print(f"Total gain: {p.total_gain}")
+            print(f"Total gain %: {p.total_gain_pct}")
+            
+            # Check the associated securities
+            portfolio_securities = db.session.query(PortfolioSecurity).filter_by(portfolio_id=p.id).all()
+            print(f"Number of securities: {len(portfolio_securities)}")
+            
+            # Calculate expected totals from securities
+            total_value = 0
+            total_cost = 0
+            
+            for ps in portfolio_securities:
+                security = db.session.query(Security).filter_by(id=ps.security_id).first()
+                if not security:
+                    print(f"  WARNING: Missing security record for ID {ps.security_id}")
+                    continue
+                    
+                print(f"  Security: {security.ticker}, Amount: {ps.amount_owned}, Current price: {security.current_price}")
+                print(f"  Purchase price: {ps.purchase_price}, Purchase date: {ps.purchase_date}")
+                
+                current_value = ps.amount_owned * (security.current_price or 0)
+                cost_basis = ps.amount_owned * (ps.purchase_price or 0)
+                
+                print(f"  Current value: {current_value}, Cost basis: {cost_basis}")
+                print(f"  Gain/loss: {current_value - cost_basis}, Total gain %: {((current_value / cost_basis) - 1) * 100 if cost_basis > 0 else 0}")
+                
+                total_value += current_value
+                total_cost += cost_basis
+            
+            print(f"Calculated total value: {total_value}, Stored value: {p.total_value}")
+            print(f"Calculated total cost: {total_cost}")
+            print(f"Calculated total gain: {total_value - total_cost}, Stored gain: {p.total_gain}")
+            
+            if total_cost > 0:
+                calc_gain_pct = ((total_value / total_cost) - 1) * 100
+                print(f"Calculated gain %: {calc_gain_pct}, Stored gain %: {p.total_gain_pct}")
+            else:
+                print("Cannot calculate gain % (no cost basis)")
+
+
         # Render the template with all the data
         return render_template(
             'portfolio_overview.html',
@@ -1207,26 +1253,7 @@ def preview_portfolio_file():
             db.session.add(portfolio_file)
             db.session.commit()
 
-            
-        # Calculate TOTAL RETURN values
-        try:
-            # Calculate total return
-            if total_cost > 0:
-                portfolio.total_return = total_value - total_cost
-                portfolio.total_return_pct = ((total_value / total_cost) - 1) * 100
-            else:
-                portfolio.total_return = 0
-                portfolio.total_return_pct = 0
-            
-            # Log the calculated values
-            print(f"Portfolio metrics calculated: Total return: ${portfolio.total_return}, Total return %: {portfolio.total_return_pct}%")
-        except Exception as e:
-            print(f"Error: {str(e)}")
-            pass
-        except Exception as calc_error:
-            print(f"Error calculating total return: {str(calc_error)}")
-            # Non-critical error, continue with portfolio creation
-    return jsonify({
+            return jsonify({
                 'preview_data': preview_data,
                 'summary': validation_summary,
                 'message': 'File processed successfully',
@@ -1395,20 +1422,6 @@ def create_portfolio_from_file(file_id):
 
             # Update portfolio totals
             portfolio = Portfolio.query.get(portfolio.id)  # Re-fetch after commits
-            
-            # Calculate DAY CHANGE values
-            portfolio.day_change = 0  # Initialize to zero
-            portfolio.day_change_pct = 0  # Initialize to zero
-            
-            # Calculate TOTAL RETURN values
-            if total_cost > 0:
-                portfolio.total_return = total_value - total_cost
-                portfolio.total_return_pct = ((total_value / total_cost) - 1) * 100
-            else:
-                portfolio.total_return = 0
-                portfolio.total_return_pct = 0
-            
-            # Update portfolio with calculated values
             portfolio.total_value = total_value
             portfolio.total_gain = total_value - total_cost
             portfolio.total_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0
