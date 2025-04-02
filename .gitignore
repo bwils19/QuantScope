@@ -33,6 +33,7 @@ frontend/dist/
 Thumbs.db
 PRICE_UPDATE_SETUP.md
 implement_view_sync.md
+*.md
 
 
 # Fix scripts
