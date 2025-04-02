@@ -1220,6 +1220,9 @@ def preview_portfolio_file():
             
             # Log the calculated values
             print(f"Portfolio metrics calculated: Total return: ${portfolio.total_return}, Total return %: {portfolio.total_return_pct}%")
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            pass
         except Exception as calc_error:
             print(f"Error calculating total return: {str(calc_error)}")
             # Non-critical error, continue with portfolio creation
