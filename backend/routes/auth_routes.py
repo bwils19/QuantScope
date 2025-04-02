@@ -1207,7 +1207,23 @@ def preview_portfolio_file():
             db.session.add(portfolio_file)
             db.session.commit()
 
-            return jsonify({
+            
+        # Calculate TOTAL RETURN values
+        try:
+            # Calculate total return
+            if total_cost > 0:
+                portfolio.total_return = total_value - total_cost
+                portfolio.total_return_pct = ((total_value / total_cost) - 1) * 100
+            else:
+                portfolio.total_return = 0
+                portfolio.total_return_pct = 0
+            
+            # Log the calculated values
+            print(f"Portfolio metrics calculated: Total return: ${portfolio.total_return}, Total return %: {portfolio.total_return_pct}%")
+        except Exception as calc_error:
+            print(f"Error calculating total return: {str(calc_error)}")
+            # Non-critical error, continue with portfolio creation
+    return jsonify({
                 'preview_data': preview_data,
                 'summary': validation_summary,
                 'message': 'File processed successfully',
@@ -1376,6 +1392,20 @@ def create_portfolio_from_file(file_id):
 
             # Update portfolio totals
             portfolio = Portfolio.query.get(portfolio.id)  # Re-fetch after commits
+            
+            # Calculate DAY CHANGE values
+            portfolio.day_change = 0  # Initialize to zero
+            portfolio.day_change_pct = 0  # Initialize to zero
+            
+            # Calculate TOTAL RETURN values
+            if total_cost > 0:
+                portfolio.total_return = total_value - total_cost
+                portfolio.total_return_pct = ((total_value / total_cost) - 1) * 100
+            else:
+                portfolio.total_return = 0
+                portfolio.total_return_pct = 0
+            
+            # Update portfolio with calculated values
             portfolio.total_value = total_value
             portfolio.total_gain = total_value - total_cost
             portfolio.total_gain_pct = ((total_value / total_cost) - 1) * 100 if total_cost > 0 else 0

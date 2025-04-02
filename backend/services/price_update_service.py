@@ -932,6 +932,9 @@ class PriceUpdateService:
             if cost_basis > 0:
                 portfolio.total_gain_pct = ((total_value / cost_basis) - 1) * 100
 
+                # Calculate total return
+                self.calculate_total_return(portfolio, session)
+                
             # Update total holdings count
             portfolio.total_holdings = len(portfolio_securities)
 
