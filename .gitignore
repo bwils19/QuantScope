@@ -31,7 +31,7 @@ frontend/dist/
 # Ignore system files
 .DS_Store
 Thumbs.db
-README_FIX_DAY_CHANGE.md
+PRICE_UPDATE_SETUP.md
 implement_view_sync.md
 
 

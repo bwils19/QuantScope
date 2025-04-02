@@ -73,9 +73,10 @@ class MarketUtils:
         if current_time < market_close_time:
             return False, "Market still open - data not final"
 
-        # If after 8 PM ET, data should be available
+        # If before 4:30 PM ET, data might not be available yet
         data_available_time = current_time.replace(hour=16, minute=30, second=0, microsecond=0)
         if current_time < data_available_time:
             return False, "Waiting for end-of-day data to be available"
 
-        return True, "Testing mode - allowing update"
+        # All checks passed, allow update
+        return True, "Market closed and data should be available"

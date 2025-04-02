@@ -1,11 +1,20 @@
 from celery import Celery
 from celery.schedules import crontab
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Get Redis URL from environment or use default
+REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+
 # Create the base celery instance
 celery = Celery(
     "quant_scope",
-    broker="redis://localhost:6379/0",
-    backend="redis://localhost:6379/0"
+    broker=REDIS_URL,
+    backend=REDIS_URL
 )
 
 

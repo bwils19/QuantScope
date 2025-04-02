@@ -1173,48 +1173,137 @@ def get_global_quote(self, ticker):
 
 
 
-@celery.task
-def scheduled_price_update():
+@celery.task(bind=True, max_retries=3)
+def scheduled_price_update(self):
     """
     Celery task to update all portfolio prices every 5 minutes during market hours.
     """
     service = PriceUpdateService()
     service.logger.info("Running scheduled price update via Celery...")
-    result = service.update_all_portfolio_prices()
-    service.logger.info(f"Scheduled update complete: {result}")
-    return result
+    
+    try:
+        # Check if market is open
+        from backend.services.stock_service import is_market_open
+        if not is_market_open():
+            service.logger.info("Market is closed, skipping price update.")
+            return {"success": False, "message": "Market closed"}
+            
+        result = service.update_all_portfolio_prices()
+        service.logger.info(f"Scheduled update complete: {result}")
+        return result
+    except Exception as e:
+        service.logger.error(f"Error in scheduled price update: {str(e)}", exc_info=True)
+        # Retry the task with exponential backoff
+        retry_in = 60 * (2 ** self.request.retries)  # 60s, 120s, 240s
+        self.retry(exc=e, countdown=retry_in)
 
-
-@celery.task
-def save_closing_prices():
+@celery.task(bind=True, max_retries=3)
+def save_closing_prices(self):
     """
     Celery task to save the final stock prices at the end of the market day.
     Moves the final prices from StockCache to SecurityHistoricalData.
     """
     service = PriceUpdateService()
-    if service.is_market_open():
+    service.logger.info("Starting save_closing_prices task...")
+    
+    # Import the correct is_market_open function
+    from backend.services.stock_service import is_market_open
+    if is_market_open():
         service.logger.info("Market still open, skipping final price save.")
-        return
+        return {"success": False, "message": "Market still open"}
 
     session = db.session
     try:
         service.logger.info("Saving closing prices from StockCache into SecurityHistoricalData...")
         all_cache_entries = session.query(StockCache).all()
+        
+        if not all_cache_entries:
+            service.logger.warning("No cache entries found to save as historical data")
+            return {"success": False, "message": "No cache entries found"}
+            
+        count = 0
         for cache_entry in all_cache_entries:
-            historical_entry = SecurityHistoricalData(
-                ticker=cache_entry.ticker,
-                date=datetime.utcnow().date(),
-                close_price=cache_entry.data["currentPrice"]
-            )
-            session.add(historical_entry)
+            try:
+                if not cache_entry.data or "currentPrice" not in cache_entry.data:
+                    service.logger.warning(f"Invalid cache data for {cache_entry.ticker}, skipping")
+                    continue
+                    
+                # Check if we already have an entry for this date
+                today = datetime.utcnow().date()
+                existing = session.query(SecurityHistoricalData).filter_by(
+                    ticker=cache_entry.ticker,
+                    date=today
+                ).first()
+                
+                if existing:
+                    # Update existing entry
+                    existing.close_price = cache_entry.data["currentPrice"]
+                    existing.updated_at = datetime.utcnow()
+                else:
+                    # Create new entry
+                    historical_entry = SecurityHistoricalData(
+                        ticker=cache_entry.ticker,
+                        date=today,
+                        close_price=cache_entry.data["currentPrice"]
+                    )
+                    session.add(historical_entry)
+                count += 1
+            except Exception as item_error:
+                service.logger.error(f"Error processing {cache_entry.ticker}: {str(item_error)}")
+                continue
 
         session.commit()
-        service.logger.info("Closing prices successfully saved.")
+        service.logger.info(f"Closing prices successfully saved for {count} securities.")
+        return {"success": True, "count": count}
 
     except Exception as e:
         session.rollback()
         service.logger.error(f"Error saving closing prices: {str(e)}", exc_info=True)
+        
+        # Retry the task with exponential backoff
+        retry_in = 60 * (2 ** self.request.retries)  # 60s, 120s, 240s
+        self.retry(exc=e, countdown=retry_in)
+        
+        return {"success": False, "error": str(e)}
 
     finally:
         session.close()
+
+
+@celery.task(bind=True, max_retries=3)
+def update_historical_data(self):
+    """
+    Celery task to update historical data after market close.
+    This task adds daily closing prices to the historical record.
+    """
+    service = PriceUpdateService()
+    service.logger.info("Starting historical data update task...")
+    
+    # Import the historical data service
+    from backend.services.historical_data_service import HistoricalDataService
+    
+    try:
+        # Create historical data service
+        historical_service = HistoricalDataService()
+        
+        # Check if we should fetch market data
+        should_fetch, reason = historical_service.market_utils.should_fetch_market_data()
+        
+        if not should_fetch:
+            service.logger.info(f"Skipping historical data update: {reason}")
+            return {"success": False, "message": reason}
+        
+        # Run the update
+        result = historical_service.update_historical_data()
+        service.logger.info(f"Historical data update complete: {result}")
+        return result
+        
+    except Exception as e:
+        service.logger.error(f"Error in historical data update: {str(e)}", exc_info=True)
+        
+        # Retry the task with exponential backoff
+        retry_in = 60 * (2 ** self.request.retries)  # 60s, 120s, 240s
+        self.retry(exc=e, countdown=retry_in)
+        
+        return {"success": False, "error": str(e)}
 

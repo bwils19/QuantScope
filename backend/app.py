@@ -133,18 +133,67 @@ def create_app(test_config=None):
         except Exception as e:
             print(f"Error fetching API key: {e}")
             return jsonify({'error': 'Internal server error'}), 500
-
-    # Initialize scheduler if not in debug mode
-    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+            
+    @app.route('/api/health')
+    def health_check():
+        """Health check endpoint to verify system status"""
         try:
-            scheduler = init_scheduler(app)
-            if scheduler:  # Only set if initialization succeeded
-                app.scheduler = scheduler
-                app.logger.info("Scheduler initialized successfully")
-            else:
-                app.logger.warning("Scheduler could not be initialized, continuing without it")
+            # Check database connection
+            db_status = "ok"
+            try:
+                db.session.execute("SELECT 1")
+            except Exception as e:
+                db_status = f"error: {str(e)}"
+                
+            # Check Celery/Redis connection
+            celery_status = "ok"
+            try:
+                from backend.services.price_update_service import scheduled_price_update
+                # Send a simple ping task
+                ping = scheduled_price_update.apply_async(args=[], countdown=0)
+                ping.revoke()  # Revoke it immediately so it doesn't actually run
+            except Exception as e:
+                celery_status = f"error: {str(e)}"
+                
+            # Check environment variables
+            env_vars = {
+                "ALPHA_VANTAGE_KEY": "present" if os.getenv('ALPHA_VANTAGE_KEY') else "missing",
+                "DATABASE_URL": "present" if os.getenv('DATABASE_URL') else "missing",
+                "REDIS_URL": "present" if os.getenv('REDIS_URL') else "missing"
+            }
+            
+            return jsonify({
+                'status': 'ok',
+                'timestamp': datetime.now().isoformat(),
+                'components': {
+                    'database': db_status,
+                    'celery': celery_status,
+                    'environment': env_vars
+                }
+            })
         except Exception as e:
-            app.logger.error(f"Failed to initialize scheduler: {e}")
+            app.logger.error(f"Health check failed: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }), 500
+
+    # Using Celery for scheduling instead of APScheduler
+    # Commenting out APScheduler initialization to avoid conflicts
+    #
+    # if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    #     try:
+    #         scheduler = init_scheduler(app)
+    #         if scheduler:  # Only set if initialization succeeded
+    #             app.scheduler = scheduler
+    #             app.logger.info("Scheduler initialized successfully")
+    #         else:
+    #             app.logger.warning("Scheduler could not be initialized, continuing without it")
+    #     except Exception as e:
+    #         app.logger.error(f"Failed to initialize scheduler: {e}")
+    
+    app.logger.info("Using Celery for task scheduling. APScheduler disabled.")
 
     # Run stress scenarios data population with detailed logging
     # with app.app_context():
