@@ -88,6 +88,13 @@ class PriceUpdateService:
             status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["GET"]
         )
+
+        adapter = HTTPAdapter(
+            max_retries=retries,
+            pool_connections=25,  # needed to increase this, getting connection pool timeouts
+            pool_maxsize=25       
+        )
+
         session.mount('https://', HTTPAdapter(max_retries=retries))
         return session
 
@@ -427,7 +434,10 @@ class PriceUpdateService:
             # Update securities with the new prices
             self.logger.info("Updating securities with price data...")
             update_start = time.time()
-            update_stats = self._update_securities_with_prices(all_price_data, session)
+            securities = session.query(Security).filter(Security.ticker.in_(list(all_price_data.keys()))).all()
+
+            # Call with correct parameter order
+            update_stats = self._update_securities_with_prices(session, securities, all_price_data)
             update_time = time.time() - update_start
 
             update_stats['failed_count'] = len(failed_tickers)
@@ -1272,9 +1282,36 @@ def save_closing_prices(self):
 @celery.task(name='update_prices', bind=True, max_retries=3)
 def update_prices(self):
     """Update prices for all securities in active portfolios."""
-    service = PriceUpdateService()
-    result = service.update_all_portfolio_prices()
-    return result
+    try:
+        service = PriceUpdateService()
+        
+        # Create a session
+        session = service._create_session()
+        
+        try:
+            # Get all tickers
+            all_tickers = session.query(Security.ticker).distinct().all()
+            tickers = [ticker[0] for ticker in all_tickers]
+            
+            if not tickers:
+                return {
+                    'success': True,
+                    'message': 'No securities found to update',
+                    'updated_count': 0
+                }
+            
+            # Use the update_prices_for_tickers method directly
+            result = service.update_prices_for_tickers(tickers, session)
+            
+            return result
+        finally:
+            session.close()
+    except Exception as e:
+        self.retry(exc=e, countdown=60)
+        return {
+            'success': False,
+            'error': str(e)
+        }
 
 @celery.task(name='update_historical_data', bind=True, max_retries=3)
 def update_historical_data(self):
