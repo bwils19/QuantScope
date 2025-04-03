@@ -1165,50 +1165,7 @@ def calculate_total_return(self, portfolio, session=None):
             if close_session:
                 session.close()
 
-def recalculate_all_portfolio_metrics(self):
-    """Recalculate metrics for all portfolios to ensure day change and total return values are set."""
-    self.logger.info("Recalculating metrics for all portfolios...")
-    
-    try:
-        # Create a new session
-        session = self._create_session()
-        
-        try:
-            # Get all portfolios
-            from backend.models import Portfolio
-            portfolios = session.query(Portfolio).all()
-            self.logger.info(f"Found {len(portfolios)} portfolios to update")
-            
-            success_count = 0
-            error_count = 0
-            
-            for portfolio in portfolios:
-                try:
-                    # Update portfolio metrics
-                    self.update_portfolio_metrics(portfolio.id)
-                    success_count += 1
-                except Exception as e:
-                    self.logger.error(f"Error updating portfolio {portfolio.id}: {str(e)}")
-                    error_count += 1
-            
-            self.logger.info(f"Portfolio metrics update complete. Success: {success_count}, Errors: {error_count}")
-            return {
-                'success': True,
-                'total': len(portfolios),
-                'success_count': success_count,
-                'error_count': error_count
-            }
-        
-        finally:
-            session.close()
-    
-    except Exception as e:
-        self.logger.error(f"Error recalculating portfolio metrics: {str(e)}")
-        return {
-            'success': False,
-            'error': str(e)
-        }
-def get_security_overview(self, ticker):
+    def get_security_overview(self, ticker):
         BASE_URL = "https://www.alphavantage.co/query"
         response = requests.get(BASE_URL, params={
             "function": "OVERVIEW",
@@ -1217,9 +1174,9 @@ def get_security_overview(self, ticker):
         })
         return response.json()
 
-def get_global_quote(self, ticker):
-    BASE_URL = "https://www.alphavantage.co/query"
-    response = requests.get(BASE_URL, params={
+    def get_global_quote(self, ticker):
+        BASE_URL = "https://www.alphavantage.co/query"
+        response = requests.get(BASE_URL, params={
         "function": "GLOBAL_QUOTE",
         "symbol": ticker,
         "apikey": self.api_key
@@ -1227,6 +1184,50 @@ def get_global_quote(self, ticker):
     return response.json()
 
 
+
+
+    def recalculate_all_portfolio_metrics(self):
+        """Recalculate metrics for all portfolios to ensure day change and total return values are set."""
+        self.logger.info("Recalculating metrics for all portfolios...")
+        
+        try:
+            # Create a new session
+            session = self._create_session()
+            
+            try:
+                # Get all portfolios
+                from backend.models import Portfolio
+                portfolios = session.query(Portfolio).all()
+                self.logger.info(f"Found {len(portfolios)} portfolios to update")
+                
+                success_count = 0
+                error_count = 0
+                
+                for portfolio in portfolios:
+                    try:
+                        # Update portfolio metrics
+                        self.update_portfolio_metrics(portfolio.id)
+                        success_count += 1
+                    except Exception as e:
+                        self.logger.error(f"Error updating portfolio {portfolio.id}: {str(e)}")
+                        error_count += 1
+                
+                self.logger.info(f"Portfolio metrics update complete. Success: {success_count}, Errors: {error_count}")
+                return {
+                    'success': True,
+                    'total': len(portfolios),
+                    'success_count': success_count,
+                    'error_count': error_count
+                }
+            finally:
+                session.close()
+        
+        except Exception as e:
+            self.logger.error(f"Error recalculating portfolio metrics: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
 
 @celery.task(name='scheduled_price_update', bind=True, max_retries=3)
 def scheduled_price_update(self):
