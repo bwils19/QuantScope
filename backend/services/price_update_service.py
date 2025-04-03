@@ -81,21 +81,31 @@ class PriceUpdateService:
     def _create_request_session(self) -> requests.Session:
         """Create a request session with retry configuration."""
         self.logger.debug("Creating request session with retry configuration")
+        
+        # Create a new session
         session = requests.Session()
+        
+        # Configure retries
         retries = Retry(
             total=3,
             backoff_factor=0.5,
             status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["GET"]
         )
-
+        
+        # Create an adapter with a larger pool size
         adapter = HTTPAdapter(
             max_retries=retries,
-            pool_connections=25,  # needed to increase this, getting connection pool timeouts
-            pool_maxsize=25       
+            pool_connections=25,  # Increase from default 10
+            pool_maxsize=25       # Increase from default 10
         )
-
-        session.mount('https://', HTTPAdapter(max_retries=retries))
+        
+        # Mount the adapter
+        session.mount('https://', adapter)
+        
+        # Verify the adapter settings
+        self.logger.info(f"Created request session with pool_connections={adapter.pool_connections}, pool_maxsize={adapter.pool_maxsize}")
+        
         return session
 
     def update_all_portfolio_prices(self, is_weekend=None) -> Dict[str, Any]:
@@ -392,9 +402,9 @@ class PriceUpdateService:
 
                     # Use multiple threads to fetch data faster, but stay within rate limit
                     start_batch_time = time.time()
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=self.rate_limit) as executor:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                         futures = {executor.submit(self._fetch_ticker_data, ticker): ticker for ticker in batch}
-
+                        
                         for future in concurrent.futures.as_completed(futures):
                             ticker = futures[future]
                             try:
@@ -1285,29 +1295,23 @@ def update_prices(self):
     try:
         service = PriceUpdateService()
         
-        # Create a session
-        session = service._create_session()
+        # Use the update_all_portfolio_prices method directly
+        result = service.update_all_portfolio_prices()
         
-        try:
-            # Get all tickers
-            all_tickers = session.query(Security.ticker).distinct().all()
-            tickers = [ticker[0] for ticker in all_tickers]
-            
-            if not tickers:
-                return {
-                    'success': True,
-                    'message': 'No securities found to update',
-                    'updated_count': 0
-                }
-            
-            # Use the update_prices_for_tickers method directly
-            result = service.update_prices_for_tickers(tickers, session)
-            
-            return result
-        finally:
-            session.close()
+        # Return a dictionary, not a tuple
+        return {
+            'success': True if result.get('success', False) else False,
+            'updated_count': result.get('updated_count', 0),
+            'message': result.get('message', ''),
+            'elapsed_time': result.get('elapsed_time', 0)
+        }
     except Exception as e:
-        self.retry(exc=e, countdown=60)
+        # Log the error
+        import logging
+        logger = logging.getLogger('celery.tasks')
+        logger.error(f"Error in update_prices task: {str(e)}", exc_info=True)
+        
+        # Return error information
         return {
             'success': False,
             'error': str(e)
