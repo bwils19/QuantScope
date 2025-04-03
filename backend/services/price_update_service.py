@@ -1173,7 +1173,7 @@ def get_global_quote(self, ticker):
 
 
 
-@celery.task(bind=True, max_retries=3)
+@celery.task(name='scheduled_price_update', bind=True, max_retries=3)
 def scheduled_price_update(self):
     """
     Celery task to update all portfolio prices every 5 minutes during market hours.
@@ -1197,7 +1197,7 @@ def scheduled_price_update(self):
         retry_in = 60 * (2 ** self.request.retries)  # 60s, 120s, 240s
         self.retry(exc=e, countdown=retry_in)
 
-@celery.task(bind=True, max_retries=3)
+@celery.task(name='save_closing_prices', bind=True, max_retries=3)
 def save_closing_prices(self):
     """
     Celery task to save the final stock prices at the end of the market day.
@@ -1269,8 +1269,14 @@ def save_closing_prices(self):
     finally:
         session.close()
 
+@celery.task(name='update_prices', bind=True, max_retries=3)
+def update_prices():
+    """Update prices for all securities in active portfolios."""
+    service = PriceUpdateService()
+    result = service.update_all_portfolio_prices()
+    return result
 
-@celery.task(bind=True, max_retries=3)
+@celery.task(name='update_historical_data', bind=True, max_retries=3)
 def update_historical_data(self):
     """
     Celery task to update historical data after market close.

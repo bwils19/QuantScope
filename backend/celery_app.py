@@ -17,7 +17,7 @@ celery = Celery(
     backend=REDIS_URL
 )
 
-
+celery.autodiscover_tasks(['backend.tasks'])
 celery.conf.task_default_rate_limit = '75/m'
 celery.conf.worker_prefetch_multiplier = 1
 celery.conf.worker_concurrency = 2
