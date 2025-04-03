@@ -291,7 +291,7 @@ class UploadedFile(db.Model):
     validation_result = db.Column(db.Text, nullable=True)
     is_processed = db.Column(db.Boolean, default=False, nullable=False)
     processed_date = db.Column(db.DateTime, nullable=True)
-    metadata = db.Column(db.JSON, nullable=True)
+    file_metadata = db.Column(db.JSON, nullable=True)  # Renamed from 'metadata' which is a reserved keyword
     
     # Relationship with User
     user = db.relationship('User', backref=db.backref('uploaded_files', lazy=True, cascade='all, delete-orphan'))
@@ -310,7 +310,7 @@ class UploadedFile(db.Model):
             mime_type=metadata.get('mime_type', 'application/octet-stream'),
             file_hash=metadata.get('hash', ''),
             status='validated',
-            metadata={
+            file_metadata={
                 'extension': metadata.get('extension', ''),
                 'validation_time': datetime.utcnow().isoformat()
             }
