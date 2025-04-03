@@ -141,8 +141,7 @@ class RiskAnalytics:
     def calculate_portfolio_beta(self, securities_data: List[Dict], lookback_days: int = 252) -> Dict:
         
         """Calculate comprehensive beta metrics for the portfolio."""
-        print("
-==== DEBUG: calculate_portfolio_beta ====")
+        print("==== DEBUG: calculate_portfolio_beta ====")
         print(f"Number of securities: {len(securities_data)}")
         print(f"First security: {securities_data[0] if securities_data else None}")
         print(f"Lookback days: {lookback_days}")
@@ -153,8 +152,7 @@ class RiskAnalytics:
         print(f"Date range: {start_date} to {end_date}")
 
 
-        print(f"
-==== DEBUG: calculate_portfolio_beta ====")
+        print(f"==== DEBUG: calculate_portfolio_beta ====")
         print(f"Number of securities: {len(securities_data)}")
         print(f"Securities data: {securities_data[:2]}")  # Print first 2 securities
 
@@ -200,8 +198,7 @@ class RiskAnalytics:
             r_squared, std_error = self._calculate_beta_statistics(portfolio_returns, benchmark_returns)
 
             print(f"DEBUG: Returning beta dictionary with beta = {standard_beta}")
-            print("
-==== DEBUG: Final beta value ====")
+            print("==== DEBUG: Final beta value ====")
             print(f"standard_beta: {standard_beta}")
             print(f"downside_beta: {downside_beta}")
             print(f"rolling_betas: {rolling_betas[:5]}...")
@@ -336,8 +333,7 @@ class RiskAnalytics:
             benchmark_returns: np.ndarray
     ) -> float:
         """Calculate standard beta using regression."""
-        print("
-==== DEBUG: _calculate_standard_beta ====")
+        print("==== DEBUG: _calculate_standard_beta ====")
         print(f"portfolio_returns type: {type(portfolio_returns)}")
         print(f"benchmark_returns type: {type(benchmark_returns)}")
         
@@ -642,11 +638,11 @@ class RiskAnalytics:
                 'stability': 'medium'
             }
         },
-            'analysis': {
-                'trend': 'stable',
-                'stability': 'high'
-            }
+        'analysis': {
+            'trend': 'stable',
+            'stability': 'high'
         }
+        
 
     def calculate_credit_risk(self, securities: List[Dict]) -> Dict:
         """Calculate portfolio credit risk metrics"""
