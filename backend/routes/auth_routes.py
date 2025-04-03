@@ -828,18 +828,49 @@ def upload_file():
             }), 400
 
         # Create a database record for the file without saving to disk
-        new_file = PortfolioFiles(
-            user_id=user.id,
-            filename=filename,
-            uploaded_by=user.email,
-            file_content_type=file.content_type,
-            file_size=file_size
-        )
-        
-        print(f"Creating database record for file")
-        db.session.add(new_file)
-        db.session.commit()
-        print(f"File record created successfully")
+        try:
+            # Try to create with new fields
+            new_file = PortfolioFiles(
+                user_id=user.id,
+                filename=filename,
+                uploaded_by=user.email,
+                file_content_type=file.content_type,
+                file_size=file_size
+            )
+            print(f"Creating database record for file with metadata")
+            db.session.add(new_file)
+            try:
+                db.session.commit()
+                print(f"File record created successfully with metadata")
+            except Exception as e:
+                if 'UndefinedColumn' in str(e) or 'does not exist' in str(e):
+                    # Roll back and try again with original schema
+                    db.session.rollback()
+                    print(f"Database schema missing new columns. Using original schema.")
+                    new_file = PortfolioFiles(
+                        user_id=user.id,
+                        filename=filename,
+                        uploaded_by=user.email
+                    )
+                    db.session.add(new_file)
+                    db.session.commit()
+                    print(f"File record created successfully with original schema")
+                else:
+                    raise
+        except Exception as e:
+            if 'UndefinedColumn' in str(e) or 'does not exist' in str(e):
+                # Fall back to original fields if new columns don't exist yet
+                print(f"Database schema missing new columns. Using original schema.")
+                new_file = PortfolioFiles(
+                    user_id=user.id,
+                    filename=filename,
+                    uploaded_by=user.email
+                )
+                db.session.add(new_file)
+                db.session.commit()
+                print(f"File record created successfully with original schema")
+            else:
+                raise
 
         return jsonify({
             "message": f"File {filename} uploaded successfully!",
@@ -1298,15 +1329,29 @@ def preview_portfolio_file():
             validation_summary['valid_rows'] = valid_count
             validation_summary['invalid_rows'] = invalid_count
 
-            # Create a record in PortfolioFiles with file metadata but no physical file
-            portfolio_file = PortfolioFiles(
-                user_id=user.id,
-                filename=filename,
-                uploaded_by=user.email,
-                file_content_type=file.content_type,
-                file_size=file_size,
-                processed=False
-            )
+            # Create a record in PortfolioFiles
+            # Check if the model has the new fields before using them
+            try:
+                # Try to create with new fields
+                portfolio_file = PortfolioFiles(
+                    user_id=user.id,
+                    filename=filename,
+                    uploaded_by=user.email,
+                    file_content_type=file.content_type,
+                    file_size=file_size,
+                    processed=False
+                )
+            except Exception as e:
+                if 'UndefinedColumn' in str(e) or 'does not exist' in str(e):
+                    # Fall back to original fields if new columns don't exist yet
+                    print("Warning: New columns not available in database. Using original schema.")
+                    portfolio_file = PortfolioFiles(
+                        user_id=user.id,
+                        filename=filename,
+                        uploaded_by=user.email
+                    )
+                else:
+                    raise
             db.session.add(portfolio_file)
             db.session.commit()
 
@@ -1510,8 +1555,17 @@ def create_portfolio_from_file(file_id):
             try:
                 file_record = PortfolioFiles.query.get(file_id)
                 if file_record:
-                    file_record.processed = True
-                    db.session.commit()
+                    try:
+                        # Try to set the processed flag
+                        file_record.processed = True
+                        db.session.commit()
+                    except Exception as e:
+                        # If the processed column doesn't exist, just ignore it
+                        if 'UndefinedColumn' in str(e) or 'does not exist' in str(e):
+                            print(f"Warning: 'processed' column not available in database. Skipping update.")
+                            db.session.rollback()
+                        else:
+                            raise
             except Exception as cleanup_error:
                 print(f"Non-critical error updating file record: {cleanup_error}")
 
