@@ -72,6 +72,12 @@ def main():
                     sys.argv.append('--force')
             result = update_historical_data()
             print(f"Historical data update result: {result}")
+            
+        # Always recalculate portfolio metrics at the end
+        print("Recalculating portfolio metrics...")
+        service = PriceUpdateService()
+        result = service.recalculate_all_portfolio_metrics()
+        print(f"Portfolio metrics recalculation result: {result}")
     
     print(f"Update completed at {datetime.now()}")
 

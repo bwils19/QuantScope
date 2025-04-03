@@ -1133,9 +1133,28 @@ def calculate_total_return(self, portfolio, session=None):
                 
                 self.logger.info(f"Portfolio {portfolio.id}: Total return: ${absolute_return} ({percent_return:.2f}%)")
             else:
-                self.logger.warning(f"Portfolio {portfolio.id}: No valid initial value found, setting total return to 0")
-                portfolio.total_return = 0
-                portfolio.total_return_pct = 0
+                # If initial value is not available, use total_gain as a fallback
+                self.logger.warning(f"Portfolio {portfolio.id}: No valid initial value found, using total_gain as fallback")
+                
+                # Get total gain from portfolio
+                total_gain = portfolio.total_gain
+                
+                if total_gain is not None and total_gain != 0:
+                    # Use total_gain for total_return
+                    portfolio.total_return = total_gain
+                    
+                    # Calculate percentage based on current value
+                    if current_value > 0:
+                        portfolio.total_return_pct = (total_gain / (current_value - total_gain)) * 100
+                    else:
+                        portfolio.total_return_pct = 0
+                        
+                    self.logger.info(f"Portfolio {portfolio.id}: Using total gain as total return: ${total_gain} ({portfolio.total_return_pct:.2f}%)")
+                else:
+                    # If total_gain is also not available, set to 0
+                    self.logger.warning(f"Portfolio {portfolio.id}: No valid total_gain found, setting total return to 0")
+                    portfolio.total_return = 0
+                    portfolio.total_return_pct = 0
         
         except Exception as e:
             self.logger.error(f"Error calculating total return for portfolio {portfolio.id}: {str(e)}")
@@ -1411,12 +1430,18 @@ def force_update_all(self):
         logger.info("Updating historical data...")
         historical_result = update_historical_data()
         
+        # Step 4: Recalculate portfolio metrics
+        logger.info("Recalculating portfolio metrics...")
+        service = PriceUpdateService()
+        metrics_result = service.recalculate_all_portfolio_metrics()
+        
         # Return combined results
         return {
             'success': True,
             'price_update': price_result,
             'closing_prices': closing_result,
-            'historical_data': historical_result
+            'historical_data': historical_result,
+            'portfolio_metrics': metrics_result
         }
     except Exception as e:
         logger.error(f"Error in force_update_all task: {str(e)}", exc_info=True)
