@@ -104,7 +104,7 @@ class PriceUpdateService:
         session.mount('https://', adapter)
         
         # Verify the adapter settings
-        self.logger.info(f"Created request session with pool_connections={adapter.pool_connections}, pool_maxsize={adapter.pool_maxsize}")
+        self.logger.info("Created request session with increased connection pool size (25)")
         
         return session
 
@@ -402,7 +402,10 @@ class PriceUpdateService:
 
                     # Use multiple threads to fetch data faster, but stay within rate limit
                     start_batch_time = time.time()
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                    max_workers = 5
+                    self.logger.info(f"Using ThreadPoolExecutor with max_workers={max_workers}")
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                         futures = {executor.submit(self._fetch_ticker_data, ticker): ticker for ticker in batch}
                         
                         for future in concurrent.futures.as_completed(futures):
