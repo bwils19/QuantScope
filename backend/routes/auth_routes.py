@@ -1571,11 +1571,57 @@ def create_portfolio_from_file(file_id):
 
             # Report success statistics
             price_success_rate = (securities_with_prices / len(valid_rows)) * 100 if valid_rows else 0
-            price_service = PriceUpdateService()
-            metrics_result = price_service.update_portfolio_metrics(portfolio.id)
-
-            if not metrics_result.get('success', False):
-                print(f"Warning: Failed to update portfolio metrics: {metrics_result.get('error')}")
+            
+            # Ensure portfolio metrics are properly calculated
+            try:
+                print(f"Calculating portfolio metrics for portfolio {portfolio.id}...")
+                price_service = PriceUpdateService()
+                
+                # Force update of all securities in the portfolio to ensure current prices
+                securities_update = price_service.update_prices_for_portfolio(portfolio.id)
+                if not securities_update.get('success', False):
+                    print(f"Warning: Failed to update security prices: {securities_update.get('error', 'Unknown error')}")
+                
+                # Now update all portfolio metrics
+                metrics_result = price_service.update_portfolio_metrics(portfolio.id)
+                
+                if metrics_result.get('success', False):
+                    print(f"Portfolio metrics updated successfully:")
+                    print(f"  Total value: ${metrics_result.get('total_value', 0):.2f}")
+                    print(f"  Day change: ${metrics_result.get('day_change', 0):.2f}")
+                    print(f"  Total gain: ${metrics_result.get('total_gain', 0):.2f}")
+                    print(f"  Total return: ${metrics_result.get('total_return', 0):.2f}")
+                else:
+                    print(f"Warning: Failed to update portfolio metrics: {metrics_result.get('error', 'Unknown error')}")
+                    
+                    # Fallback: Calculate basic metrics directly
+                    print("Attempting direct calculation of portfolio metrics...")
+                    portfolio = Portfolio.query.get(portfolio.id)  # Re-fetch portfolio
+                    
+                    # Calculate day change based on current and previous prices
+                    day_change = 0
+                    portfolio_securities = (
+                        db.session.query(PortfolioSecurity, Security)
+                        .join(Security, PortfolioSecurity.security_id == Security.id)
+                        .filter(PortfolioSecurity.portfolio_id == portfolio.id)
+                        .all()
+                    )
+                    
+                    for ps, security in portfolio_securities:
+                        current_price = security.current_price or 0
+                        previous_close = security.previous_close or current_price
+                        day_change += ps.amount_owned * (current_price - previous_close)
+                    
+                    # Update portfolio with calculated values
+                    portfolio.day_change = day_change
+                    portfolio.day_change_pct = (day_change / (portfolio.total_value - day_change)) * 100 if portfolio.total_value > day_change else 0
+                    db.session.commit()
+                    
+                    print(f"Direct calculation complete. Day change: ${day_change:.2f}")
+            except Exception as metrics_error:
+                print(f"Error calculating portfolio metrics: {str(metrics_error)}")
+                import traceback
+                traceback.print_exc()
 
             return jsonify({
                 "message": f"Portfolio created successfully with {len(valid_rows)} securities.",
