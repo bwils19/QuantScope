@@ -791,23 +791,51 @@ def upload_file():
             print("Empty filename")
             return jsonify({"message": "No file selected"}), 400
 
+        # Import file validation utilities
+        from backend.utils.file_validators import validate_file_security, calculate_file_hash
+        
+        # Perform security validation
+        is_valid, validation_message = validate_file_security(file)
+        if not is_valid:
+            print(f"File validation failed: {validation_message}")
+            return jsonify({"message": validation_message}), 400
+            
+        # Calculate file hash for tracking
+        file_hash = calculate_file_hash(file)
+        print(f"File hash: {file_hash}")
+        
+        # Sanitize filename
         filename = secure_filename(file.filename)
-        upload_folder = current_app.config['UPLOAD_FOLDER']
+        file_ext = os.path.splitext(filename)[1].lower()
+        
+        # Only allow specific file extensions
+        allowed_extensions = ['.csv', '.xlsx', '.xls', '.txt']
+        if file_ext not in allowed_extensions:
+            print(f"Invalid file type: {file_ext}")
+            return jsonify({
+                "message": f"Invalid file type. Allowed types: {', '.join(allowed_extensions)}"
+            }), 400
+            
+        # Check file size (limit to 10MB)
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)  # Reset file pointer to beginning
+        
+        if file_size > 10 * 1024 * 1024:  # 10MB limit
+            print(f"File too large: {file_size} bytes")
+            return jsonify({
+                "message": "File too large. Maximum size is 10MB."
+            }), 400
 
-        # Ensure upload folder exists
-        if not os.path.exists(upload_folder):
-            print(f"Creating upload folder: {upload_folder}")
-            os.makedirs(upload_folder)
-
-        filepath = os.path.join(upload_folder, filename)
-        print(f"Saving file to: {filepath}")
-        file.save(filepath)
-
+        # Create a database record for the file without saving to disk
         new_file = PortfolioFiles(
             user_id=user.id,
             filename=filename,
             uploaded_by=user.email,
+            file_content_type=file.content_type,
+            file_size=file_size
         )
+        
         print(f"Creating database record for file")
         db.session.add(new_file)
         db.session.commit()
@@ -823,6 +851,7 @@ def upload_file():
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
         db.session.rollback()
+        return jsonify({"message": f"Error uploading file: {str(e)}"}), 500
         return jsonify({"message": str(e)}), 500
 
 
@@ -1208,18 +1237,43 @@ def preview_portfolio_file():
         current_user_email = get_jwt_identity()
         user = User.query.filter_by(email=current_user_email).first()
 
+        # Import file validation utilities
+        from backend.utils.file_validators import validate_file_security, sanitize_file_content, calculate_file_hash
+        
+        # Perform security validation
+        is_valid, validation_message = validate_file_security(file)
+        if not is_valid:
+            print(f"File validation failed: {validation_message}")
+            return jsonify({"message": validation_message}), 400
+            
+        # Calculate file hash for tracking
+        file_hash = calculate_file_hash(file)
+        print(f"File hash: {file_hash}")
+        
+        # Sanitize filename
         filename = secure_filename(file.filename)
-        filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-
-        # Save file temporarily
-        file.save(filepath)
+        file_ext = os.path.splitext(filename)[1].lower()
+        
+        # Sanitize file content
+        is_sanitized, sanitize_message, sanitized_file = sanitize_file_content(file, file_ext)
+        if not is_sanitized:
+            print(f"File sanitization failed: {sanitize_message}")
+            return jsonify({"message": sanitize_message}), 400
+            
+        # Get file size for database record
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)  # Reset file pointer to beginning
 
         try:
-            # Parse and validate file
-            df, validation_summary = parse_portfolio_file(filepath)
+            # Process file in memory using our updated utility function
+            from backend.utils.file_handlers import parse_portfolio_file
+            df, validation_summary = parse_portfolio_file(file, file_ext)
+            # Validation is now handled by parse_portfolio_file function
+            
             preview_data = format_preview_data(df)
 
-            # add in the ticker validation
+            # Add ticker validation
             from backend.services.validators import validate_ticker
 
             # Validate each ticker in the preview data
@@ -1244,30 +1298,44 @@ def preview_portfolio_file():
             validation_summary['valid_rows'] = valid_count
             validation_summary['invalid_rows'] = invalid_count
 
-            # Create a record in PortfolioFiles
+            # Create a record in PortfolioFiles with file metadata but no physical file
             portfolio_file = PortfolioFiles(
                 user_id=user.id,
                 filename=filename,
-                uploaded_by=user.email
+                uploaded_by=user.email,
+                file_content_type=file.content_type,
+                file_size=file_size,
+                processed=False
             )
             db.session.add(portfolio_file)
             db.session.commit()
 
+            # Store the preview data in the session for later use
+            from flask import session
+            session[f'preview_data_{portfolio_file.id}'] = preview_data
+            
             return jsonify({
                 'preview_data': preview_data,
                 'summary': validation_summary,
                 'message': 'File processed successfully',
-                'file_id': portfolio_file.id  # Add file ID to response
+                'file_id': portfolio_file.id
             })
 
-        finally:
-            pass
+        except Exception as e:
+            print(f"Error processing file: {str(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+            return jsonify({
+                'message': f"Error processing file: {str(e)}"
+            }), 500
 
     except Exception as e:
         print(f"Error in preview: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return jsonify({
             'message': f"Error processing file: {str(e)}"
-        }), 400
+        }), 500
 
 
 @auth_blueprint.route('/create-portfolio-from-file/<int:file_id>', methods=['POST'])
@@ -1295,6 +1363,16 @@ def create_portfolio_from_file(file_id):
 
             if not portfolio_name:
                 return jsonify({"message": "Portfolio name is required"}), 400
+                
+            # Get preview data from session if not provided in request
+            from flask import session
+            if not preview_data and f'preview_data_{file_id}' in session:
+                preview_data = session.get(f'preview_data_{file_id}')
+                # Clear session data after retrieving
+                session.pop(f'preview_data_{file_id}', None)
+
+            if not preview_data:
+                return jsonify({"message": "No preview data found. Please upload the file again."}), 400
 
             current_user_email = get_jwt_identity()
             user = User.query.filter_by(email=current_user_email).first()
@@ -1428,17 +1506,14 @@ def create_portfolio_from_file(file_id):
             db.session.commit()
             print(f"Updated portfolio totals: value=${total_value:.2f}, gain=${portfolio.total_gain:.2f}")
 
-            # Clean up
+            # Mark the file record as processed
             try:
                 file_record = PortfolioFiles.query.get(file_id)
                 if file_record:
-                    file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], file_record.filename)
-                    try:
-                        os.remove(file_path)
-                    except Exception as e:
-                        print(f"Warning: Failed to remove temporary file: {e}")
+                    file_record.processed = True
+                    db.session.commit()
             except Exception as cleanup_error:
-                print(f"Non-critical cleanup error: {cleanup_error}")
+                print(f"Non-critical error updating file record: {cleanup_error}")
 
             # Report success statistics
             price_success_rate = (securities_with_prices / len(valid_rows)) * 100 if valid_rows else 0

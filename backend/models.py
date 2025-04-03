@@ -157,6 +157,9 @@ class PortfolioFiles(db.Model):
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
     uploaded_by = db.Column(db.String(255), nullable=False)
+    file_content_type = db.Column(db.String(100), nullable=True)
+    file_size = db.Column(db.Integer, nullable=True)
+    processed = db.Column(db.Boolean, default=False)
 
     user = db.relationship('User', backref=db.backref('portfolio_files', lazy=True))
 

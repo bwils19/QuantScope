@@ -40,21 +40,45 @@ def is_date(value: Any) -> bool:
         return False
 
 
-def parse_portfolio_file(file_path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+def parse_portfolio_file(file_obj, file_ext: str = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Parse and validate portfolio file with improved error handling and validation
+    
+    Args:
+        file_obj: Either a file path string or a file-like object
+        file_ext: Optional file extension (required if file_obj is a file-like object)
     """
     try:
-        # Read the file
-        file_ext = os.path.splitext(file_path)[1].lower()
-        if file_ext == '.csv':
-            df = pd.read_csv(file_path)
-        elif file_ext in ['.xls', '.xlsx']:
-            df = pd.read_excel(file_path)
-        elif file_ext == '.txt':
-            df = pd.read_csv(file_path, sep='\t')
+        # Determine if we're dealing with a file path or a file object
+        if isinstance(file_obj, str):
+            file_path = file_obj
+            file_ext = os.path.splitext(file_path)[1].lower()
+            
+            # Read from file path
+            if file_ext == '.csv':
+                df = pd.read_csv(file_path)
+            elif file_ext in ['.xls', '.xlsx']:
+                df = pd.read_excel(file_path)
+            elif file_ext == '.txt':
+                df = pd.read_csv(file_path, sep='\t')
+            else:
+                raise ValueError(f"Unsupported file type: {file_ext}")
         else:
-            raise ValueError(f"Unsupported file type: {file_ext}")
+            # Read from file object
+            if not file_ext:
+                raise ValueError("File extension must be provided when using a file object")
+                
+            # Reset file pointer to beginning
+            file_obj.seek(0)
+            
+            if file_ext == '.csv':
+                df = pd.read_csv(file_obj)
+            elif file_ext in ['.xls', '.xlsx']:
+                df = pd.read_excel(file_obj)
+            elif file_ext == '.txt':
+                df = pd.read_csv(file_obj, sep='\t')
+            else:
+                raise ValueError(f"Unsupported file type: {file_ext}")
 
         # standardize column names
         df = standardize_columns(df)
@@ -199,16 +223,20 @@ def format_preview_data(df):
         raise
 
 
-def validate_portfolio_file(file_path: str) -> Tuple[bool, str, Optional[pd.DataFrame]]:
+def validate_portfolio_file(file_obj, file_ext: str = None) -> Tuple[bool, str, Optional[pd.DataFrame]]:
     """
     Validate uploaded file with enhanced error handling and reporting
+    
+    Args:
+        file_obj: Either a file path string or a file-like object
+        file_ext: Optional file extension (required if file_obj is a file-like object)
     """
     try:
-        df, validation_summary = parse_portfolio_file(file_path)
+        df, validation_summary = parse_portfolio_file(file_obj, file_ext)
 
         message = (
             f"File validated successfully:\n"
-            f"- Total securities: {validation_summary['total_securities']}\n"
+            f"- Total securities: {validation_summary.get('total_securities', validation_summary.get('unique_securities', 0))}\n"
             f"- Unique securities: {validation_summary['unique_securities']}\n"
             f"- Total position amount: {validation_summary['total_amount']:,.2f}\n"
             f"- Valid rows: {validation_summary['valid_rows']}\n"
