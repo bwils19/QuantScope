@@ -42,9 +42,40 @@ def main():
             return
         
         # Create a simple task
-        @celery.task(name='check_celery.test_task')
-        def test_task():
-            return {'status': 'ok', 'timestamp': datetime.now().isoformat()}
+        try:
+            print("Sending test task to Celery...")
+            from backend.services.price_update_service import scheduled_price_update
+            result = scheduled_price_update.delay()
+            print(f"Task ID: {result.id}")
+            
+            # Wait for the result
+            print("Waiting for task result...")
+            for i in range(10):
+                if result.ready():
+                    break
+                print(".", end="", flush=True)
+                time.sleep(1)
+            print()
+            
+            if result.ready():
+                print("Task completed!")
+                print(f"Result: {result.get()}")
+                print("Celery is working correctly.")
+            else:
+                print("Task did not complete within 10 seconds.")
+                print("This could mean:")
+                print("1. Celery worker is not running")
+                print("2. Celery worker is running but not processing tasks")
+                print("3. Celery worker is running but taking too long to process tasks")
+                print("\nCheck the Celery worker logs for more information:")
+                print("sudo tail -f /var/log/celery/worker.log")
+        except Exception as e:
+            print(f"ERROR: Could not send task to Celery: {str(e)}")
+            print("This could mean:")
+            print("1. Celery is not configured correctly")
+            print("2. Redis is not accessible")
+            print("3. There's an issue with the Celery configuration")
+            print("\nCheck your Celery and Redis configuration.")
         
         # Send the task
         print("Sending test task to Celery...")
