@@ -1,5 +1,6 @@
 # backend/services/price_update_service.py
 import os
+import sys
 import time
 import traceback
 from datetime import datetime, timedelta
@@ -657,6 +658,7 @@ class PriceUpdateService:
         """Update securities with new prices and recalculate portfolio securities values"""
         updated_count = 0
         failed_count = 0
+        tickers_updated = []
 
         for security in securities:
             try:
@@ -701,8 +703,19 @@ class PriceUpdateService:
                 # logger.error(f"Error updating security {security.ticker}: {str(e)}")
                 import traceback
                 # logger.error(traceback.format_exc())
-
-        return updated_count, failed_count
+                
+        # Add tickers to the list of updated tickers
+        for security in securities:
+            if security.ticker in prices:
+                tickers_updated.append(security.ticker)
+                
+        # Return a dictionary instead of a tuple
+        return {
+            'success': True,
+            'updated_count': updated_count,
+            'failed_count': failed_count,
+            'tickers_updated': tickers_updated
+        }
 
     def _update_security_prices(self, security: Security, price_data: Dict[str, Any]) -> None:
         """Update a security's price and related metrics."""
@@ -1231,7 +1244,14 @@ def save_closing_prices(self):
     
     # Import the correct is_market_open function
     from backend.services.stock_service import is_market_open
-    if is_market_open():
+    market_open = is_market_open()
+    
+    # For testing purposes, force update regardless of market status
+    if market_open and '--force' in sys.argv:
+        service.logger.info("Market is open, but forcing update due to --force flag")
+        market_open = False
+    
+    if market_open:
         service.logger.info("Market still open, skipping final price save.")
         return {"success": False, "message": "Market still open"}
 
@@ -1338,6 +1358,11 @@ def update_historical_data(self):
         
         # Check if we should fetch market data
         should_fetch, reason = historical_service.market_utils.should_fetch_market_data()
+        
+        # For testing purposes, force update regardless of market status
+        if not should_fetch and '--force' in sys.argv:
+            service.logger.info(f"Market check says: {reason}, but forcing update due to --force flag")
+            should_fetch = True
         
         if not should_fetch:
             service.logger.info(f"Skipping historical data update: {reason}")

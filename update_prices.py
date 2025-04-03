@@ -55,11 +55,21 @@ def main():
         
         if args.task in ['closing', 'all']:
             print("Running closing prices task...")
+            # Pass the --force flag to the task
+            if args.force:
+                # Add --force to sys.argv if not already there
+                if '--force' not in sys.argv:
+                    sys.argv.append('--force')
             result = save_closing_prices()
             print(f"Closing prices task result: {result}")
         
         if args.task in ['historical', 'all']:
             print("Running historical data update task...")
+            # Pass the --force flag to the task
+            if args.force:
+                # Add --force to sys.argv if not already there
+                if '--force' not in sys.argv:
+                    sys.argv.append('--force')
             result = update_historical_data()
             print(f"Historical data update result: {result}")
     
