@@ -141,7 +141,7 @@ class RiskAnalytics:
     def calculate_portfolio_beta(self, securities_data: List[Dict], lookback_days: int = 252) -> Dict:
         
         """Calculate comprehensive beta metrics for the portfolio."""
-        print("\n==== DEBUG: calculate_portfolio_beta ====")
+        print("==== DEBUG: calculate_portfolio_beta ====")
         print(f"Number of securities: {len(securities_data)}")
         print(f"First security: {securities_data[0] if securities_data else None}")
         print(f"Lookback days: {lookback_days}")
@@ -152,7 +152,7 @@ class RiskAnalytics:
         print(f"Date range: {start_date} to {end_date}")
 
 
-        print(f"\n==== DEBUG: calculate_portfolio_beta ====")
+        print(f"==== DEBUG: calculate_portfolio_beta ====")
         print(f"Number of securities: {len(securities_data)}")
         print(f"Securities data: {securities_data[:2]}")  # Print first 2 securities
 
@@ -172,61 +172,6 @@ class RiskAnalytics:
             if portfolio_returns is None:
                 print("Failed to get portfolio returns, returning default metrics")
                 return self._get_default_beta_metrics()
-
-            # Get benchmark returns
-            with self.app.app_context():
-                benchmark_data = self._get_historical_data("SPY", start_date, end_date)
-                print(f"Benchmark data: {benchmark_data[:2] if benchmark_data else None}")
-                if not benchmark_data:
-                    print("Failed to get benchmark returns")
-                    return self._get_default_beta_metrics()
-
-                benchmark_prices = np.array([float(data.adjusted_close) for data in benchmark_data])
-                benchmark_returns = np.diff(np.log(benchmark_prices))
-                print(f"Benchmark returns: {benchmark_returns[:5] if len(benchmark_returns) > 0 else []}")
-
-            # Calculate beta metrics
-            standard_beta = self._calculate_standard_beta(portfolio_returns, benchmark_returns)
-            print(f"Standard beta: {standard_beta}")
-            print(f"DEBUG: standard_beta = {standard_beta}")
-            print("Calculating rolling betas...")
-            rolling_betas = self._calculate_rolling_beta(portfolio_returns, benchmark_returns)
-            print(f"Rolling betas calculated: {rolling_betas[:5]}...")
-            downside_beta = self._calculate_downside_beta(portfolio_returns, benchmark_returns)
-
-            # Calculate confidence metrics
-            r_squared, std_error = self._calculate_beta_statistics(portfolio_returns, benchmark_returns)
-
-            print(f"DEBUG: Returning beta dictionary with beta = {standard_beta}")
-            print("\n==== DEBUG: Final beta value ====")
-            print(f"standard_beta: {standard_beta}")
-            print(f"downside_beta: {downside_beta}")
-            print(f"rolling_betas: {rolling_betas[:5]}...")
-            print(f"r_squared: {r_squared}")
-            print(f"std_error: {std_error}")
-            
-            result = {
-                'beta': standard_beta,
-                'downside_beta': downside_beta,
-                'rolling_betas': rolling_betas.tolist(),
-                'r_squared': r_squared,
-                'standard_error': std_error,
-                'confidence': {
-                    'high': standard_beta + (1.96 * std_error),
-                    'low': standard_beta - (1.96 * std_error)
-                },
-                'analysis': {
-                    'trend': 'stable',
-                    'stability': 'high'
-                }
-            }
-            print(f"Returning result: {result}")
-            return result
-
-        except Exception as e:
-            print(f"Error calculating beta: {str(e)}")
-            print(f"Traceback: {traceback.format_exc()}")
-            return self._get_default_beta_metrics()
 
             # Get benchmark returns
             with self.app.app_context():
