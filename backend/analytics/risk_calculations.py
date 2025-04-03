@@ -635,14 +635,9 @@ class RiskAnalytics:
             },
             'analysis': {
                 'trend': 'stable',
-                'stability': 'medium'
+                'stability': 'high'
             }
-        },
-        'analysis': {
-            'trend': 'stable',
-            'stability': 'high'
         }
-        
 
     def calculate_credit_risk(self, securities: List[Dict]) -> Dict:
         """Calculate portfolio credit risk metrics"""
