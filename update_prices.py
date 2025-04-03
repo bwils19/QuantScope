@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
 """
 Script to manually trigger price updates and historical data updates.
-This is useful for testing and for manually updating prices if needed.
 """
 import os
 import sys
 import argparse
 from datetime import datetime
+from backend.services.price_update_service import PriceUpdateService
+original_init = PriceUpdateService.__init__
 
 # Add the current directory to the path so we can import the backend modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+def patched_init(self, api_key=None, rate_limit=75, batch_size=50):
+    original_init(self, api_key, rate_limit, batch_size)
+    # Set a smaller thread pool size
+    self.max_workers = 5
+
+PriceUpdateService.__init__ = patched_init
 
 def main():
     parser = argparse.ArgumentParser(description='Manually trigger price updates')
