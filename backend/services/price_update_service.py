@@ -1270,7 +1270,7 @@ def save_closing_prices(self):
         session.close()
 
 @celery.task(name='update_prices', bind=True, max_retries=3)
-def update_prices():
+def update_prices(self):
     """Update prices for all securities in active portfolios."""
     service = PriceUpdateService()
     result = service.update_all_portfolio_prices()
