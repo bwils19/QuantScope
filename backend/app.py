@@ -99,9 +99,12 @@ def create_app(test_config=None):
         from backend.routes.stock_routes import stock_blueprint
         from backend.routes.analytics_routes import \
             analytics_blueprint  # Fixed typo from 'analytics_routes' to 'analytics_blueprint'
+        from backend.routes.recalculate_metrics import recalculate_blueprint
+        
         app.register_blueprint(auth_blueprint, url_prefix="/auth")
         app.register_blueprint(stock_blueprint)
         app.register_blueprint(analytics_blueprint, url_prefix='/analytics')
+        app.register_blueprint(recalculate_blueprint, url_prefix='/api')
 
         app.cli.add_command(load_historical_data)
         from backend.utils.diagnostic import check_date_issues

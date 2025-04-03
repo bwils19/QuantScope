@@ -225,31 +225,124 @@ def format_preview_data(df):
 
 def validate_portfolio_file(file_obj, file_ext: str = None) -> Tuple[bool, str, Optional[pd.DataFrame]]:
     """
-    Validate uploaded file with enhanced error handling and reporting
+    Validate uploaded file with enhanced error handling, security checks, and reporting
     
     Args:
         file_obj: Either a file path string or a file-like object
         file_ext: Optional file extension (required if file_obj is a file-like object)
     """
+    import logging
+    from backend.utils.file_validators import validate_uploaded_file, safe_read_file
+    
+    logger = logging.getLogger('file_handlers')
+    
     try:
-        df, validation_summary = parse_portfolio_file(file_obj, file_ext)
+        # If it's a string (file path), we'll use the traditional method
+        if isinstance(file_obj, str):
+            df, validation_summary = parse_portfolio_file(file_obj, file_ext)
+            
+            message = (
+                f"File validated successfully:\n"
+                f"- Total securities: {validation_summary.get('total_securities', validation_summary.get('unique_securities', 0))}\n"
+                f"- Unique securities: {validation_summary['unique_securities']}\n"
+                f"- Total position amount: {validation_summary['total_amount']:,.2f}\n"
+                f"- Valid rows: {validation_summary['valid_rows']}\n"
+                f"- Invalid rows: {validation_summary['invalid_rows']}"
+            )
 
-        message = (
-            f"File validated successfully:\n"
-            f"- Total securities: {validation_summary.get('total_securities', validation_summary.get('unique_securities', 0))}\n"
-            f"- Unique securities: {validation_summary['unique_securities']}\n"
-            f"- Total position amount: {validation_summary['total_amount']:,.2f}\n"
-            f"- Valid rows: {validation_summary['valid_rows']}\n"
-            f"- Invalid rows: {validation_summary['invalid_rows']}"
-        )
+            # warning if there are invalid rows
+            if validation_summary['invalid_rows'] > 0:
+                message += "\n\nWarning: Some rows contain invalid data. Check the preview for details."
 
-        # warning if there are invalid rows
-        if validation_summary['invalid_rows'] > 0:
-            message += "\n\nWarning: Some rows contain invalid data. Check the preview for details."
-
-        return True, message, df
+            return True, message, df
+        
+        # For file objects, use the new secure validator
+        else:
+            logger.info(f"Validating uploaded file: {getattr(file_obj, 'filename', 'unknown')}")
+            
+            # First perform security validation
+            success, message, data = safe_read_file(file_obj)
+            
+            if not success:
+                logger.warning(f"File validation failed: {message}")
+                return False, message, None
+            
+            # If we got here, the file passed security checks and we have the dataframe
+            df = data
+            
+            # Now perform the business logic validation
+            df = standardize_columns(df)
+            
+            # Initialize validation
+            df['validation_status'] = 'valid'
+            df['validation_message'] = ''
+            
+            # Validate required columns
+            missing_columns = []
+            for col in ['ticker', 'amount']:
+                if col not in df.columns:
+                    missing_columns.append(col)
+            
+            if missing_columns:
+                error_msg = (
+                    f"Missing required columns: {', '.join(missing_columns)}. "
+                    "Please ensure your file has ticker and amount/quantity columns."
+                )
+                logger.warning(error_msg)
+                return False, error_msg, None
+            
+            # Validate data
+            df['ticker'] = df['ticker'].str.strip().str.upper()
+            df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
+            
+            invalid_tickers = df['ticker'].str.contains(r'[^A-Z\.]', na=True).astype(bool)
+            invalid_amounts = df['amount'].isna() | (df['amount'] <= 0)
+            
+            df.loc[invalid_tickers, 'validation_status'] = 'invalid'
+            df.loc[invalid_tickers, 'validation_message'] += 'Invalid ticker format; '
+            df.loc[invalid_amounts, 'validation_status'] = 'invalid'
+            df.loc[invalid_amounts, 'validation_message'] += 'Invalid amount; '
+            
+            # Handle optional numeric columns
+            numeric_columns = ['purchase_price', 'current_price']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                    invalid_prices = df[col].isna() & df[col].notna()
+                    if invalid_prices.any():
+                        df.loc[invalid_prices, 'validation_status'] = 'invalid'
+                        df.loc[invalid_prices, 'validation_message'] += f'Invalid {col}; '
+            
+            # Create validation summary
+            validation_summary = {
+                'total_rows': len(df),
+                'valid_rows': len(df[df['validation_status'] == 'valid']),
+                'invalid_rows': len(df[df['validation_status'] == 'invalid']),
+                'total_amount': float(df.loc[df['validation_status'] == 'valid', 'amount'].sum()),
+                'unique_securities': len(df.loc[df['validation_status'] == 'valid', 'ticker'].unique()),
+                'columns_found': df.columns.tolist(),
+                'missing_columns': missing_columns,
+                'validation_time': datetime.now().isoformat()
+            }
+            
+            message = (
+                f"File validated successfully:\n"
+                f"- Total securities: {validation_summary.get('total_securities', validation_summary.get('unique_securities', 0))}\n"
+                f"- Unique securities: {validation_summary['unique_securities']}\n"
+                f"- Total position amount: {validation_summary['total_amount']:,.2f}\n"
+                f"- Valid rows: {validation_summary['valid_rows']}\n"
+                f"- Invalid rows: {validation_summary['invalid_rows']}"
+            )
+            
+            # Warning if there are invalid rows
+            if validation_summary['invalid_rows'] > 0:
+                message += "\n\nWarning: Some rows contain invalid data. Check the preview for details."
+            
+            logger.info(f"File validation successful: {validation_summary['valid_rows']} valid rows, {validation_summary['invalid_rows']} invalid rows")
+            return True, message, df
 
     except Exception as e:
+        logger.error(f"Error in validate_portfolio_file: {str(e)}", exc_info=True)
         return False, str(e), None
 
 

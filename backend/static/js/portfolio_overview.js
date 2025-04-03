@@ -1702,11 +1702,96 @@ function refreshPrices(portfolioId = null) {
 
             // Show success message
             showToast(`Successfully updated ${data.updated_count} securities`, 'success');
-
-            // Wait a moment to let the user see the update
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
+            
+            // Log the updated metrics for debugging
+            console.log("Price update complete with metrics:", data);
+            
+            // Update the UI with the new values instead of reloading the page
+            if (data.portfolio_id) {
+                // Update the specific portfolio card
+                const portfolioCard = document.querySelector(`.portfolio-item[data-id="${data.portfolio_id}"]`);
+                if (portfolioCard) {
+                    // Update total return value
+                    const totalReturnElement = portfolioCard.querySelector('.metric-item:nth-child(5) .metric-value');
+                    if (totalReturnElement && data.total_return !== undefined) {
+                        const totalReturnClass = data.total_return > 0 ? 'positive' : (data.total_return < 0 ? 'negative' : '');
+                        totalReturnElement.className = `metric-value ${totalReturnClass}`;
+                        totalReturnElement.innerHTML = `
+                            $${parseFloat(data.total_return).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                            (${parseFloat(data.total_return_pct).toFixed(2)}%)
+                        `;
+                    }
+                    
+                    // Also update other metrics
+                    const totalValueElement = portfolioCard.querySelector('.metric-item:nth-child(2) .metric-value');
+                    if (totalValueElement && data.total_value !== undefined) {
+                        totalValueElement.textContent = `$${parseFloat(data.total_value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    }
+                    
+                    const dayChangeElement = portfolioCard.querySelector('.metric-item:nth-child(3) .metric-value');
+                    if (dayChangeElement && data.day_change !== undefined) {
+                        const dayChangeClass = data.day_change > 0 ? 'positive' : (data.day_change < 0 ? 'negative' : '');
+                        dayChangeElement.className = `metric-value ${dayChangeClass}`;
+                        dayChangeElement.innerHTML = `
+                            $${parseFloat(data.day_change).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                            (${parseFloat(data.day_change_pct).toFixed(2)}%)
+                        `;
+                    }
+                    
+                    const totalGainElement = portfolioCard.querySelector('.metric-item:nth-child(4) .metric-value');
+                    if (totalGainElement && data.total_gain !== undefined) {
+                        const totalGainClass = data.total_gain > 0 ? 'positive' : (data.total_gain < 0 ? 'negative' : '');
+                        totalGainElement.className = `metric-value ${totalGainClass}`;
+                        totalGainElement.innerHTML = `
+                            $${parseFloat(data.total_gain).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                            (${parseFloat(data.total_gain_pct).toFixed(2)}%)
+                        `;
+                    }
+                }
+            } else if (data.portfolios) {
+                // Update all portfolios
+                data.portfolios.forEach(portfolio => {
+                    const portfolioCard = document.querySelector(`.portfolio-item[data-id="${portfolio.id}"]`);
+                    if (portfolioCard) {
+                        // Update total return value
+                        const totalReturnElement = portfolioCard.querySelector('.metric-item:nth-child(5) .metric-value');
+                        if (totalReturnElement) {
+                            const totalReturnClass = portfolio.total_return > 0 ? 'positive' : (portfolio.total_return < 0 ? 'negative' : '');
+                            totalReturnElement.className = `metric-value ${totalReturnClass}`;
+                            totalReturnElement.innerHTML = `
+                                $${parseFloat(portfolio.total_return).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                                (${parseFloat(portfolio.total_return_pct).toFixed(2)}%)
+                            `;
+                        }
+                        
+                        // Also update other metrics
+                        const totalValueElement = portfolioCard.querySelector('.metric-item:nth-child(2) .metric-value');
+                        if (totalValueElement) {
+                            totalValueElement.textContent = `$${parseFloat(portfolio.total_value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                        }
+                        
+                        const dayChangeElement = portfolioCard.querySelector('.metric-item:nth-child(3) .metric-value');
+                        if (dayChangeElement) {
+                            const dayChangeClass = portfolio.day_change > 0 ? 'positive' : (portfolio.day_change < 0 ? 'negative' : '');
+                            dayChangeElement.className = `metric-value ${dayChangeClass}`;
+                            dayChangeElement.innerHTML = `
+                                $${parseFloat(portfolio.day_change).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                                (${parseFloat(portfolio.day_change_pct).toFixed(2)}%)
+                            `;
+                        }
+                        
+                        const totalGainElement = portfolioCard.querySelector('.metric-item:nth-child(4) .metric-value');
+                        if (totalGainElement) {
+                            const totalGainClass = portfolio.total_gain > 0 ? 'positive' : (portfolio.total_gain < 0 ? 'negative' : '');
+                            totalGainElement.className = `metric-value ${totalGainClass}`;
+                            totalGainElement.innerHTML = `
+                                $${parseFloat(portfolio.total_gain).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                                (${parseFloat(portfolio.total_gain_pct).toFixed(2)}%)
+                            `;
+                        }
+                    }
+                });
+            }
         }
     })
     .catch(error => {
@@ -2581,6 +2666,9 @@ async function renderWatchlistChart(symbol, container) {
         }
     }
 
+// Metrics are now automatically recalculated when prices are updated
+// No separate recalculation function is needed
+
 // Start the application when DOM is ready
     // document.addEventListener("DOMContentLoaded", init);
 
@@ -2590,4 +2678,6 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.errorMessage.textContent = "Failed to initialize application";
         elements.errorModal.style.display = "block";
     });
+    
+    // Metrics are now automatically recalculated when prices are updated
 });

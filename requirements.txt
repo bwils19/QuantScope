@@ -17,4 +17,4 @@ urllib3>=2.0.0
 redis~=5.0.3
 
 # Optional dependencies
-# python-magic~=0.4.27  # Uncomment to enable enhanced file type detection
+python-magic~=0.4.27  # Enhanced file type detection for secure file uploads

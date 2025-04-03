@@ -273,3 +273,50 @@ class StressScenario(db.Model):
 
     def __repr__(self):
         return f"<StressScenario {self.event_name} - {self.index_name}>"
+
+
+class UploadedFile(db.Model):
+    """Model for tracking uploaded files with enhanced security metadata."""
+    __tablename__ = 'uploaded_files'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    file_size = db.Column(db.Integer, nullable=False)
+    mime_type = db.Column(db.String(255), nullable=False)
+    file_hash = db.Column(db.String(64), nullable=False, index=True)
+    upload_date = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    status = db.Column(db.String(50), default='pending', nullable=False)
+    validation_result = db.Column(db.Text, nullable=True)
+    is_processed = db.Column(db.Boolean, default=False, nullable=False)
+    processed_date = db.Column(db.DateTime, nullable=True)
+    metadata = db.Column(db.JSON, nullable=True)
+    
+    # Relationship with User
+    user = db.relationship('User', backref=db.backref('uploaded_files', lazy=True, cascade='all, delete-orphan'))
+    
+    def __repr__(self):
+        return f"<UploadedFile {self.id}: {self.original_filename}>"
+    
+    @classmethod
+    def create_from_upload(cls, user_id, file_obj, metadata):
+        """Create a new UploadedFile record from an uploaded file."""
+        uploaded_file = cls(
+            user_id=user_id,
+            filename=metadata.get('filename', 'unknown'),
+            original_filename=metadata.get('filename', 'unknown'),
+            file_size=metadata.get('size', 0),
+            mime_type=metadata.get('mime_type', 'application/octet-stream'),
+            file_hash=metadata.get('hash', ''),
+            status='validated',
+            metadata={
+                'extension': metadata.get('extension', ''),
+                'validation_time': datetime.utcnow().isoformat()
+            }
+        )
+        
+        db.session.add(uploaded_file)
+        db.session.commit()
+        
+        return uploaded_file

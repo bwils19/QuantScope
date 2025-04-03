@@ -153,6 +153,19 @@ class PriceUpdateService:
                 # Update portfolio totals
                 self.logger.info("Updating portfolio totals based on new prices")
                 self._update_portfolio_totals(session=session)
+                
+                # Automatically recalculate total return for all portfolios
+                self.logger.info("Automatically recalculating total return for all portfolios")
+                try:
+                    portfolios = session.query(Portfolio).all()
+                    for portfolio in portfolios:
+                        try:
+                            self.calculate_total_return(portfolio, session)
+                            self.logger.info(f"Updated total return for portfolio {portfolio.id}: ${portfolio.total_return:.2f} ({portfolio.total_return_pct:.2f}%)")
+                        except Exception as e:
+                            self.logger.error(f"Error calculating total return for portfolio {portfolio.id}: {str(e)}")
+                except Exception as e:
+                    self.logger.error(f"Error recalculating total returns: {str(e)}")
 
                 # Log completion and return stats
                 elapsed_time = time.time() - start_time
@@ -186,9 +199,27 @@ class PriceUpdateService:
     def update_prices_for_portfolio(self, portfolio_id):
         """Update prices for a specific portfolio"""
         try:
-            # logger.info(f"Updating prices for portfolio {portfolio_id}")
-
-            with db.session.begin() as session:
+            self.logger.info(f"Updating prices for portfolio {portfolio_id}")
+            
+            # Check if we're already in a transaction
+            in_transaction = False
+            try:
+                # This will raise an exception if we're already in a transaction
+                db.session.begin_nested()
+                db.session.rollback()  # Roll back the nested transaction we just started
+            except Exception:
+                in_transaction = True
+                self.logger.info("Using existing transaction")
+            
+            # Use the existing session if we're in a transaction, otherwise create a new one
+            if in_transaction:
+                session = db.session
+            else:
+                # Create a new transaction
+                session = db.session()
+                session.begin()
+                
+            try:
                 # Get the portfolio
                 portfolio = session.query(Portfolio).get(portfolio_id)
                 if not portfolio:
@@ -201,43 +232,90 @@ class PriceUpdateService:
                 portfolio_securities = session.query(PortfolioSecurity).filter_by(portfolio_id=portfolio_id).all()
                 security_ids = [ps.security_id for ps in portfolio_securities]
                 securities = session.query(Security).filter(Security.id.in_(security_ids)).all()
-
-                if not securities:
-                    return {
-                        'success': True,
-                        'message': "No securities found in portfolio",
-                        'updated_count': 0
-                    }
-
-                # Extract unique tickers
-                tickers = list(set([s.ticker for s in securities]))
-
-                # Fetch prices for all tickers
-                prices = self._fetch_prices(tickers)
-
-                # Update securities with new prices
-                updated_count, failed_count = self._update_securities_with_prices(session, securities, prices)
-
-                # Update portfolio totals
-                self._update_portfolio_totals_for_single_portfolio(session, portfolio)
-
-                # Prepare the response
+                
+                # Commit only if we started our own transaction
+                if not in_transaction:
+                    session.commit()
+            except Exception as e:
+                # Rollback only if we started our own transaction
+                if not in_transaction:
+                    session.rollback()
+                raise e
+            
+            # Continue with the main function logic
+            if not securities:
+                self.logger.warning(f"No securities found in portfolio {portfolio_id}")
                 return {
                     'success': True,
-                    'updated_count': updated_count,
-                    'failed_count': failed_count,
-                    'tickers_updated': list(prices.keys()),
-                    'timestamp': datetime.utcnow().isoformat(),
-                    'portfolio_id': portfolio_id
+                    'message': "No securities found in portfolio",
+                    'updated_count': 0
                 }
 
+            # Extract unique tickers
+            tickers = list(set([s.ticker for s in securities]))
+            self.logger.info(f"Found {len(tickers)} unique tickers in portfolio {portfolio_id}")
+
+            # Fetch prices for all tickers
+            prices = self._fetch_prices(tickers)
+            self.logger.info(f"Fetched prices for {len(prices)} tickers")
+
+            # Update securities with new prices
+            updated_count, failed_count = self._update_securities_with_prices(session, securities, prices)
+            self.logger.info(f"Updated {updated_count} securities, {failed_count} failed")
+
+            # Update portfolio totals
+            success = self._update_portfolio_totals_for_single_portfolio(session, portfolio)
+            if success:
+                self.logger.info(f"Updated portfolio totals for portfolio {portfolio_id}")
+                
+                # Automatically calculate total return after updating prices
+                try:
+                    self.logger.info(f"Automatically calculating total return for portfolio {portfolio_id}")
+                    self.calculate_total_return(portfolio, session)
+                    self.logger.info(f"Total return calculation successful: ${portfolio.total_return:.2f} ({portfolio.total_return_pct:.2f}%)")
+                except Exception as e:
+                    self.logger.error(f"Error calculating total return: {str(e)}")
+            else:
+                self.logger.warning(f"Failed to update portfolio totals for portfolio {portfolio_id}")
+
+            # Commit changes if we started our own transaction
+            if not in_transaction:
+                session.commit()
+                self.logger.info("Committed changes to database")
+            
+            # Prepare the response
+            return {
+                'success': True,
+                'updated_count': updated_count,
+                'failed_count': failed_count,
+                'tickers_updated': list(prices.keys()),
+                'timestamp': datetime.utcnow().isoformat(),
+                'portfolio_id': portfolio_id
+            }
+
         except Exception as e:
-            #logger.error(f"Error updating prices for portfolio {portfolio_id}: {str(e)}")
-            traceback.print_exc()
+            self.logger.error(f"Error updating prices for portfolio {portfolio_id}: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            
+            # Rollback if we started our own transaction
+            if not in_transaction and 'session' in locals():
+                try:
+                    session.rollback()
+                except:
+                    pass
+                    
             return {
                 'success': False,
                 'error': str(e)
             }
+        finally:
+            # Close session if we created it
+            if not in_transaction and 'session' in locals() and session is not db.session:
+                try:
+                    session.close()
+                except:
+                    pass
 
     def _fetch_prices_with_retry(self, tickers: List[str]) -> Dict[str, Dict[str, Any]]:
         """Fetch prices for a list of tickers with retry logic.
@@ -1050,8 +1128,14 @@ class PriceUpdateService:
                 else:
                     portfolio.total_gain_pct = 0
 
-            # Calculate total return
-            self.calculate_total_return(portfolio, session)
+            # Calculate total return as part of the standard update process
+            try:
+                self.logger.info(f"Calculating total return for portfolio {portfolio.id} as part of standard update")
+                self.calculate_total_return(portfolio, session)
+                self.logger.info(f"Total return calculation successful: ${portfolio.total_return:.2f} ({portfolio.total_return_pct:.2f}%)")
+            except Exception as e:
+                self.logger.error(f"Error calculating total return during portfolio update: {str(e)}")
+                # Continue with the update even if total return calculation fails
                 
             # Update total holdings count
             portfolio.total_holdings = len(portfolio_securities)
@@ -1079,142 +1163,186 @@ class PriceUpdateService:
         """Update comprehensive metrics for a portfolio including day change and total return."""
         self.logger.info(f"Updating comprehensive metrics for portfolio {portfolio_id}")
         
+        # Check if we're already in a transaction
+        in_transaction = False
         try:
-            with db.session.begin() as session:
-                # Get the portfolio
-                portfolio = session.query(Portfolio).get(portfolio_id)
-                if not portfolio:
-                    self.logger.warning(f"Portfolio {portfolio_id} not found")
-                    return {"success": False, "error": "Portfolio not found"}
+            # This will raise an exception if we're already in a transaction
+            db.session.begin_nested()
+            db.session.rollback()  # Roll back the nested transaction we just started
+        except Exception:
+            in_transaction = True
+            self.logger.info("Using existing transaction for update_portfolio_metrics")
+        
+        # Use the existing session if we're in a transaction, otherwise create a new one
+        if in_transaction:
+            session = db.session
+        else:
+            # Create a new transaction
+            session = db.session()
+            session.begin()
+            
+        try:
+            # Get the portfolio
+            portfolio = session.query(Portfolio).get(portfolio_id)
+            if not portfolio:
+                self.logger.warning(f"Portfolio {portfolio_id} not found")
+                return {"success": False, "error": "Portfolio not found"}
+            
+            # Get all portfolio securities with joined security data
+            portfolio_securities = (
+                session.query(PortfolioSecurity, Security)
+                .join(Security, PortfolioSecurity.security_id == Security.id)
+                .filter(PortfolioSecurity.portfolio_id == portfolio_id)
+                .all()
+            )
                 
-                # Get all portfolio securities with joined security data
-                portfolio_securities = (
-                    session.query(PortfolioSecurity, Security)
-                    .join(Security, PortfolioSecurity.security_id == Security.id)
-                    .filter(PortfolioSecurity.portfolio_id == portfolio_id)
-                    .all()
-                )
+            # Track totals
+            total_value = 0
+            total_cost_basis = 0
+            day_change = 0
+            total_gain = 0
+            
+            for ps, security in portfolio_securities:
+                # Ensure we have valid price data
+                current_price = security.current_price
+                previous_close = security.previous_close
                 
-                # Track totals
-                total_value = 0
-                total_cost_basis = 0
-                day_change = 0
-                total_gain = 0
-                
-                for ps, security in portfolio_securities:
-                    # Ensure we have valid price data
-                    current_price = security.current_price
-                    previous_close = security.previous_close
-                    
-                    # If prices are missing or zero, try to get them from historical data
-                    if not current_price or current_price == 0:
-                        self.logger.warning(f"Missing current price for {security.ticker}, attempting to fetch from historical data")
-                        historical_price = self._get_historical_price(security.ticker)
-                        if historical_price:
-                            current_price = historical_price
-                            security.current_price = current_price
-                            self.logger.info(f"Updated {security.ticker} price to ${current_price} from historical data")
-                        else:
-                            self.logger.warning(f"No historical price found for {security.ticker}, using purchase price as fallback")
-                            current_price = ps.purchase_price or 0
-                            security.current_price = current_price
-                    
-                    # Ensure we have a previous close price
-                    if not previous_close or previous_close == 0:
-                        # Try to get previous day's price from historical data
-                        self.logger.warning(f"Missing previous close for {security.ticker}, using current price")
-                        previous_close = current_price
-                        security.previous_close = previous_close
-                    
-                    # Calculate security metrics with validated prices
-                    security_value = ps.amount_owned * current_price
-                    security_day_change = ps.amount_owned * (current_price - previous_close)
-                    
-                    # Update portfolio_security values
-                    ps.total_value = security_value
-                    ps.value_change = security_day_change
-                    
-                    # Calculate percentage changes only if denominators are non-zero
-                    prev_day_value = ps.amount_owned * previous_close
-                    if prev_day_value > 0:
-                        ps.value_change_pct = (security_day_change / prev_day_value) * 100
+                # If prices are missing or zero, try to get them from historical data
+                if not current_price or current_price == 0:
+                    self.logger.warning(f"Missing current price for {security.ticker}, attempting to fetch from historical data")
+                    historical_price = self._get_historical_price(security.ticker)
+                    if historical_price:
+                        current_price = historical_price
+                        security.current_price = current_price
+                        self.logger.info(f"Updated {security.ticker} price to ${current_price} from historical data")
                     else:
-                        ps.value_change_pct = 0
-                        
-                    self.logger.debug(f"Security {security.ticker}: Value=${security_value:.2f}, Day change=${security_day_change:.2f} ({ps.value_change_pct:.2f}%)")
+                        self.logger.warning(f"No historical price found for {security.ticker}, using purchase price as fallback")
+                        current_price = ps.purchase_price or 0
+                        security.current_price = current_price
+                
+                # Ensure we have a previous close price
+                if not previous_close or previous_close == 0:
+                    # Try to get previous day's price from historical data
+                    self.logger.warning(f"Missing previous close for {security.ticker}, using current price")
+                    previous_close = current_price
+                    security.previous_close = previous_close
+                
+                # Calculate security metrics with validated prices
+                security_value = ps.amount_owned * current_price
+                security_day_change = ps.amount_owned * (current_price - previous_close)
+                
+                # Update portfolio_security values
+                ps.total_value = security_value
+                ps.value_change = security_day_change
+                
+                # Calculate percentage changes only if denominators are non-zero
+                prev_day_value = ps.amount_owned * previous_close
+                if prev_day_value > 0:
+                    ps.value_change_pct = (security_day_change / prev_day_value) * 100
+                else:
+                    ps.value_change_pct = 0
                     
-                    # Calculate gain/loss using purchase price
-                    if ps.purchase_price and ps.purchase_price > 0:
-                        security_cost = ps.amount_owned * ps.purchase_price
-                        security_gain = security_value - security_cost
-                        
-                        ps.total_gain = security_gain
-                        ps.total_gain_pct = (security_gain / security_cost) * 100 if security_cost > 0 else 0
-                        
-                        # Add to portfolio totals
-                        total_cost_basis += security_cost
-                        total_gain += security_gain
-                    else:
-                        ps.total_gain = 0
-                        ps.total_gain_pct = 0
+                self.logger.debug(f"Security {security.ticker}: Value=${security_value:.2f}, Day change=${security_day_change:.2f} ({ps.value_change_pct:.2f}%)")
+                
+                # Calculate gain/loss using purchase price
+                if ps.purchase_price and ps.purchase_price > 0:
+                    security_cost = ps.amount_owned * ps.purchase_price
+                    security_gain = security_value - security_cost
+                    
+                    ps.total_gain = security_gain
+                    ps.total_gain_pct = (security_gain / security_cost) * 100 if security_cost > 0 else 0
                     
                     # Add to portfolio totals
-                    total_value += security_value
-                    day_change += security_day_change
-                
-                # Update portfolio totals
-                portfolio.total_value = total_value
-                portfolio.day_change = day_change
-                
-                # Calculate percentage changes for portfolio
-                day_base = total_value - day_change
-                if day_base > 0:
-                    portfolio.day_change_pct = (day_change / day_base) * 100
+                    total_cost_basis += security_cost
+                    total_gain += security_gain
                 else:
-                    portfolio.day_change_pct = 0
+                    ps.total_gain = 0
+                    ps.total_gain_pct = 0
                 
-                portfolio.total_gain = total_gain
-                if total_cost_basis > 0:
-                    portfolio.total_gain_pct = (total_gain / total_cost_basis) * 100
-                else:
-                    portfolio.total_gain_pct = 0
-                
-                # Calculate total return
+                # Add to portfolio totals
+                total_value += security_value
+                day_change += security_day_change
+            
+            # Update portfolio totals
+            portfolio.total_value = total_value
+            portfolio.day_change = day_change
+            
+            # Calculate percentage changes for portfolio
+            day_base = total_value - day_change
+            if day_base > 0:
+                portfolio.day_change_pct = (day_change / day_base) * 100
+            else:
+                portfolio.day_change_pct = 0
+            
+            portfolio.total_gain = total_gain
+            if total_cost_basis > 0:
+                portfolio.total_gain_pct = (total_gain / total_cost_basis) * 100
+            else:
+                portfolio.total_gain_pct = 0
+            
+            # Calculate total return with detailed logging
+            try:
+                self.logger.info(f"Calculating total return for portfolio {portfolio.id} during metrics update")
                 self.calculate_total_return(portfolio, session)
-                portfolio.updated_at = datetime.utcnow()
-                
-                # Commit changes
+                self.logger.info(f"Total return calculation successful: ${portfolio.total_return:.2f} ({portfolio.total_return_pct:.2f}%)")
+            except Exception as e:
+                self.logger.error(f"Error calculating total return during metrics update: {str(e)}")
+                import traceback
+                self.logger.error(traceback.format_exc())
+            portfolio.updated_at = datetime.utcnow()
+            
+            # Commit changes if we started our own transaction
+            if not in_transaction:
                 session.commit()
-                
-                self.logger.info(f"Portfolio {portfolio_id} metrics updated successfully")
-                self.logger.info(f"  Total value: ${total_value}")
-                self.logger.info(f"  Day change: ${day_change} ({portfolio.day_change_pct:.2f}%)")
-                self.logger.info(f"  Total gain: ${total_gain} ({portfolio.total_gain_pct:.2f}%)")
-                self.logger.info(f"  Total return: ${portfolio.total_return} ({portfolio.total_return_pct:.2f}%)")
-                
-                return {
-                    "success": True,
-                    "portfolio_id": portfolio_id,
-                    "total_value": total_value,
-                    "day_change": day_change,
-                    "total_gain": total_gain,
-                    "total_return": portfolio.total_return
-                }
-        
+                self.logger.info("Committed changes to database")
+            
+            self.logger.info(f"Portfolio {portfolio_id} metrics updated successfully")
+            self.logger.info(f"  Total value: ${total_value}")
+            self.logger.info(f"  Day change: ${day_change} ({portfolio.day_change_pct:.2f}%)")
+            self.logger.info(f"  Total gain: ${total_gain} ({portfolio.total_gain_pct:.2f}%)")
+            self.logger.info(f"  Total return: ${portfolio.total_return} ({portfolio.total_return_pct:.2f}%)")
+            
+            return {
+                "success": True,
+                "portfolio_id": portfolio_id,
+                "total_value": total_value,
+                "day_change": day_change,
+                "total_gain": total_gain,
+                "total_return": portfolio.total_return
+            }
+            
         except Exception as e:
             self.logger.error(f"Error updating portfolio metrics: {str(e)}", exc_info=True)
+            
+            # Rollback if we started our own transaction
+            if not in_transaction and 'session' in locals():
+                try:
+                    session.rollback()
+                except:
+                    pass
+                    
             return {
                 "success": False,
                 "error": str(e)
             }
+            
+        finally:
+            # Close session if we created it
+            if not in_transaction and 'session' in locals() and session is not db.session:
+                try:
+                    session.close()
+                except:
+                    pass
     def calculate_total_return(self, portfolio, session=None):
         """Calculate total return for a portfolio based on purchase prices."""
         self.logger.info(f"Calculating total return for portfolio {portfolio.id}")
         
         close_session = False
+        commit_changes = False
         if session is None:
             session = db.session()
             close_session = True
+            commit_changes = True
         
         try:
             # Get current portfolio value - ensure it's not None or zero
@@ -1243,6 +1371,11 @@ class PriceUpdateService:
                 portfolio_id=portfolio.id
             ).all()
             
+            # Log each security's purchase price and amount for debugging
+            self.logger.debug(f"Portfolio {portfolio.id} securities for total return calculation:")
+            for ps in portfolio_securities:
+                self.logger.debug(f"  Security ID {ps.security_id}: Amount={ps.amount_owned}, Purchase price=${ps.purchase_price}")
+            
             initial_value = sum(
                 ps.purchase_price * ps.amount_owned
                 for ps in portfolio_securities
@@ -1251,26 +1384,21 @@ class PriceUpdateService:
             
             self.logger.info(f"Portfolio {portfolio.id}: Current value: ${current_value}, Initial value: ${initial_value}")
             
-            if initial_value > 0 and current_value > 0:
-                # Calculate return
-                absolute_return = current_value - initial_value
-                percent_return = (current_value / initial_value - 1) * 100
-                
-                # Update portfolio
-                portfolio.total_return = absolute_return
-                portfolio.total_return_pct = percent_return
-                
-                self.logger.info(f"Portfolio {portfolio.id}: Total return: ${absolute_return:.2f} ({percent_return:.2f}%)")
-            else:
-                # If initial value is not available, use total_gain as a fallback
-                self.logger.warning(f"Portfolio {portfolio.id}: No valid initial value found, using total_gain as fallback")
-                
-                # Get total gain from portfolio or calculate it
-                total_gain = portfolio.total_gain
-                
-                if total_gain is None or total_gain == 0:
-                    # Try to calculate total gain directly
-                    self.logger.warning(f"Portfolio {portfolio.id}: No total_gain available, calculating directly")
+            # Force calculation of total return even if initial_value is 0
+            if current_value > 0:
+                if initial_value > 0:
+                    # Calculate return using initial value
+                    absolute_return = current_value - initial_value
+                    percent_return = (current_value / initial_value - 1) * 100
+                    
+                    # Update portfolio
+                    portfolio.total_return = absolute_return
+                    portfolio.total_return_pct = percent_return
+                    
+                    self.logger.info(f"Portfolio {portfolio.id}: Total return: ${absolute_return:.2f} ({percent_return:.2f}%)")
+                else:
+                    # If initial value is not available, calculate total gain directly
+                    self.logger.warning(f"Portfolio {portfolio.id}: No valid initial value found, calculating total gain directly")
                     
                     portfolio_securities = (
                         session.query(PortfolioSecurity, Security)
@@ -1279,34 +1407,53 @@ class PriceUpdateService:
                         .all()
                     )
                     
-                    total_gain = sum(
-                        ps.amount_owned * (security.current_price - ps.purchase_price)
-                        for ps, security in portfolio_securities
-                        if ps.purchase_price is not None and ps.purchase_price > 0 and security.current_price is not None
-                    )
+                    # Calculate total gain as the difference between current value and cost basis
+                    total_cost = 0
+                    for ps, security in portfolio_securities:
+                        if ps.purchase_price and ps.purchase_price > 0:
+                            total_cost += ps.purchase_price * ps.amount_owned
+                            self.logger.debug(f"  Adding to cost basis: {ps.amount_owned} x ${ps.purchase_price} = ${ps.amount_owned * ps.purchase_price}")
                     
-                    portfolio.total_gain = total_gain
-                    self.logger.info(f"Calculated total gain directly: ${total_gain:.2f}")
-                
-                # Use total_gain for total_return
-                portfolio.total_return = total_gain
-                
-                # Calculate percentage based on current value
-                if current_value > 0 and total_gain != 0:
-                    cost_basis = current_value - total_gain
-                    if cost_basis > 0:
-                        portfolio.total_return_pct = (total_gain / cost_basis) * 100
+                    # If we have a valid cost basis, use it
+                    if total_cost > 0:
+                        total_gain = current_value - total_cost
+                        total_gain_pct = ((current_value / total_cost) - 1) * 100
+                        
+                        # Use total_gain for total_return
+                        portfolio.total_return = total_gain
+                        portfolio.total_return_pct = total_gain_pct
+                        
+                        self.logger.info(f"Portfolio {portfolio.id}: Total return (from cost basis): ${total_gain:.2f} ({total_gain_pct:.2f}%)")
                     else:
-                        portfolio.total_return_pct = 0
-                else:
-                    portfolio.total_return_pct = 0
-                    
-                self.logger.info(f"Portfolio {portfolio.id}: Using total gain as total return: ${total_gain:.2f} ({portfolio.total_return_pct:.2f}%)")
+                        # If we still don't have a valid cost basis, use total_gain from portfolio
+                        total_gain = portfolio.total_gain or 0
+                        
+                        # Use total_gain for total_return
+                        portfolio.total_return = total_gain
+                        portfolio.total_return_pct = 0  # Can't calculate percentage without cost basis
+                        
+                        self.logger.info(f"Portfolio {portfolio.id}: Using portfolio total gain as total return: ${total_gain:.2f}")
+            else:
+                # If current value is 0, set total return to 0
+                portfolio.total_return = 0
+                portfolio.total_return_pct = 0
+                self.logger.warning(f"Portfolio {portfolio.id}: Current value is 0, setting total return to 0")
+            
+            # Commit changes if we created our own session
+            if commit_changes:
+                try:
+                    session.commit()
+                    self.logger.info(f"Committed total return changes for portfolio {portfolio.id}")
+                except Exception as commit_error:
+                    self.logger.error(f"Error committing total return changes: {str(commit_error)}")
+                    session.rollback()
         
         except Exception as e:
             self.logger.error(f"Error calculating total return for portfolio {portfolio.id}: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
+            if commit_changes:
+                session.rollback()
         
         finally:
             if close_session:

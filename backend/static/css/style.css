@@ -17,6 +17,12 @@ body.login-page {
     text-align: center;
 }
 
+.refresh-buttons-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
 .logo {
     max-width: 200px;
     margin-bottom: 20px;
@@ -2229,7 +2235,7 @@ body.risk-analysis-page {
         grid-template-columns: repeat(2, 1fr);
     }
      .charts-grid {
-        grid-template-columns: repeat(1, 1fr); /
+        grid-template-columns: repeat(1, 1fr);
         gap: 20px;
     }
 }

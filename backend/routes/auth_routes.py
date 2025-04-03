@@ -14,7 +14,7 @@ from sqlalchemy import func
 
 from backend import bcrypt, db
 from backend.models import User, Portfolio, Security, StockCache, SecurityHistoricalData, Watchlist, PortfolioSecurity
-from backend.models import PortfolioFiles
+from backend.models import PortfolioFiles, UploadedFile
 from backend.services.validators import validate_ticker
 from backend.services.price_update_service import PriceUpdateService
 from backend.analytics.risk_calculations import RiskAnalytics
@@ -1269,31 +1269,39 @@ def preview_portfolio_file():
         user = User.query.filter_by(email=current_user_email).first()
 
         # Import file validation utilities
-        from backend.utils.file_validators import validate_file_security, sanitize_file_content, calculate_file_hash
+        from backend.utils.file_validators import validate_uploaded_file, safe_read_file
+        from backend.models import UploadedFile
         
-        # Perform security validation
-        is_valid, validation_message = validate_file_security(file)
-        if not is_valid:
-            print(f"File validation failed: {validation_message}")
-            return jsonify({"message": validation_message}), 400
+        # Perform comprehensive security validation
+        validation_result = validate_uploaded_file(file)
+        
+        if not validation_result['is_valid']:
+            error_message = "; ".join(validation_result['messages'])
+            print(f"File validation failed: {error_message}")
+            return jsonify({"message": error_message}), 400
             
-        # Calculate file hash for tracking
-        file_hash = calculate_file_hash(file)
-        print(f"File hash: {file_hash}")
+        # Get file metadata
+        metadata = validation_result['metadata']
+        print(f"File validated successfully: {metadata['filename']}, {metadata['size']} bytes, {metadata['mime_type']}")
         
         # Sanitize filename
         filename = secure_filename(file.filename)
         file_ext = os.path.splitext(filename)[1].lower()
         
-        # Sanitize file content
-        is_sanitized, sanitize_message, sanitized_file = sanitize_file_content(file, file_ext)
-        if not is_sanitized:
-            print(f"File sanitization failed: {sanitize_message}")
-            return jsonify({"message": sanitize_message}), 400
-            
+        # Create a record of the uploaded file with security metadata
+        try:
+            uploaded_file = UploadedFile.create_from_upload(
+                user_id=user.id,
+                file_obj=file,
+                metadata=metadata
+            )
+            print(f"Created uploaded file record: ID {uploaded_file.id}")
+        except Exception as e:
+            print(f"Warning: Could not create UploadedFile record: {str(e)}")
+            # Continue anyway, this is just for tracking
+        
         # Get file size for database record
-        file.seek(0, os.SEEK_END)
-        file_size = file.tell()
+        file_size = metadata['size']
         file.seek(0)  # Reset file pointer to beginning
 
         try:
@@ -1386,8 +1394,34 @@ def preview_portfolio_file():
 @auth_blueprint.route('/create-portfolio-from-file/<int:file_id>', methods=['POST'])
 @jwt_required(locations=["cookies"])
 def create_portfolio_from_file(file_id):
-    """Create a portfolio from an uploaded file"""
+    """Create a portfolio from an uploaded file with enhanced security validation"""
     try:
+        # Log the request for audit purposes
+        current_user_email = get_jwt_identity()
+        print(f"Portfolio creation from file {file_id} requested by {current_user_email}")
+        
+        # Check if the file exists in the UploadedFile table for security tracking
+        from backend.models import UploadedFile
+        uploaded_file = UploadedFile.query.filter_by(id=file_id).first()
+        
+        if uploaded_file:
+            # Verify the file belongs to the current user
+            if uploaded_file.user_id != User.query.filter_by(email=current_user_email).first().id:
+                print(f"Security warning: User {current_user_email} attempted to access file {file_id} belonging to user {uploaded_file.user_id}")
+                return jsonify({"message": "Access denied: You do not have permission to use this file"}), 403
+                
+            # Update the file status to indicate it's being processed
+            uploaded_file.status = 'processing'
+            uploaded_file.is_processed = True
+            uploaded_file.processed_date = datetime.utcnow()
+            db.session.commit()
+            
+            print(f"Processing validated file: {uploaded_file.original_filename} ({uploaded_file.mime_type})")
+        else:
+            # Fall back to the old PortfolioFiles table if the file is not in the new table
+            portfolio_file = PortfolioFiles.query.get(file_id)
+            if not portfolio_file:
+                print(f"Warning: File {file_id} not found in either UploadedFile or PortfolioFiles tables")
         current_token = get_jwt()
         token_expiry = datetime.fromtimestamp(current_token["exp"])
 
@@ -1551,8 +1585,24 @@ def create_portfolio_from_file(file_id):
             db.session.commit()
             print(f"Updated portfolio totals: value=${total_value:.2f}, gain=${portfolio.total_gain:.2f}")
 
-            # Mark the file record as processed
+            # Update file status in both tables for backward compatibility
             try:
+                # First try the new UploadedFile table
+                uploaded_file = UploadedFile.query.filter_by(id=file_id).first()
+                if uploaded_file:
+                    uploaded_file.status = 'completed'
+                    uploaded_file.is_processed = True
+                    uploaded_file.processed_date = datetime.utcnow()
+                    uploaded_file.metadata = {
+                        **(uploaded_file.metadata or {}),
+                        'portfolio_id': portfolio.id,
+                        'securities_count': len(valid_rows),
+                        'completion_time': datetime.utcnow().isoformat()
+                    }
+                    db.session.commit()
+                    print(f"Updated UploadedFile record {file_id} with status 'completed'")
+                
+                # Also try the old PortfolioFiles table for backward compatibility
                 file_record = PortfolioFiles.query.get(file_id)
                 if file_record:
                     try:
@@ -1568,9 +1618,13 @@ def create_portfolio_from_file(file_id):
                             raise
             except Exception as cleanup_error:
                 print(f"Non-critical error updating file record: {cleanup_error}")
+                db.session.rollback()
 
             # Report success statistics
             price_success_rate = (securities_with_prices / len(valid_rows)) * 100 if valid_rows else 0
+            
+            # Log the successful portfolio creation for audit purposes
+            print(f"Portfolio {portfolio.id} created successfully from file {file_id} by user {current_user_email}")
             
             # Ensure portfolio metrics are properly calculated
             try:
@@ -1850,12 +1904,20 @@ def update_portfolio_prices(portfolio_id):
                 except (ValueError, TypeError):
                     timestamp = result['timestamp']
 
+            # Get the updated portfolio to include total return in the response
+            updated_portfolio = Portfolio.query.get(portfolio_id)
+            
             return jsonify({
                 "message": "Price update completed successfully",
                 "updated_count": result.get('updated_count', 0),
                 "tickers_updated": result.get('tickers_updated', []),
                 "timestamp": timestamp,
-                "portfolio_id": portfolio_id
+                "portfolio_id": portfolio_id,
+                "total_value": updated_portfolio.total_value,
+                "day_change": updated_portfolio.day_change,
+                "total_gain": updated_portfolio.total_gain,
+                "total_return": updated_portfolio.total_return,
+                "total_return_pct": updated_portfolio.total_return_pct
             }), 200
         else:
             return jsonify({
@@ -1893,12 +1955,28 @@ def update_all_prices():
                 except (ValueError, TypeError):
                     timestamp = result['timestamp']
 
+            # Get summary of updated portfolios
+            portfolios = Portfolio.query.filter_by(user_id=user.id).all()
+            portfolio_summaries = []
+            
+            for portfolio in portfolios:
+                portfolio_summaries.append({
+                    "id": portfolio.id,
+                    "name": portfolio.name,
+                    "total_value": portfolio.total_value,
+                    "day_change": portfolio.day_change,
+                    "total_gain": portfolio.total_gain,
+                    "total_return": portfolio.total_return,
+                    "total_return_pct": portfolio.total_return_pct
+                })
+            
             return jsonify({
                 "message": "Price update for all portfolios completed successfully",
                 "updated_count": result.get('updated_count', 0),
                 "tickers_updated": result.get('tickers_updated', []),
                 "elapsed_time": result.get('elapsed_time', 0),
-                "timestamp": timestamp
+                "timestamp": timestamp,
+                "portfolios": portfolio_summaries
             }), 200
         else:
             return jsonify({
