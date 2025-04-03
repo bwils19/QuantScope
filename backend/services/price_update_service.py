@@ -1382,3 +1382,48 @@ def update_historical_data(self):
         
         return {"success": False, "error": str(e)}
 
+@celery.task(name='force_update_all', bind=True, max_retries=3)
+def force_update_all(self):
+    """
+    Celery task to force update all prices, closing prices, and historical data.
+    This task bypasses all market checks and is meant to be run outside market hours.
+    """
+    import sys
+    import logging
+    
+    logger = logging.getLogger('celery.tasks')
+    logger.info("Starting force_update_all task...")
+    
+    # Add --force to sys.argv if not already there
+    if '--force' not in sys.argv:
+        sys.argv.append('--force')
+    
+    try:
+        # Step 1: Update prices
+        logger.info("Running price update...")
+        price_result = update_prices()
+        
+        # Step 2: Save closing prices
+        logger.info("Saving closing prices...")
+        closing_result = save_closing_prices()
+        
+        # Step 3: Update historical data
+        logger.info("Updating historical data...")
+        historical_result = update_historical_data()
+        
+        # Return combined results
+        return {
+            'success': True,
+            'price_update': price_result,
+            'closing_prices': closing_result,
+            'historical_data': historical_result
+        }
+    except Exception as e:
+        logger.error(f"Error in force_update_all task: {str(e)}", exc_info=True)
+        
+        # Retry the task with exponential backoff
+        retry_in = 60 * (2 ** self.request.retries)  # 60s, 120s, 240s
+        self.retry(exc=e, countdown=retry_in)
+        
+        return {"success": False, "error": str(e)}
+

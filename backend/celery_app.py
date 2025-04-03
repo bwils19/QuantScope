@@ -31,7 +31,7 @@ celery.conf.update(
     beat_schedule={
         # Regular price updates during market hours only
         'update-prices-during-market': {
-            'task': 'backend.services.price_update_service.scheduled_price_update',
+            'task': 'backend.services.price_update_service.update_prices',
             'schedule': crontab(minute='*/30', hour='9-16', day_of_week='1-5'),  # Every 30 min during market hours
             'options': {'expires': 290}
         },
@@ -45,6 +45,12 @@ celery.conf.update(
         'update-historical-data': {
             'task': 'backend.services.price_update_service.update_historical_data',
             'schedule': crontab(hour=16, minute=30, day_of_week='1-5'),  # 4:30 PM (after market close)
+            'options': {'expires': 7200}  # Tasks expire after 2 hours
+        },
+        # Additional price update outside market hours (for testing and ensuring data is updated)
+        'update-prices-force': {
+            'task': 'backend.services.price_update_service.force_update_all',
+            'schedule': crontab(hour=20, minute=0),  # 8:00 PM every day
             'options': {'expires': 7200}  # Tasks expire after 2 hours
         }
     }
