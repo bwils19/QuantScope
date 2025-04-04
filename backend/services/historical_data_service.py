@@ -27,7 +27,7 @@ class HistoricalDataService:
         }
 
     def get_tickers_needing_update(self):
-        """Get list of tickers that need updating"""
+        """Get list of tickers that need updating, including those with missing dates"""
         try:
             # Get last trading day
             last_trading_day = self.market_utils.get_last_trading_day()
@@ -43,10 +43,18 @@ class HistoricalDataService:
             active_tickers = set(t[0] for t in active_tickers)
             active_tickers.update(self.benchmark_tickers.values())
 
+            # Get trading days in the last 30 days
+            today = datetime.now().date()
+            start_date = today - timedelta(days=30)
+            trading_days = self.market_utils.get_trading_days(start_date, today)
+
             tickers_to_update = []
             for ticker, latest_date in latest_data:
-                if ticker in active_tickers and latest_date < last_trading_day:
-                    tickers_to_update.append((ticker, latest_date))
+                if ticker in active_tickers:
+                    # Check if there are missing dates
+                    missing_days = [day for day in trading_days if day > latest_date]
+                    if missing_days:
+                        tickers_to_update.append((ticker, latest_date))
 
             # Add tickers with no historical data
             missing_tickers = active_tickers - set(t[0] for t in latest_data)
@@ -59,7 +67,7 @@ class HistoricalDataService:
             return []
 
     def process_historical_data(self, ticker, time_series_data, start_date=None):
-        """Process historical data for a ticker"""
+        """Process historical data for a ticker, focusing on missing dates"""
         try:
             records_added = 0
 
@@ -97,6 +105,14 @@ class HistoricalDataService:
             logger.error(f"Error processing data for {ticker}: {str(e)}")
             return 0
 
+    
+    def get_trading_days(self, start_date, end_date):
+        """Get all trading days between start_date and end_date"""
+        return self.market_utils.get_trading_days(start_date, end_date)
+    
+    def get_trading_days(self, start_date, end_date):
+        """Get all trading days between start_date and end_date"""
+        return self.market_utils.get_trading_days(start_date, end_date)
     def update_historical_data(self, force_update=False):
         """Update historical data for all tickers"""
         try:
