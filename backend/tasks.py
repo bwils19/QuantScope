@@ -23,6 +23,66 @@ logger = logging.getLogger('scheduler')
 
 #  CELERY TASKS
 
+## TEMP FOR TESTING
+
+@app.task(name='dev.backfill_historical_prices', bind=True)
+def backfill_historical_prices(self):
+    logger = self.get_logger()
+    logger.info("Starting backfill of historical prices...")
+
+    try:
+        session = db.session
+        today = datetime.utcnow().date()
+        tickers_to_update = []
+
+        # Look for securities missing data from last 5 weekdays
+        recent_days = [today - timedelta(days=i) for i in range(1, 6)]
+        securities = session.query(Security).all()
+
+        for security in securities:
+            has_all = session.query(SecurityHistoricalData).filter(
+                SecurityHistoricalData.ticker == security.ticker,
+                SecurityHistoricalData.date.in_(recent_days)
+            ).count()
+
+            if has_all < len(recent_days):
+                tickers_to_update.append(security.ticker)
+
+        logger.info(f"Found {len(tickers_to_update)} tickers missing recent historical data")
+
+        if not tickers_to_update:
+            return {"success": True, "message": "All securities up to date"}
+
+        service = PriceUpdateService()
+        for ticker in tickers_to_update:
+            logger.info(f"Updating historical data for {ticker}")
+            # You may already have this in your historical service, but placeholder here:
+            price = service._get_historical_price(ticker)
+            if price:
+                entry = SecurityHistoricalData(
+                    ticker=ticker,
+                    date=today,
+                    close_price=price
+                )
+                session.merge(entry)
+        
+        session.commit()
+        return {"success": True, "updated": len(tickers_to_update)}
+
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error during backfill: {str(e)}", exc_info=True)
+        raise e
+
+    finally:
+        session.close()
+
+
+## end of the testing task
+
+
+
+
 @app.task(bind=True, max_retries=3, rate_limit='75/m')
 def update_ticker_price(ticker, force=False):
     """Update price for a single ticker with rate limiting"""
