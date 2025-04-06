@@ -14,6 +14,8 @@ from backend.models import Security, SecurityHistoricalData, HistoricalDataUpdat
 from backend.services.price_update_service import PriceUpdateService
 from backend.services.historical_data_service import HistoricalDataService
 from backend.services.stock_service import is_market_open
+from celery import shared_task
+
 
 # Configure logging
 logger = logging.getLogger('scheduler')
