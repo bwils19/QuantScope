@@ -25,8 +25,8 @@ celery.conf.update({
     'worker_max_memory_per_child': 200000,  # Restart worker after 200MB
     'worker_max_tasks_per_child': 50,
     'broker_connection_retry_on_startup': True,
-    'beat_scheduler': 'redbeat.RedBeatScheduler',
-    'beat_schedule_filename': '/var/run/quantscope/celerybeat-schedule',
+    # 'beat_scheduler': 'redbeat.RedBeatScheduler',
+    # 'beat_schedule_filename': '/var/run/quantscope/celerybeat-schedule',
     'task_routes': {
         'backend.tasks.*': {'queue': 'default'},
         'backend.services.*': {'queue': 'default'},
