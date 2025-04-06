@@ -388,3 +388,6 @@ def init_scheduler(app):
         app.logger.error(f"Error initializing scheduler: {e}")
         # Return None instead of crashing
         return None
+
+# Explicit task registration
+app.register_task(update_ticker_price)

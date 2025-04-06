@@ -1,3 +1,4 @@
+from backend.tasks import *
 from celery import Celery
 from celery.schedules import crontab
 
@@ -20,8 +21,9 @@ celery = Celery(
 celery.autodiscover_tasks([
     'backend.tasks',
     'backend.services',
-    'backend.routes'
-])
+    'backend.routes',
+    'backend'
+], force=True)
 celery.conf.task_default_rate_limit = '75/m'
 celery.conf.worker_prefetch_multiplier = 1
 celery.conf.worker_concurrency = 2
