@@ -1,3 +1,4 @@
+from backend.celery_app import celery as app
 # backend/tasks.py
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -6,7 +7,8 @@ import logging
 from datetime import datetime
 import time
 
-from celery import shared_task, group
+from celery import group
+from celery.contrib.abortable import AbortableTask
 from backend import db
 from backend.models import Security, SecurityHistoricalData, HistoricalDataUpdateLog, StockCache
 from backend.services.price_update_service import PriceUpdateService
@@ -19,7 +21,7 @@ logger = logging.getLogger('scheduler')
 
 #  CELERY TASKS
 
-@shared_task(rate_limit='75/m', max_retries=3)
+@app.task(bind=True, max_retries=3, rate_limit='75/m')
 def update_ticker_price(ticker, force=False):
     """Update price for a single ticker with rate limiting"""
     try:
@@ -46,7 +48,7 @@ def update_ticker_price(ticker, force=False):
         task_logger = logging.getLogger('celery.tasks')
         task_logger.error(f"Error updating price for {ticker}: {exc}")
         # Use the task directly, not self
-        update_ticker_price.retry(exc=exc, countdown=60)
+        self.retry(exc=exc, countdown=60)
 
 
 @shared_task
