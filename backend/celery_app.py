@@ -17,7 +17,11 @@ celery = Celery(
     backend=REDIS_URL
 )
 
-celery.autodiscover_tasks(['backend.tasks'])
+celery.autodiscover_tasks([
+    'backend.tasks',
+    'backend.services',
+    'backend.routes'
+])
 celery.conf.task_default_rate_limit = '75/m'
 celery.conf.worker_prefetch_multiplier = 1
 celery.conf.worker_concurrency = 2
@@ -72,3 +76,20 @@ def configure_celery(app):
     celery.conf.update(task_base=ContextTask)
 
     return celery
+
+# Improve task registration and scheduling
+celery.conf.update(
+    task_routes={
+        'backend.tasks.*': {'queue': 'default'},
+        'backend.services.*': {'queue': 'default'},
+    },
+    task_annotations={
+        'backend.tasks.*': {'rate_limit': '75/m'}
+    },
+    beat_scheduler='redbeat.RedBeatScheduler',
+    beat_schedule_filename='/var/run/quantscope/celerybeat-schedule'
+)
+
+# Ensure beat schedule directory exists
+import os
+os.makedirs('/var/run/quantscope', exist_ok=True)
