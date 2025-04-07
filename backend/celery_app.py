@@ -55,7 +55,7 @@ celery.conf.update({
             'schedule': crontab(hour=20, minute=0),
             'options': {'expires': 7200}
         },
-        'backend.tasks.backfill_historical_prices': {
+        'dev-backfill-historical-prices': {
             'task': 'backend.tasks.backfill_historical_prices',
             'schedule': crontab(minute='*/2'),  # every 2 minutes just to test
             'options': {'expires': 120}
