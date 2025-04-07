@@ -408,3 +408,4 @@ def init_scheduler(app):
 
 # Explicit task registration
 app.register_task(update_ticker_price)
+app.register_task(backfill_historical_prices)
