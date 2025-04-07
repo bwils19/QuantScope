@@ -55,8 +55,8 @@ celery.conf.update({
             'schedule': crontab(hour=20, minute=0),
             'options': {'expires': 7200}
         },
-        'dev-backfill-historical-prices': {
-            'task': 'dev.backfill_historical_prices',
+        'backend.tasks.backfill_historical_prices': {
+            'task': 'backend.tasks.backfill_historical_prices',
             'schedule': crontab(minute='*/2'),  # every 2 minutes just to test
             'options': {'expires': 120}
         }
@@ -78,3 +78,8 @@ def configure_celery(app):
 
     celery.Task = ContextTask
     return celery
+
+celery.autodiscover_tasks([
+    'backend.tasks',
+    'backend.services',
+])
