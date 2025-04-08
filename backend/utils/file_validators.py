@@ -1,8 +1,5 @@
 """
 File validation utilities for secure file uploads.
-
-This module provides functions to validate uploaded files for security purposes.
-It ensures that files are of the expected type, size, and content before processing.
 """
 
 import os
@@ -60,13 +57,10 @@ DANGEROUS_PATTERNS = [
 def validate_file_extension(filename: str) -> Tuple[bool, str]:
     """
     Validate that the file has an allowed extension.
-    
-    Args:
-        filename: The name of the file to validate
-        
-    Returns:
-        Tuple of (is_valid, message)
+    Args: filename: The name of the file to validate
+    Returns: Tuple of (is_valid, message)
     """
+
     if not filename or '.' not in filename:
         return False, "Invalid filename or missing extension"
     
@@ -79,13 +73,10 @@ def validate_file_extension(filename: str) -> Tuple[bool, str]:
 def validate_file_size(file: FileStorage) -> Tuple[bool, str]:
     """
     Validate that the file size is within allowed limits.
-    
-    Args:
-        file: The file object to validate
-        
-    Returns:
-        Tuple of (is_valid, message)
+    Args: file: The file object to validate
+    Returns: Tuple of (is_valid, message)
     """
+
     file.seek(0, os.SEEK_END)
     size = file.tell()
     file.seek(0)  # Reset file pointer
@@ -98,12 +89,8 @@ def validate_file_size(file: FileStorage) -> Tuple[bool, str]:
 def validate_file_content_type(file: FileStorage) -> Tuple[bool, str]:
     """
     Validate that the file content matches its claimed type using libmagic.
-    
-    Args:
-        file: The file object to validate
-        
-    Returns:
-        Tuple of (is_valid, message)
+    Args: file: The file object to validate
+    Returns: Tuple of (is_valid, message)
     """
     # Read a sample of the file
     file_sample = file.read(2048)
@@ -127,12 +114,8 @@ def validate_file_content_type(file: FileStorage) -> Tuple[bool, str]:
 def scan_for_dangerous_content(file: FileStorage) -> Tuple[bool, str]:
     """
     Scan file content for potentially dangerous patterns.
-    
-    Args:
-        file: The file object to scan
-        
-    Returns:
-        Tuple of (is_safe, message)
+    Args: file: The file object to scan
+    Returns: Tuple of (is_safe, message)
     """
     # Read the file content
     content = file.read()
@@ -158,12 +141,8 @@ def scan_for_dangerous_content(file: FileStorage) -> Tuple[bool, str]:
 def validate_csv_content(file: FileStorage) -> Tuple[bool, str, Optional[pd.DataFrame]]:
     """
     Validate that the CSV file contains valid data.
-    
-    Args:
-        file: The CSV file to validate
-        
-    Returns:
-        Tuple of (is_valid, message, dataframe)
+    Args: file: The CSV file to validate
+    Returns: Tuple of (is_valid, message, dataframe)
     """
     try:
         # Try to read the CSV file
@@ -193,12 +172,8 @@ def validate_csv_content(file: FileStorage) -> Tuple[bool, str, Optional[pd.Data
 def validate_excel_content(file: FileStorage) -> Tuple[bool, str, Optional[pd.DataFrame]]:
     """
     Validate that the Excel file contains valid data.
-    
-    Args:
-        file: The Excel file to validate
-        
-    Returns:
-        Tuple of (is_valid, message, dataframe)
+    Args: file: The Excel file to validate
+    Returns: Tuple of (is_valid, message, dataframe)
     """
     try:
         # Try to read the Excel file
