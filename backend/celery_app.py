@@ -17,6 +17,10 @@ celery = Celery(
     backend=REDIS_URL
 )
 
+celery.autodiscover_tasks([
+    'backend.tasks',
+    'backend.services'], force=True)
+
 # Base configuration
 celery.conf.update({
     'task_default_rate_limit': '75/m',
@@ -78,8 +82,3 @@ def configure_celery(app):
 
     celery.Task = ContextTask
     return celery
-
-celery.autodiscover_tasks([
-    'backend.tasks',
-    'backend.services',
-])
