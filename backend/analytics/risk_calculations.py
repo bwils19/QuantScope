@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, date
 
 from flask import current_app
 from scipy import stats
+from scipy.stats import linregress
 import numpy as np
 import traceback
 from typing import List, Dict, Optional, Tuple, Any, Union
@@ -276,6 +277,8 @@ class RiskAnalytics:
         # Check for empty arrays
         if len(portfolio_returns) == 0:
             print("ERROR: portfolio_returns is empty, returning default beta 1.0")
+            print(f"[Beta Debug] Portfolio returns: {portfolio_returns[:5]}... len={len(portfolio_returns)}")
+
             return 1.0
             
         if len(benchmark_returns) == 0:
@@ -357,7 +360,7 @@ class RiskAnalytics:
 
         try:
             # Calculate beta using linear regression
-            slope, intercept, r_value, p_value, std_err = stats.linregress(benchmark_returns, portfolio_returns)
+            slope, intercept, r_value, p_value, std_err = linregress(benchmark_returns, portfolio_returns)
             print(f"Regression results:")
             print(f"  Slope (beta): {slope}")
             print(f"  Intercept: {intercept}")
@@ -523,7 +526,7 @@ class RiskAnalytics:
             return 1.0
 
         try:
-            slope, _, _, _, _ = stats.linregress(down_benchmark, down_portfolio)
+            slope, _, _, _, _ = linregress(down_benchmark, down_portfolio)
             return slope
         except Exception as e:
             print(f"Error in downside beta calculation: {str(e)}")
@@ -539,7 +542,7 @@ class RiskAnalytics:
         if len(portfolio_returns) != len(benchmark_returns):
             return 0.0, 0.0
 
-        slope, _, r_value, _, std_err = stats.linregress(
+        slope, _, r_value, _, std_err = linregress(
             benchmark_returns,
             portfolio_returns
         )
