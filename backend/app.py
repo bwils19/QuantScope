@@ -110,7 +110,7 @@ def create_app(test_config=None):
         app.cli.add_command(load_historical_data)
         from backend.utils.diagnostic import check_date_issues
         check_date_issues()
-    configure_celery(app)
+    # configure_celery(app)
 
     # Root route
     @app.route("/")
