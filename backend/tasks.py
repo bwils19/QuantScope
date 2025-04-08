@@ -272,11 +272,11 @@ def update_historical_data():
             "error": str(e)
         }
 
-@app.task(name='backend.tasks.backfill_historical_prices', bind=True)
+@shared_task(name='backend.tasks.backfill_historical_prices', bind=True)
 def backfill_historical_prices(self):
     """Backfill missing historical prices for securities."""
     logger = logging.getLogger('celery.tasks')
-    logger.info("Starting backfill of historical prices...")
+    logger.info(">>> RUNNING backfill_historical_prices <<<")
 
     try:
         service = HistoricalDataService()
