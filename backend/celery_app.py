@@ -76,7 +76,6 @@ celery.conf.update({
 os.makedirs('/var/run/quantscope', exist_ok=True)
 
 def configure_celery(app):
-    """Attach Flask app context to Celery tasks."""
     celery.conf.update(app.config)
 
     class ContextTask(celery.Task):
@@ -87,3 +86,11 @@ def configure_celery(app):
 
     celery.Task = ContextTask
     return celery
+
+try:
+    from backend.app import create_app
+    flask_app = create_app()
+    configure_celery(flask_app)
+except Exception as e:
+    print(f"WARNING: Could not configure Celery with Flask app context: {e}")
+

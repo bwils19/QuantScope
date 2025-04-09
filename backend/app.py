@@ -183,19 +183,6 @@ def create_app(test_config=None):
                 'timestamp': datetime.now().isoformat()
             }), 500
 
-    # Using Celery for scheduling instead of APScheduler
-    # Commenting out APScheduler initialization to avoid conflicts
-    #
-    # if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
-    #     try:
-    #         scheduler = init_scheduler(app)
-    #         if scheduler:  # Only set if initialization succeeded
-    #             app.scheduler = scheduler
-    #             app.logger.info("Scheduler initialized successfully")
-    #         else:
-    #             app.logger.warning("Scheduler could not be initialized, continuing without it")
-    #     except Exception as e:
-    #         app.logger.error(f"Failed to initialize scheduler: {e}")
     
     app.logger.info("Using Celery for task scheduling. APScheduler disabled.")
 
