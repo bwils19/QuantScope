@@ -8,27 +8,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ===== Create the Flask app FIRST =====
-try:
-    from backend.app import create_app
-    flask_app = create_app()
-except Exception as e:
-    print(f"FATAL: Failed to create Flask app: {e}")
-    flask_app = None
+from backend.app import create_app
+flask_app = create_app()
 
-# ===== Create the Celery app =====
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+celery = Celery("quant_scope", broker=REDIS_URL, backend=REDIS_URL)
 
-celery = Celery(
-    "quant_scope",
-    broker=REDIS_URL,
-    backend=REDIS_URL
-)
-
-celery.autodiscover_tasks([
-    'backend.tasks',
-    'backend.services'], force=True)
-
-# ===== Attach Flask context to Celery =====
+# ===== Attach Flask context to Celery before anything else =====
 def configure_celery(app):
     celery.conf.update(app.config)
 
@@ -41,8 +27,27 @@ def configure_celery(app):
     celery.Task = ContextTask
     return celery
 
-if flask_app:
-    configure_celery(flask_app)
+configure_celery(flask_app)
+
+celery.autodiscover_tasks([
+    'backend.tasks',
+    'backend.services'], force=True)
+
+# # ===== Attach Flask context to Celery =====
+# def configure_celery(app):
+#     celery.conf.update(app.config)
+
+#     class ContextTask(celery.Task):
+#         abstract = True
+#         def __call__(self, *args, **kwargs):
+#             with app.app_context():
+#                 return super().__call__(*args, **kwargs)
+
+#     celery.Task = ContextTask
+#     return celery
+
+# if flask_app:
+#     configure_celery(flask_app)
 
 # ===== Configure beat schedule and settings =====
 celery.conf.update({
