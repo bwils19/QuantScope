@@ -7,10 +7,17 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Redis configuration
+# ===== Create the Flask app FIRST =====
+try:
+    from backend.app import create_app
+    flask_app = create_app()
+except Exception as e:
+    print(f"FATAL: Failed to create Flask app: {e}")
+    flask_app = None
+
+# ===== Create the Celery app =====
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 
-# Create Celery app
 celery = Celery(
     "quant_scope",
     broker=REDIS_URL,
@@ -21,21 +28,34 @@ celery.autodiscover_tasks([
     'backend.tasks',
     'backend.services'], force=True)
 
-# Base configuration
+# ===== Attach Flask context to Celery =====
+def configure_celery(app):
+    celery.conf.update(app.config)
+
+    class ContextTask(celery.Task):
+        abstract = True
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return super().__call__(*args, **kwargs)
+
+    celery.Task = ContextTask
+    return celery
+
+if flask_app:
+    configure_celery(flask_app)
+
+# ===== Configure beat schedule and settings =====
 celery.conf.update({
     'task_default_rate_limit': '75/m',
     'worker_prefetch_multiplier': 1,
     'worker_concurrency': 2,
-    'worker_max_memory_per_child': 200000,  # Restart worker after 200MB
+    'worker_max_memory_per_child': 200000,
     'worker_max_tasks_per_child': 50,
     'broker_connection_retry_on_startup': True,
     'accept_content': ['json'],
     'task_serializer': 'json',
     'result_serializer': 'json',
     'task_default_queue': 'default',
-
-    # 'beat_scheduler': 'redbeat.RedBeatScheduler',
-    # 'beat_schedule_filename': '/var/run/quantscope/celerybeat-schedule',
     'task_routes': {
         'backend.tasks.*': {'queue': 'default'},
         'backend.services.*': {'queue': 'default'},
@@ -66,7 +86,7 @@ celery.conf.update({
         },
         'dev-backfill-historical-prices': {
             'task': 'backend.tasks.backfill_historical_prices',
-            'schedule': crontab(minute='*/2'),  # every 2 minutes just to test
+            'schedule': crontab(minute='*/2'),
             'options': {'expires': 120}
         }
     }
@@ -74,23 +94,3 @@ celery.conf.update({
 
 # Ensure beat schedule directory exists
 os.makedirs('/var/run/quantscope', exist_ok=True)
-
-def configure_celery(app):
-    celery.conf.update(app.config)
-
-    class ContextTask(celery.Task):
-        abstract = True
-        def __call__(self, *args, **kwargs):
-            with app.app_context():
-                return super().__call__(*args, **kwargs)
-
-    celery.Task = ContextTask
-    return celery
-
-try:
-    from backend.app import create_app
-    flask_app = create_app()
-    configure_celery(flask_app)
-except Exception as e:
-    print(f"WARNING: Could not configure Celery with Flask app context: {e}")
-
