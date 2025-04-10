@@ -69,6 +69,7 @@ def create_app(test_config=None):
     jwt.init_app(app)
 
     with app.app_context():
+        from backend.celery_app import configure_celery
         configure_celery(app)  # configure the celery app to run tasks
         from backend.models import User, Portfolio, Security
 

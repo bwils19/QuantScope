@@ -1,4 +1,3 @@
-# backend/celery_app.py
 import os
 from celery import Celery
 from celery.schedules import crontab
@@ -7,49 +6,12 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# ===== Create the Flask app FIRST =====
-from backend.app import create_app
-flask_app = create_app()
-
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+
+# Create Celery first without Flask integration
 celery = Celery("quant_scope", broker=REDIS_URL, backend=REDIS_URL)
 
-# ===== Attach Flask context to Celery before anything else =====
-def configure_celery(app):
-    celery.conf.update(app.config)
-
-    class ContextTask(celery.Task):
-        abstract = True
-        def __call__(self, *args, **kwargs):
-            with app.app_context():
-                return super().__call__(*args, **kwargs)
-
-    celery.Task = ContextTask
-    return celery
-
-configure_celery(flask_app)
-
-celery.autodiscover_tasks([
-    'backend.tasks',
-    'backend.services'], force=True)
-
-# # ===== Attach Flask context to Celery =====
-# def configure_celery(app):
-#     celery.conf.update(app.config)
-
-#     class ContextTask(celery.Task):
-#         abstract = True
-#         def __call__(self, *args, **kwargs):
-#             with app.app_context():
-#                 return super().__call__(*args, **kwargs)
-
-#     celery.Task = ContextTask
-#     return celery
-
-# if flask_app:
-#     configure_celery(flask_app)
-
-# ===== Configure beat schedule and settings =====
+# Configure basic settings
 celery.conf.update({
     'task_default_rate_limit': '75/m',
     'worker_prefetch_multiplier': 1,
@@ -68,7 +30,16 @@ celery.conf.update({
     'task_annotations': {
         'backend.tasks.*': {'rate_limit': '75/m'}
     },
-    'beat_schedule': {
+    # Beat schedule moved to configure_celery function
+})
+
+# Improved context handling
+def configure_celery(app):
+    # Update with app config
+    celery.conf.update(app.config)
+    
+    # Set beat schedule inside configure function to have access to app config
+    celery.conf.beat_schedule = {
         'update-prices-during-market': {
             'task': 'backend.services.price_update_service.update_prices',
             'schedule': crontab(minute='*/30', hour='9-16', day_of_week='1-5'),
@@ -95,7 +66,25 @@ celery.conf.update({
             'options': {'expires': 120}
         }
     }
-})
+
+    # Create a subclass of Task that wraps all execution in app context
+    class ContextTask(celery.Task):
+        abstract = True
+        
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return super().__call__(*args, **kwargs)
+    
+    # Apply our custom task class as default
+    celery.Task = ContextTask
+    
+    # Discover tasks after context is set up
+    celery.autodiscover_tasks([
+        'backend.tasks',
+        'backend.services'
+    ], force=True)
+    
+    return celery
 
 # Ensure beat schedule directory exists
 os.makedirs('/var/run/quantscope', exist_ok=True)
