@@ -40,73 +40,52 @@
       </div>
     </div>
 
-    <div class="portfolio-list-container">
-        <div class="watchlist-card dashboard-card">
-            <div class="portfolio-header">
-                <h3 class="page-title">WATCHLIST</h3>
-                <div class="watchlist-actions">
-                    <button class="add-to-watchlist-btn">
-                        <i class="fas fa-plus"></i> Add to Watchlist
-                    </button>
-                </div>
-            </div>
-            
-            <div class="watchlist-content-wrapper">
-                <div class="watchlist-content hidden">
-                    <!-- Watchlist Table -->
-                    <div class="watchlist-table-container">
-                        <table class="securities-table watchlist-table">
-                            <thead>
-                                <tr>
-                                    <th>Ticker</th>
-                                    <th>Name</th>
-                                    <th>Exchange</th>
-                                    <th>Last Price</th>
-                                    <th>Last Date</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="watchlist-securities">
-                                <!-- Watchlist items will be inserted here -->
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <!-- Chart Section -->
-                    <div id="watchlistChartContainer" class="chart-container hidden">
-                        <div class="chart-header">
-                            <h3 class="chart-title">Price History</h3>
-                            <div class="chart-toggle-buttons">
-                                <button class="chart-type-btn active" data-chart-type="line">Line</button>
-                                <button class="chart-type-btn" data-chart-type="bar">Bar</button>
-                                <button class="chart-type-btn" data-chart-type="candlestick">Candlestick</button>
-                            </div>
-                            <button class="close-chart-btn">×</button>
-                        </div>
-                        <div id="watchlistChart"></div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Search container for adding to watchlist -->
-            <div id="watchlistSearchContainer" class="watchlist-search-container hidden">
-                <input type="text" id="watchlistSearchInput" placeholder="Search for a security...">
-                <ul id="watchlistSearchSuggestions" class="search-suggestions hidden"></ul>
-            </div>
-    
-            <button class="toggle-watchlist-btn">
-                <img src="/static/images/chevron-down.svg" alt="Toggle Watchlist" class="chevron-icon">
+    <div class="watchlist-card">
+        <div class="watchlist-card-header">
+          <h3 class="page-title">WATCHLIST</h3>
+          <div class="watchlist-card-actions">
+            <button class="add-to-watchlist-btn">
+              <i class="fas fa-plus"></i> Add to Watchlist
             </button>
+            <button class="toggle-watchlist-btn">
+              <img src="/static/images/chevron-down.svg" alt="Toggle Watchlist" class="chevron-icon">
+            </button>
+          </div>
         </div>
-        
+    
+        <div class="watchlist-content-wrapper">
+          <div class="watchlist-content hidden">
+            <table class="watchlist-table">
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Name</th>
+                  <th>Exchange</th>
+                  <th>Last Price</th>
+                  <th>Last Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody class="watchlist-securities">
+                <!-- Dynamic content here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+    
+        <div id="watchlistSearchContainer" class="watchlist-search-container hidden">
+          <input type="text" id="watchlistSearchInput" placeholder="Search for a security...">
+          <ul id="watchlistSearchSuggestions" class="search-suggestions hidden"></ul>
+        </div>
+    
         <script id="watchlist-data" type="application/json">
-            {% if watchlist %}
-                {{ watchlist | tojson | safe }}
-            {% else %}
-                []
-            {% endif %}
+          {% if watchlist %}
+            {{ watchlist | tojson | safe }}
+          {% else %}
+            []
+          {% endif %}
         </script>
-    </div>
+      </div>
 
     <div class="portfolio-list-container">
       <div class="portfolio-header">
