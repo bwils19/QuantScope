@@ -253,7 +253,7 @@ datalist option {
     border-bottom: 1px solid #ddd;
   }
 
-.watchlist-toggle-container {
+/* .watchlist-toggle-container {
     position: absolute;
     bottom: 0;
     left: 50%;
@@ -262,7 +262,7 @@ datalist option {
     display: flex;
     justify-content: center;
     align-items: center;
-}
+} */
 
 .watchlist-content {
     max-height: 1000px; /* Large enough to contain content */
@@ -270,9 +270,9 @@ datalist option {
     transition: max-height 0.3s ease, opacity 0.3s ease;
 }
 
-.watchlist-search-container.hidden {
+/* .watchlist-search-container.hidden {
     display: none;
-}
+} */
 
 .watchlist-content.hidden {
     max-height: 0;
@@ -307,7 +307,7 @@ datalist option {
     transform: rotate(180deg);
 }
 
-.portfolio-watchlist-container .page-title {
+/* .portfolio-watchlist-container .page-title {
     font-size: 26px;
     font-family: 'Bodoni Moda', serif;
     text-transform: uppercase;
@@ -315,7 +315,7 @@ datalist option {
     font-weight: 500;
     color: #2c3e50;
     margin: 0; /* Ensure consistent spacing */
-}
+} */
 
 
 .portfolio-uploaded-files-container {
@@ -2489,9 +2489,9 @@ body.risk-analysis-page {
     margin-bottom: 15px;
   }
 
-.watchlist-card:hover {
+/* .watchlist-card:hover {
   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
+} */
 
 .watchlist-card .portfolio-header {
   display: flex;
@@ -2502,7 +2502,7 @@ body.risk-analysis-page {
   padding-bottom: 0.75rem;
 }
 
-.watchlist-card .page-title {
+/* .watchlist-card .page-title {
   font-size: 26px;
   font-family: 'Bodoni Moda', serif;
   text-transform: uppercase;
@@ -2510,9 +2510,9 @@ body.risk-analysis-page {
   font-weight: 500;
   color: #2c3e50;
   margin: 0;
-}
+} */
 
-.watchlist-actions .add-to-watchlist-btn {
+/* .watchlist-actions .add-to-watchlist-btn {
   padding: 8px 12px;
   background-color: #212830;
   color: white;
@@ -2525,7 +2525,7 @@ body.risk-analysis-page {
 
 .watchlist-actions .add-to-watchlist-btn:hover {
   background-color: #6C7D93;
-}
+} */
 
 /* Container alignment to match portfolios exactly */
 .portfolio-list-container {
@@ -2626,30 +2626,30 @@ body.risk-analysis-page {
     display: none;
 }
 
-.watchlist-search-container {
+/* .watchlist-search-container {
     position: relative;
     margin-bottom: 1rem;
-}
+} */
 
-.watchlist-suggestion-item {
+/* .watchlist-suggestion-item {
     padding: 0.5rem 1rem;
     cursor: pointer;
-}
+} */
 
-.watchlist-suggestion-item:hover {
+/* .watchlist-suggestion-item:hover {
     background-color: #f3f4f6;
-}
+} */
 
-.empty-watchlist {
+/* .empty-watchlist {
     text-align: center;
     padding: 2rem;
     color: #666;
     background: white;
     border-radius: 8px;
     margin-top: 1rem;
-}
+} */
 
-.add-to-watchlist-btn {
+/* .add-to-watchlist-btn {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -2664,10 +2664,10 @@ body.risk-analysis-page {
 
 .add-to-watchlist-btn:hover {
     background-color: #2c3e50;
-}
+} */
 
 
-.watchlist-table {
+/* .watchlist-table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 15px;
@@ -2678,7 +2678,7 @@ body.risk-analysis-page {
     padding: 12px;
     text-align: left;
     border-bottom: 1px solid #ddd;
-}
+} */
 
 .chart-container {
     margin-top: 20px;
@@ -2733,3 +2733,99 @@ body.risk-analysis-page {
 .remove-security-btn:hover .fa-times {
     color: #ef4444;
 }
+
+
+
+/*------------------------------------------------
+  WATCHLIST — unified card, content & table styles
+------------------------------------------------*/
+.portfolio-watchlist-container {
+    position: relative;
+    padding-bottom: 30px; /* space for toggle chevron */
+  }
+  
+  .portfolio-watchlist-container > .watchlist-card {
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .portfolio-watchlist-container
+    > .watchlist-card
+    .portfolio-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+  }
+  
+  .portfolio-watchlist-container
+    .watchlist-content-wrapper {
+    overflow: visible !important;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+  }
+  
+  .portfolio-watchlist-container
+    .watchlist-content {
+    max-height: 1000px;
+    opacity: 1;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+  }
+  
+  .portfolio-watchlist-container
+    .watchlist-content.hidden {
+    max-height: 0;
+    opacity: 0;
+  }
+  
+  .portfolio-watchlist-container
+    .watchlist-table-container {
+    width: 100%;
+    overflow-x: auto;
+    margin-top: 1rem;
+  }
+  
+  .portfolio-watchlist-container
+    .watchlist-table {
+    width: 100% !important;
+    table-layout: auto !important;
+    border-collapse: collapse;
+  }
+  
+  .portfolio-watchlist-container
+    .watchlist-table th,
+  .portfolio-watchlist-container
+    .watchlist-table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .portfolio-watchlist-container
+    .toggle-watchlist-btn {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    z-index: 10;
+  }
+  
+  .portfolio-watchlist-container
+    .toggle-watchlist-btn .chevron-icon {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.3s ease;
+  }
+  
+  .portfolio-watchlist-container
+    .toggle-watchlist-btn .chevron-icon.rotated {
+    transform: rotate(180deg);
+  }
