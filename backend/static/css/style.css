@@ -228,8 +228,30 @@ datalist option {
 .watchlist-content-wrapper {
     position: relative;
     transition: max-height 0.3s ease, opacity 0.3s ease;
-    overflow: hidden;
+    overflow: visible; /* changed this */
 }
+
+/* added this */
+.watchlist-table-container {
+    width: 100%;
+    overflow-x: auto;
+    margin-top: 1rem;
+  }
+
+  /* Full‑width table with auto layout */
+.watchlist-table {
+    width: 100%;
+    table-layout: auto;
+    border-collapse: collapse;
+  }
+  
+  /* More generous padding for readability */
+  .watchlist-table th,
+  .watchlist-table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
 
 .watchlist-toggle-container {
     position: absolute;
@@ -2438,14 +2460,34 @@ body.risk-analysis-page {
 }
 
 /*watchlist styles*/
-.watchlist-card {
+/* .watchlist-card {
   background: white;
   border-radius: 12px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
   margin-bottom: 1rem;
   padding: 1.25rem;
   transition: all 0.2s ease;
-}
+} */
+
+.watchlist-card {
+    position: relative;               /* for the absolute toggle button */
+    background-color: #f9f9f9;        /* match portfolios & header card */
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    padding: 20px;
+  }
+
+/* added this */
+
+  .watchlist-card .portfolio-header {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+  }
 
 .watchlist-card:hover {
   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
