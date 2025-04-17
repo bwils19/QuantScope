@@ -227,8 +227,10 @@ class HistoricalDataService:
             total_tickers_updated = 0
             logger.info(f"Created update log entry with ID: {log_entry.id}")
 
-            for ticker, latest_date in tickers_to_update:
+            for i, (ticker, latest_date) in enumerate(tickers_to_update):
+                logger.info(f"⏳ {i+1}/{len(tickers_to_update)} — Updating {ticker}")
                 try:
+                    
                     logger.info(f"Processing {ticker} (Latest data: {latest_date})")
 
                     time_series_data = self.api_client.fetch_daily_data(ticker)
@@ -260,12 +262,14 @@ class HistoricalDataService:
             log_entry.records_added = total_records_added
             db.session.commit()
 
+            logger.info("Finished updating all tickers.")
             return {
                 'success': True,
                 'message': 'Update completed successfully',
                 'tickers_updated': total_tickers_updated,
                 'records_added': total_records_added
             }
+        
 
         except Exception as e:
             logger.error(f"Error in update_historical_data: {str(e)}")
@@ -281,6 +285,8 @@ class HistoricalDataService:
                 'tickers_updated': 0,
                 'records_added': 0
             }
+        
+        
 
     def fetch_historical_data(self, ticker, start_date=None, end_date=None):
         """Fetch historical data for a ticker"""

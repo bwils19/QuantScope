@@ -296,7 +296,8 @@ def backfill_historical_prices(self, force_update=False):
     except Exception as e:
         logger.error(f"Error in backfill_historical_prices: {str(e)}", exc_info=True)
         raise self.retry(exc=e, countdown=60)
-
+    
+    logger.info("Finished processing all tickers in backfill task")
 
 
 

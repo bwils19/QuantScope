@@ -46,10 +46,10 @@ class AlphaVantageClient:
             logger.info(f"Rate limit reset. Sleeping for {sleep_time} seconds")
             time.sleep(sleep_time)
 
-    def fetch_daily_data(self, ticker):
-        """Fetch daily data with rate limiting and retry logic"""
+def fetch_daily_data(self, ticker):
+    retries = 0
+    while retries < 5:
         self._handle_rate_limit()
-
         try:
             url = (
                 f"https://www.alphavantage.co/query?"
@@ -58,22 +58,20 @@ class AlphaVantageClient:
                 f"apikey={self.api_key}"
             )
 
-            logger.info(f"Fetching data for {ticker}")
+            logger.info(f"Fetching data for {ticker} (attempt {retries+1})")
             response = self.session.get(url, timeout=10)
             logger.info(f"Response status code for {ticker}: {response.status_code}")
 
-            # Update rate limit tracking
             self.rate_limit_remaining -= 1
 
-            if response.status_code == 429:  # Too Many Requests
-                logger.warning("Rate limit exceeded")
+            if response.status_code == 429:
+                logger.warning(f"Rate limit hit for {ticker}, backing off")
                 self.rate_limit_remaining = 0
-                self._handle_rate_limit()
-                return self.fetch_daily_data(ticker)  # Retry after waiting
+                retries += 1
+                continue
 
             response.raise_for_status()
             data = response.json()
-            logger.info(f"Response data keys for {ticker}: {data.keys()}")
 
             if 'Error Message' in data:
                 logger.error(f"API error for {ticker}: {data['Error Message']}")
@@ -86,11 +84,15 @@ class AlphaVantageClient:
             return data['Time Series (Daily)']
 
         except requests.exceptions.RequestException as e:
-            logger.error(f"Request failed for {ticker}: {str(e)}")
-            return None
+            logger.error(f"Request failed for {ticker}: {e}")
         except Exception as e:
-            logger.error(f"Unexpected error fetching data for {ticker}: {str(e)}")
-            return None
+            logger.error(f"Unexpected error fetching data for {ticker}: {e}")
+
+        retries += 1
+        time.sleep(2 ** retries)  # exponential backoff
+
+    logger.error(f"Failed to fetch data for {ticker} after {retries} retries")
+    return None
 
     def fetch_security_overview(self, ticker):
         """Fetch company overview data including sector, industry, etc."""
