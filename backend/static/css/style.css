@@ -211,6 +211,7 @@ datalist option {
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
+
 .portfolio-list-container {
     max-width: 1000px;
     margin: 0 auto 20px auto;
@@ -293,6 +294,87 @@ datalist option {
     font-weight: 500;
     color: #2c3e50;
     margin: 0; /* Ensure consistent spacing */
+}
+
+
+/* --- Streamlined Watchlist Styles --- */
+.portfolio-overview-container .watchlist-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    padding: 1.25rem;
+    margin-bottom: 20px;
+    transition: box-shadow 0.3s ease;
+}
+
+.portfolio-overview-container .watchlist-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.portfolio-overview-container .watchlist-card .portfolio-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.portfolio-overview-container .watchlist-card .page-title {
+    font-size: 26px;
+    font-family: 'Bodoni Moda', serif;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 500;
+    color: #2c3e50;
+    margin: 0;
+}
+
+.portfolio-overview-container .watchlist-actions .add-to-watchlist-btn {
+    padding: 8px 12px;
+    background-color: #212830;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+
+.portfolio-overview-container .watchlist-actions .add-to-watchlist-btn:hover {
+    background-color: #6C7D93;
+}
+
+.portfolio-overview-container .watchlist-content-wrapper {
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+}
+
+.portfolio-overview-container .watchlist-content.hidden {
+    max-height: 0;
+    opacity: 0;
+}
+
+.portfolio-overview-container .watchlist-content {
+    max-height: 1000px;
+    opacity: 1;
+}
+
+.portfolio-overview-container .watchlist-search-container {
+    position: relative;
+    margin-top: 15px;
+}
+
+.portfolio-overview-container .watchlist-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.portfolio-overview-container .watchlist-table th,
+.portfolio-overview-container .watchlist-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
 }
 
 
