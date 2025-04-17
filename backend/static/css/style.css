@@ -2837,3 +2837,8 @@ body.risk-analysis-page {
     .toggle-watchlist-btn .chevron-icon.rotated {
     transform: rotate(180deg);
   }
+
+  .portfolio-watchlist-container > .watchlist-card .page-title {
+    text-align: left;
+    margin: 0;
+  }
