@@ -258,7 +258,6 @@ datalist option {
 }
 
 
-
 .toggle-watchlist-btn {
     background: none;
     border: none;
@@ -275,36 +274,6 @@ datalist option {
 
 .toggle-watchlist-btn .chevron-icon.rotated {
     transform: rotate(180deg);
-}
-
-/* --- Streamlined Watchlist Styles --- */
-
-.watchlist-content.hidden {
-    max-height: 0;
-    opacity: 0;
-}
-
-.watchlist-content {
-    max-height: 1000px;
-    opacity: 1;
-}
-
-.watchlist-search-container {
-    position: relative;
-    margin-top: 15px;
-}
-
-.watchlist-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 15px;
-}
-
-.watchlist-table th,
-.watchlist-table td {
-    padding: 12px;
-    text-align: left;
-    border-bottom: 1px solid #ddd;
 }
 
 
