@@ -211,7 +211,6 @@ datalist option {
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
-
 .portfolio-list-container {
     max-width: 1000px;
     margin: 0 auto 20px auto;
@@ -221,6 +220,10 @@ datalist option {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
+.portfolio-watchlist-container {
+    position: relative;
+    padding-bottom: 30px; /* Extra space for chevron */
+}
 
 .watchlist-content-wrapper {
     position: relative;
@@ -258,12 +261,18 @@ datalist option {
 }
 
 
+
 .toggle-watchlist-btn {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
     background: none;
     border: none;
     cursor: pointer;
     padding: 0;
-  }
+    z-index: 10;
+}
 
 
 .toggle-watchlist-btn .chevron-icon {
@@ -274,6 +283,16 @@ datalist option {
 
 .toggle-watchlist-btn .chevron-icon.rotated {
     transform: rotate(180deg);
+}
+
+.portfolio-watchlist-container .page-title {
+    font-size: 26px;
+    font-family: 'Bodoni Moda', serif;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 500;
+    color: #2c3e50;
+    margin: 0; /* Ensure consistent spacing */
 }
 
 
@@ -2420,52 +2439,57 @@ body.risk-analysis-page {
 
 /*watchlist styles*/
 .watchlist-card {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    margin-bottom: 1rem;
-    padding: 1.25rem;
-    transition: all 0.2s ease;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  margin-bottom: 1rem;
+  padding: 1.25rem;
+  transition: all 0.2s ease;
 }
 
 .watchlist-card:hover {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-.watchlist-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 0.75rem;
+.watchlist-card .portfolio-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.75rem;
 }
 
-.watchlist-card-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid #edf2f7;
+.watchlist-card .page-title {
+  font-size: 26px;
+  font-family: 'Bodoni Moda', serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 500;
+  color: #2c3e50;
+  margin: 0;
 }
-  
-  .add-to-watchlist-btn {
-    padding: 8px 12px;
-    background-color: #212830;
-    color: white;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: background-color 0.3s ease;
-    border: none;
-  }
-  
 
-  
-  /* Container alignment to match portfolios exactly */
-  .portfolio-list-container {
-    max-width: 1000px;
-    margin: 0 auto 20px auto;
-  }
+.watchlist-actions .add-to-watchlist-btn {
+  padding: 8px 12px;
+  background-color: #212830;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s ease;
+}
+
+.watchlist-actions .add-to-watchlist-btn:hover {
+  background-color: #6C7D93;
+}
+
+/* Container alignment to match portfolios exactly */
+.portfolio-list-container {
+  max-width: 1000px;
+  margin: 0 auto 20px auto;
+}
 
 
 .security-info {
@@ -2667,4 +2691,3 @@ body.risk-analysis-page {
 .remove-security-btn:hover .fa-times {
     color: #ef4444;
 }
-
