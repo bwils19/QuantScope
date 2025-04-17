@@ -237,7 +237,7 @@ datalist option {
 
 .watchlist-toggle-container {
     position: absolute;
-    bottom: 10px;
+    bottom: -20px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 10;
@@ -268,7 +268,14 @@ datalist option {
     transform: rotate(180deg);
 }
 
-
+.portfolio-watchlist-container .page-title {
+    font-size: 26px; /* Match the size from portfolios */
+    font-family: 'Bodoni Moda', serif;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 500;
+    color: #2c3e50;
+}
 
 
 .portfolio-uploaded-files-container {
