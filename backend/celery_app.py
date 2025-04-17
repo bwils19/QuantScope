@@ -30,7 +30,6 @@ celery.conf.update({
     'task_annotations': {
         'backend.tasks.*': {'rate_limit': '75/m'}
     },
-    # Beat schedule moved to configure_celery function
 })
 
 # Improved context handling
@@ -51,10 +50,9 @@ def configure_celery(app):
             'options': {'expires': 3600}
         },
         'update-historical-data': {
-            # 'task': 'backend.services.price_update_service.update_historical_data',
-            'task': 'historical.update_data',
-            'schedule': crontab(hour=16, minute=30, day_of_week='1-5'),
-            'options': {'expires': 7200}
+            'task': 'backend.tasks.backfill_historical_prices',
+            'schedule': crontab(hour='*/1', minute=15),  # Run every hour at 15 minutes past
+            'options': {'expires': 3000}
         },
         'update-prices-force': {
             'task': 'backend.services.price_update_service.force_update_all',
@@ -62,20 +60,20 @@ def configure_celery(app):
             'options': {'expires': 7200}
         },
         'dev-backfill-historical-prices': {
-            'task': 'historical.update_data',
-            # 'task': 'backend.tasks.backfill_historical_prices',
-            'schedule': crontab(minute='*/2'),
+            'task': 'backend.tasks.backfill_historical_prices',
+            'kwargs': {'force_update': True},
+            'schedule': crontab(minute='*/15'),  # Run every 15 minutes for testing
             'options': {'expires': 120}
         }
     }
 
-    # Create a subclass of Task that wraps all execution in app context
+    # Create a subclass of Task
     class ContextTask(celery.Task):
         abstract = True
         
         def __call__(self, *args, **kwargs):
-            with app.app_context():
-                return super().__call__(*args, **kwargs)
+            # Each task will create its own app context when needed
+            return super().__call__(*args, **kwargs)
     
     # Apply our custom task class as default
     celery.Task = ContextTask
@@ -88,4 +86,5 @@ def configure_celery(app):
     
     return celery
 
+# Ensure beat schedule directory exists
 os.makedirs('/var/run/quantscope', exist_ok=True)

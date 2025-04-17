@@ -273,22 +273,30 @@ def update_historical_data():
         }
 
 @shared_task(name='backend.tasks.backfill_historical_prices', bind=True)
-def backfill_historical_prices(self):
+def backfill_historical_prices(self, force_update=False):
     """Backfill missing historical prices for securities."""
     logger = logging.getLogger('celery.tasks')
-    logger.info(">>> RUNNING backfill_historical_prices <<<")
+    logger.info(f">>> RUNNING backfill_historical_prices <<<")
 
-    try:
-        service = HistoricalDataService()
-        result = service.update_historical_data()  
-        logger.info(f"Backfill complete: {result}")
-        return result
-    except Exception as e:
-        logger.error(f"Error in backfill_historical_prices: {str(e)}", exc_info=True)
-        raise self.retry(exc=e, countdown=60)
+    # Import Flask app and create context
+    from backend.app import create_app
+    app = create_app()
+    
+    # Use context manager to ensure app context is properly set up and torn down
+    with app.app_context():
+        try:
+            logger.info("App context established successfully")
+            from backend.services.historical_data_service import HistoricalDataService
+            service = HistoricalDataService()
+            result = service.update_historical_data(force_update=force_update)
+            logger.info(f"Backfill complete: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Error in backfill_historical_prices: {str(e)}", exc_info=True)
+            raise self.retry(exc=e, countdown=60)
 
 
-#  APSCHEDULER FUNCTIONS
+#  APSCHEDULER FUNCTIONS - not ccurrently using, using celery
 
 def update_portfolio_prices():
     """Update prices for all securities in active portfolios"""
