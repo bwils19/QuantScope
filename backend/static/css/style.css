@@ -314,7 +314,7 @@ datalist option {
     letter-spacing: 1px;
     font-weight: 500;
     color: #2c3e50;
-    margin: 0; /* Ensure consistent spacing */
+    margin: 0;  
 } */
 
 
@@ -2788,6 +2788,14 @@ body.risk-analysis-page {
     overflow-x: auto;
     margin-top: 1rem;
   }
+
+  .portfolio-watchlist-container
+  > .watchlist-card
+  .page-title {
+  font-size: 26px;      
+  text-align: left;     
+  margin: 0;            
+}
   
   .portfolio-watchlist-container
     .watchlist-table {
