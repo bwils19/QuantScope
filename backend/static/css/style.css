@@ -2438,26 +2438,66 @@ body.risk-analysis-page {
 }
 
 /*watchlist styles*/
+
+.watchlist-card-container {
+    max-width: 1000px;
+    margin: 0 auto 20px auto;
+}
+
 .watchlist-card {
     background: white;
     border-radius: 12px;
-    /*box-shadow: 0 1px 3px rgba(0,0,0,0.1);*/
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     margin-bottom: 1rem;
     padding: 1.25rem;
     transition: all 0.2s ease;
+    display: block; /* Ensures it overrides any conflicting display settings */
 }
 
 .watchlist-card:hover {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-.watchlist-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 0.75rem;
+.watchlist-card .portfolio-header {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
 }
+
+.watchlist-card .page-title {
+    font-size: 26px;
+    font-family: 'Bodoni Moda', serif;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 500;
+    color: #2c3e50;
+    margin: 0;
+}
+
+.watchlist-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #edf2f7;
+}
+
+.watchlist-actions .add-to-watchlist-btn {
+    padding: 8px 12px;
+    background-color: #212830;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+
+.watchlist-actions .add-to-watchlist-btn:hover {
+    background-color: #6C7D93;
+}
+
 
 .security-info {
     display: flex;
@@ -2513,15 +2553,6 @@ body.risk-analysis-page {
 .day-change.negative {
     color: #f56565;
     background: #fff5f5;
-}
-
-.watchlist-card-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid #edf2f7;
 }
 
 .toggle-chart-btn {
