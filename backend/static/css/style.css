@@ -227,6 +227,8 @@ datalist option {
     background-color: #f9f9f9;
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    position: relative; /* Add positioning for chevron */
+    padding-bottom: 40px; /* Extra space for chevron */
 }
 
 .watchlist-content-wrapper {
@@ -237,10 +239,13 @@ datalist option {
 
 .watchlist-toggle-container {
     position: absolute;
-    bottom: -20px;
+    bottom: 0;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translate(-50%, 50%);
     z-index: 10;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .watchlist-content.hidden {
@@ -255,8 +260,11 @@ datalist option {
     border: none;
     cursor: pointer;
     padding: 0;
-    transition: transform 0.3s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
+
 
 .toggle-watchlist-btn .chevron-icon {
     width: 20px;
@@ -269,12 +277,13 @@ datalist option {
 }
 
 .portfolio-watchlist-container .page-title {
-    font-size: 26px; /* Match the size from portfolios */
+    font-size: 26px;
     font-family: 'Bodoni Moda', serif;
     text-transform: uppercase;
     letter-spacing: 1px;
     font-weight: 500;
     color: #2c3e50;
+    margin: 0; /* Ensure consistent spacing */
 }
 
 
