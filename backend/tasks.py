@@ -278,18 +278,25 @@ def backfill_historical_prices(self, force_update=False):
     logger = logging.getLogger('celery.tasks')
     logger.info(f">>> RUNNING backfill_historical_prices <<<")
 
-    from backend.app import create_app
-    app = create_app()
-
     try:
-        from backend.services.historical_data_service import HistoricalDataService
-        service = HistoricalDataService()
-        result = service.update_historical_data(force_update=force_update)
-        logger.info(f"Backfill complete: {result}")
-        return result
+        from backend.app import create_app
+        app = create_app()
+
+        with app.app_context():
+            logger.info("App context established successfully")
+
+            # Only instantiate this AFTER context is active
+            from backend.services.historical_data_service import HistoricalDataService
+            service = HistoricalDataService()
+
+            result = service.update_historical_data(force_update=force_update)
+            logger.info(f"Backfill complete: {result}")
+            return result
+
     except Exception as e:
         logger.error(f"Error in backfill_historical_prices: {str(e)}", exc_info=True)
         raise self.retry(exc=e, countdown=60)
+
 
 
 
