@@ -82,25 +82,5 @@ class MarketUtils:
         return True, "Market closed and data should be available"
     
     def get_trading_days(self, start_date, end_date):
-        """
-        Get a list of trading days between start_date and end_date.
-        Uses NYSE calendar to determine trading days.
-        """
-        if not hasattr(self, 'nyse'):
-            from pandas.tseries.holiday import USFederalHolidayCalendar
-            self.nyse = USFederalHolidayCalendar()
-    
-    
-        # Create a date range
-        all_days = pd.date_range(start=start_date, end=end_date)
-        
-        # Filter for business days (Mon-Fri)
-        business_days = all_days[all_days.weekday < 5]
-        
-        # Get holidays
-        holidays = self.nyse.holidays(start=start_date, end=end_date)
-        
-        # Filter out holidays
-        trading_days = [day.date() for day in business_days if day not in holidays]
-        
-        return trading_days
+        schedule = self.nyse.schedule(start_date=start_date, end_date=end_date)
+        return [dt.date() for dt in schedule.index]
