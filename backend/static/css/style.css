@@ -2451,12 +2451,12 @@ body.risk-analysis-page {
 
 /*watchlist styles*/
 .dashboard-card.watchlist-card {
-    background: white;
+    background-color: white;
     border-radius: 12px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     padding: 1.25rem;
     margin-bottom: 30px;
-    transition: box-shadow 0.3s ease;
+    position: relative;
   }
   
   .dashboard-card.watchlist-card:hover {
@@ -2482,29 +2482,31 @@ body.risk-analysis-page {
     margin: 0;
   }
   
-  .dashboard-card.watchlist-card .watchlist-actions .add-to-watchlist-btn {
+  .dashboard-card.watchlist-card .watchlist-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .dashboard-card.watchlist-card .add-to-watchlist-btn {
     padding: 8px 12px;
     background-color: #212830;
     color: white;
     border-radius: 5px;
     cursor: pointer;
     font-size: 14px;
-    transition: background-color 0.3s ease;
     border: none;
   }
   
-  .dashboard-card.watchlist-card .watchlist-actions .add-to-watchlist-btn:hover {
+  .dashboard-card.watchlist-card .add-to-watchlist-btn:hover {
     background-color: #6C7D93;
   }
   
   .dashboard-card.watchlist-card .toggle-watchlist-btn {
-    position: absolute;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
     background: none;
     border: none;
     cursor: pointer;
+    padding: 0;
   }
   
   .dashboard-card.watchlist-card .chevron-icon {

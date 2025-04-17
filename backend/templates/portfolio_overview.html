@@ -47,6 +47,9 @@
             <button class="add-to-watchlist-btn">
               <i class="fas fa-plus"></i> Add to Watchlist
             </button>
+            <button class="toggle-watchlist-btn">
+              <img src="/static/images/chevron-down.svg" alt="Toggle Watchlist" class="chevron-icon">
+            </button>
           </div>
         </div>
     
@@ -72,10 +75,6 @@
           <input type="text" id="watchlistSearchInput" placeholder="Search for a security...">
           <ul id="watchlistSearchSuggestions" class="search-suggestions hidden"></ul>
         </div>
-    
-        <button class="toggle-watchlist-btn">
-          <img src="/static/images/chevron-down.svg" alt="Toggle Watchlist" class="chevron-icon">
-        </button>
       </div>
         <script id="watchlist-data" type="application/json">
           {% if watchlist %}
