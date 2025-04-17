@@ -104,15 +104,8 @@ class HistoricalDataService:
         except Exception as e:
             logger.error(f"Error processing data for {ticker}: {str(e)}")
             return 0
+    
 
-    
-    def get_trading_days(self, start_date, end_date):
-        """Get all trading days between start_date and end_date"""
-        return self.market_utils.get_trading_days(start_date, end_date)
-    
-    def get_trading_days(self, start_date, end_date):
-        """Get all trading days between start_date and end_date"""
-        return self.market_utils.get_trading_days(start_date, end_date)
     def update_historical_data(self, force_update=False):
         """Update historical data for all tickers"""
         try:
@@ -131,13 +124,76 @@ class HistoricalDataService:
                         'records_added': 0
                     }
                 else:
-                    logger.info("Forcing update - bypassing market hours check")
+                    logger.info("Proceeding with update - market conditions acceptable")
 
             # Get tickers needing updates
-            tickers_to_update = self.get_tickers_needing_update()
-            logger.info(f"Found {len(tickers_to_update)} tickers that need updating: {tickers_to_update}")
+            try:
+                tickers_to_update = self.get_tickers_needing_update()
+                logger.info(f"Found {len(tickers_to_update)} tickers that need updating")
+
+                # Debug: why are we only getting benchmark tickers?
+                security_count = db.session.query(Security).count()
+                logger.info(f"Total securities in database: {security_count}")
+                
+                # Get all active tickers for comparison
+                all_tickers = db.session.query(Security.ticker).all()
+                all_ticker_list = [t[0] for t in all_tickers]
+                logger.info(f"First 10 securities in database: {all_ticker_list[:10]}")
+                
+                # Check how many have historical data
+                historical_tickers = db.session.query(SecurityHistoricalData.ticker).distinct().all()
+                historical_ticker_list = [t[0] for t in historical_tickers]
+                logger.info(f"Found {len(historical_ticker_list)} tickers with historical data")
+                
+                # Log the most recent historical date for some tickers
+                if historical_ticker_list:
+                    sample_tickers = historical_ticker_list[:5]
+                    for ticker in sample_tickers:
+                        latest = db.session.query(
+                            func.max(SecurityHistoricalData.date)
+                        ).filter(
+                            SecurityHistoricalData.ticker == ticker
+                        ).scalar()
+                        logger.info(f"Latest data for {ticker}: {latest}")
+                
+                # Check what tickers need updates based on date
+                today = datetime.now().date()
+                outdated_tickers = []
+                for ticker in historical_ticker_list:
+                    latest = db.session.query(
+                        func.max(SecurityHistoricalData.date)
+                    ).filter(
+                        SecurityHistoricalData.ticker == ticker
+                    ).scalar()
+                    
+                    if latest and (today - latest).days > 0:
+                        outdated_tickers.append((ticker, latest))
+                
+                logger.info(f"Found {len(outdated_tickers)} tickers with outdated data")
+                if outdated_tickers:
+                    logger.info(f"Sample outdated tickers: {outdated_tickers[:5]}")
+                    
+                # If we have securities but no update candidates, something is wrong
+                if tickers_to_update == [] and security_count > 0 and len(outdated_tickers) > 0:
+                    logger.warning("Found outdated tickers but get_tickers_needing_update returned none")
+                    if force_update:
+                        logger.info("Force update enabled - adding outdated tickers manually")
+                        tickers_to_update = outdated_tickers[:50]  # Limit to 50 tickers for safety
+                    
+            except Exception as ticker_error:
+                logger.error(f"Error getting tickers to update: {str(ticker_error)}")
+                import traceback
+                logger.error(traceback.format_exc())
+                tickers_to_update = []
 
             if force_update:
+                # When forcing update with no tickers, add some sample tickers
+                if len(tickers_to_update) == 0 and security_count > 0:
+                    logger.info("No tickers to update found, but securities exist. Adding sample for force update.")
+                    sample_tickers = all_ticker_list[:20]  # Take first 20 tickers
+                    tickers_to_update = [(t, None) for t in sample_tickers]
+                    
+                # Also ensure benchmark tickers are included
                 active_benchmarks = set(self.benchmark_tickers.values())
                 current_tickers = set(t[0] for t in tickers_to_update)
                 missing_benchmarks = active_benchmarks - current_tickers
@@ -145,7 +201,9 @@ class HistoricalDataService:
                     logger.info(f"Adding missing benchmark tickers: {missing_benchmarks}")
                     tickers_to_update.extend([(t, None) for t in missing_benchmarks])
 
-            logger.info(f"Found {len(tickers_to_update)} tickers that need updating: {tickers_to_update}")
+            logger.info(f"Final list: Found {len(tickers_to_update)} tickers that need updating")
+            if tickers_to_update:
+                logger.info(f"Sample tickers to update: {tickers_to_update[:5]}")
 
             if not tickers_to_update:
                 logger.info("All tickers are up to date")
@@ -155,8 +213,6 @@ class HistoricalDataService:
                     'tickers_updated': 0,
                     'records_added': 0
                 }
-
-            logger.info(f"Found {len(tickers_to_update)} tickers needing updates")
 
             # Create log entry
             log_entry = HistoricalDataUpdateLog(
@@ -213,6 +269,8 @@ class HistoricalDataService:
 
         except Exception as e:
             logger.error(f"Error in update_historical_data: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             if 'log_entry' in locals():
                 log_entry.status = 'failed'
                 log_entry.error = str(e)

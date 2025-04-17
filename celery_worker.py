@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 
-# Set up logging
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -24,33 +24,31 @@ logger.info("Configuring Celery with app context")
 from backend.celery_app import celery, configure_celery
 configure_celery(app)
 
-# Explicitly push app context for debug info
-with app.app_context():
-    from flask import current_app
-    logger.info(f"App context started, app name: {current_app.name}")
+# Explicitly register historical data task
+@celery.task(name='historical.update_data', bind=True)
+def update_historical_data(self, force_update=False):
+    """Task to update historical data"""
+    logger.info(f"Starting historical data update task with force={force_update}")
     
-    # Test DB connection to ensure it's working
-    from backend import db
-    try:
-        db.session.execute("SELECT 1")
-        db.session.commit()
-        logger.info("Database connection test successful")
-    except Exception as e:
-        logger.error(f"Database connection error: {e}")
-
-# Define a simple test task
-@celery.task(name='test.app_context')
-def test_app_context():
     from flask import current_app
-    from backend import db
+    from backend.services.historical_data_service import HistoricalDataService
     
     try:
-        # Check if we have app context
-        if current_app:
-            return {"success": True, "app_name": current_app.name}
-        else:
-            return {"success": False, "error": "No app context"}
+        # Log app context
+        if not current_app:
+            logger.error("No Flask app context!")
+            return {"success": False, "error": "No Flask app context"}
+            
+        # Create service and perform update
+        service = HistoricalDataService()
+        result = service.update_historical_data(force_update=force_update)
+        logger.info(f"Historical update completed with result: {result}")
+        return result
+        
     except Exception as e:
+        logger.error(f"Error in update_historical_data task: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {"success": False, "error": str(e)}
 
 # Make celery available for workers

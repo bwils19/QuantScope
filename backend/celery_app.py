@@ -51,7 +51,8 @@ def configure_celery(app):
             'options': {'expires': 3600}
         },
         'update-historical-data': {
-            'task': 'backend.services.price_update_service.update_historical_data',
+            # 'task': 'backend.services.price_update_service.update_historical_data',
+            'task': 'historical.update_data',
             'schedule': crontab(hour=16, minute=30, day_of_week='1-5'),
             'options': {'expires': 7200}
         },
@@ -61,7 +62,8 @@ def configure_celery(app):
             'options': {'expires': 7200}
         },
         'dev-backfill-historical-prices': {
-            'task': 'backend.tasks.backfill_historical_prices',
+            'task': 'historical.update_data',
+            # 'task': 'backend.tasks.backfill_historical_prices',
             'schedule': crontab(minute='*/2'),
             'options': {'expires': 120}
         }
@@ -86,5 +88,4 @@ def configure_celery(app):
     
     return celery
 
-# Ensure beat schedule directory exists
 os.makedirs('/var/run/quantscope', exist_ok=True)
