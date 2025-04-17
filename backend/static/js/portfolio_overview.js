@@ -2575,7 +2575,18 @@ async function renderWatchlistChart(type) {
         });
     }
 }
+function setupWatchlistToggle() {
+    const toggleBtn = document.querySelector('.toggle-watchlist-btn');
+    const chevronIcon = toggleBtn.querySelector('.chevron-icon');
+    const watchlistContent = document.querySelector('.watchlist-content');
 
+    toggleBtn.addEventListener('click', () => {
+        watchlistContent.classList.toggle('hidden');
+        chevronIcon.classList.toggle('rotated');
+    });
+}
+
+document.addEventListener('DOMContentLoaded', setupWatchlistToggle);
 
 function renderWatchlistLineChart(data, symbol, container) {
     const chartConfig = {

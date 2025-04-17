@@ -229,6 +229,48 @@ datalist option {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
+.watchlist-content-wrapper {
+    position: relative;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    overflow: hidden;
+}
+
+.watchlist-toggle-container {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
+.watchlist-content.hidden {
+    max-height: 0;
+    opacity: 0;
+}
+
+
+
+.toggle-watchlist-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.3s ease;
+}
+
+.toggle-watchlist-btn .chevron-icon {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.3s ease;
+}
+
+.toggle-watchlist-btn .chevron-icon.rotated {
+    transform: rotate(180deg);
+}
+
+
+
+
 .portfolio-uploaded-files-container {
     max-width: 1000px;
     margin: 0 auto 20px auto;
