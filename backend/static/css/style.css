@@ -2533,6 +2533,53 @@ body.risk-analysis-page {
     background-color: #2c3e50;
 }
 
+
+.watchlist-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.watchlist-table th,
+.watchlist-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.chart-container {
+    margin-top: 20px;
+    padding: 15px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    height: 350px;
+}
+
+.chart-toggle-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.chart-toggle-buttons button {
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 4px;
+    border: none;
+    background-color: #6C7D93;
+    color: white;
+    transition: background-color 0.2s;
+}
+
+.chart-toggle-buttons button:hover {
+    background-color: #2c3e50;
+}
+
+
+
+
+
 .chevron-icon {
     width: 20px;
     height: 20px;

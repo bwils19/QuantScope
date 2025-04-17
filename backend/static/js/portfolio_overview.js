@@ -2455,176 +2455,210 @@ function renderWatchlistItems(data = null) {
         watchlistItems = data;
     }
 
-    const watchlistContainer = document.querySelector('.watchlist-securities');
-    watchlistContainer.innerHTML = '';
+    const tbody = document.querySelector('.watchlist-securities');
+    tbody.innerHTML = '';
 
     if (watchlistItems.length === 0) {
-        watchlistContainer.innerHTML = '<div class="empty-watchlist">No securities in watchlist</div>';
+        tbody.innerHTML = `<tr class="empty-watchlist"><td colspan="6">No securities in watchlist</td></tr>`;
         return;
     }
 
     watchlistItems.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'watchlist-card';
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${item.ticker}</td>
+            <td>${item.name}</td>
+            <td>${item.exchange || 'NYSE'}</td>
+            <td>${formatCurrency(item.current_price)}</td>
+            <td>${item.latest_close_date || 'N/A'}</td>
+            <td>
+                <button class="view-chart-btn" data-symbol="${item.ticker}">View Chart</button>
+                <button class="remove-security-btn" data-id="${item.id}">Remove</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
 
-        const dayChangeClass = item.day_change >= 0 ? 'positive' : 'negative';
+    setupWatchlistButtons();
+}
 
-        card.innerHTML = `
-        <div class="watchlist-card-header">
-            <div class="security-info">
-                <h4 class="security-symbol">${item.ticker}</h4>
-                <p class="security-name">${item.name}</p>
-                <p class="security-exchange">${item.exchange || 'NYSE'}</p>
-            </div>
-            <div class="security-prices">
-                <p class="current-price">${formatCurrency(item.current_price || 0)}</p>
-                <span class="day-change ${item.day_change >= 0 ? 'positive' : 'negative'}">
-                    ${item.day_change >= 0 ? '+' : ''}${formatCurrency(item.day_change || 0)}
-                    (${(item.day_change_pct || 0).toFixed(2)}%)
-                </span>
-            </div>
-        </div>
-        <div class="watchlist-card-actions">
-            <button class="toggle-chart-btn" data-symbol="${item.ticker}">
-                <img src="/static/images/chevron-down.svg" alt="Toggle chart" class="chevron-icon">
-            </button>
-            <button class="remove-security-btn" data-symbol="${item.ticker}">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div class="chart-container hidden" id="chart-${item.ticker}"></div>
-    `;
-
-        watchlistContainer.appendChild(card);
-
-        // Add event listeners
-        const toggleBtn = card.querySelector('.toggle-chart-btn');
-        const removeBtn = card.querySelector('.remove-security-btn');
-        const chartContainer = card.querySelector('.chart-container');
-
-        toggleBtn.addEventListener('click', () => {
-            const chevron = toggleBtn.querySelector('.chevron-icon');
-            chartContainer.classList.toggle('hidden');
-            chevron.style.transform = chartContainer.classList.contains('hidden') ?
-                'rotate(0deg)' : 'rotate(180deg)';
-
-            if (!chartContainer.classList.contains('hidden')) {
-                renderWatchlistChart(item.ticker, chartContainer);
-            }
+function setupWatchlistButtons() {
+    document.querySelectorAll('.view-chart-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const symbol = btn.getAttribute('data-symbol');
+            await renderChartForSecurity(symbol);
         });
+    });
 
-        removeBtn.addEventListener('click', async () => {
-            try {
-
-                const csrfToken = document.cookie
-                    .split('; ')
-                    .find(row => row.startsWith('csrf_access_token='))
-                    ?.split('=')[1];
-
-                const response = await fetch(`/auth/watchlist/${item.id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken
-                    },
-                    credentials: 'include'
-                });
-
-                if (response.ok) {
-                    watchlistItems = watchlistItems.filter(security => security.id !== item.id);
-                    renderWatchlistItems();
-                } else {
-                    throw new Error('Failed to remove from watchlist');
-                }
-            } catch (error) {
-                showError('Failed to remove from watchlist');
-            }
+    document.querySelectorAll('.remove-security-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-id');
+            removeSecurityFromWatchlist(id);
         });
     });
 }
 
-async function renderWatchlistChart(symbol, container) {
+let watchlistChart = null;
+let currentChartData = null;
+let currentSymbol = '';
+
+async function renderChartForSecurity(symbol) {
+    const container = document.getElementById('watchlistChartContainer');
+    container.classList.remove('hidden');
+
+    const data = await fetchHistoricalData(symbol);
+    if (!data) return;
+
+    currentChartData = data;
+    currentSymbol = symbol;
+
+    renderWatchlistChart('line'); // default view
+
+    document.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
+        btn.onclick = () => renderWatchlistChart(btn.dataset.chartType);
+    });
+}
+
+async function fetchHistoricalData(symbol) {
     try {
-        // If we don't have the data already stored in the hist table, fetch it from AV
-        if (!watchlistStockData[symbol]) {
-            const historicalResponse = await fetch(`/auth/security-historical/${symbol}`, {
-                credentials: 'include'
-            });
+        const response = await fetch(`/auth/security-historical/${symbol}`, { credentials: 'include' });
+        return response.ok ? await response.json() : null;
+    } catch (error) {
+        console.error('Failed to fetch historical data:', error);
+        return null;
+    }
+}
 
-            if (historicalResponse.ok) {
-                const priceData = await historicalResponse.json();
-                watchlistStockData[symbol] = {
-                    dates: priceData.dates,
-                    prices: priceData.prices
-                };
-            } else {
-                throw new Error('Failed to fetch historical data');
-            }
-        }
+async function renderWatchlistChart(type) {
+    const container = document.getElementById('watchlistChart');
+    container.innerHTML = '';  // Clear previous canvas
 
-        const data = watchlistStockData[symbol];
-        if (!data) return;
+    if (watchlistChart) {
+        watchlistChart.destroy();
+        watchlistChart = null;
+    }
 
-        const chartConfig = {
-            type: 'line',
+    if (type === 'line') {
+        renderWatchlistLineChart(currentChartData, currentSymbol, container);
+    } else if (type === 'bar') {
+        const ctx = container.getContext('2d');
+        watchlistChart = new Chart(ctx, {
+            type: 'bar',
             data: {
-                labels: data.dates,
+                labels: currentChartData.dates,
                 datasets: [{
-                    label: `${symbol} Closing Prices`,
-                    data: data.prices,
-                    borderColor: 'rgba(108, 125, 147, 1)',
-                    borderWidth: 2,
-                    fill: true,
-                    backgroundColor: function(context) {
-                        const chart = context.chart;
-                        const { ctx, chartArea } = chart;
-                        if (!chartArea) return null;
-
-                        const gradient = ctx.createLinearGradient(
-                            0,
-                            chart.scales.y.getPixelForValue(Math.max(...data.prices)),
-                            0,
-                            chart.chartArea.bottom
-                        );
-                        gradient.addColorStop(0, 'rgba(108, 125, 147, 0.8)');
-                        gradient.addColorStop(1, 'rgba(108, 125, 147, 0.1)');
-                        return gradient;
-                    },
-                    pointRadius: 2,
-                    pointHoverRadius: 4,
-                    pointBackgroundColor: 'rgba(108, 125, 147, 1)',
-                    tension: 0.2
+                    label: `${currentSymbol} Closing Prices`,
+                    data: currentChartData.prices,
+                    backgroundColor: '#6C7D93'
                 }]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    tooltip: {
-                        intersect: false,
-                        mode: 'index',
-                    },
-                },
-                scales: {
-                    x: { title: { display: true, text: 'Date' } },
-                    y: { title: { display: true, text: 'Price (USD)' } }
-                },
-                interaction: {
-                    intersect: false,
-                    mode: 'nearest'
-                }
+                maintainAspectRatio: false
             }
-        };
+        });
+    } else if (type === 'candlestick') {
+        const ctx = container.getContext('2d');
+        watchlistChart = new Chart(ctx, {
+            type: 'candlestick',
+            data: {
+                labels: currentChartData.dates,
+                datasets: [{
+                    label: `${currentSymbol} OHLC`,
+                    data: currentChartData.candlesticks,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    }
+}
 
-        const canvas = document.createElement('canvas');
-        canvas.style.height = '250px';
-        container.innerHTML = '';
-        container.appendChild(canvas);
 
-        new Chart(canvas, chartConfig);
+function renderWatchlistLineChart(data, symbol, container) {
+    const chartConfig = {
+        type: 'line',
+        data: {
+            labels: data.dates,
+            datasets: [{
+                label: `${symbol} Closing Prices`,
+                data: data.prices,
+                borderColor: 'rgba(108, 125, 147, 1)',
+                borderWidth: 2,
+                fill: true,
+                backgroundColor: (context) => {
+                    const { chart } = context;
+                    const { ctx, chartArea } = chart;
+                    if (!chartArea) return null;
+
+                    const gradient = ctx.createLinearGradient(
+                        0,
+                        chart.scales.y.getPixelForValue(Math.max(...data.prices)),
+                        0,
+                        chartArea.bottom
+                    );
+                    gradient.addColorStop(0, 'rgba(108, 125, 147, 0.8)');
+                    gradient.addColorStop(1, 'rgba(108, 125, 147, 0.1)');
+                    return gradient;
+                },
+                pointRadius: 2,
+                pointHoverRadius: 4,
+                pointBackgroundColor: 'rgba(108, 125, 147, 1)',
+                tension: 0.2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    intersect: false,
+                    mode: 'index',
+                },
+            },
+            scales: {
+                x: { title: { display: true, text: 'Date' } },
+                y: { title: { display: true, text: 'Price (USD)' } }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'nearest'
+            }
+        }
+    };
+
+    const canvas = document.createElement('canvas');
+    canvas.style.height = '250px';
+    container.innerHTML = '';
+    container.appendChild(canvas);
+
+    new Chart(canvas, chartConfig);
+}
+
+
+async function removeSecurityFromWatchlist(id) {
+    try {
+        const csrfToken = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrf_access_token='))
+            ?.split('=')[1];
+
+        const response = await fetch(`/auth/watchlist/${id}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+            credentials: 'include'
+        });
+
+        if (response.ok) {
+            watchlistItems = watchlistItems.filter(s => s.id !== id);
+            renderWatchlistItems();
+        } else {
+            throw new Error('Failed to remove from watchlist');
+        }
     } catch (error) {
-        console.error('Error rendering watchlist chart:', error);
-        container.innerHTML = '<div class="chart-error">Failed to load chart data</div>';
+        showError('Failed to remove from watchlist');
     }
 }
 
@@ -2632,33 +2666,21 @@ async function renderWatchlistChart(symbol, container) {
 // Initialize
     async function init() {
         try {
-            // Load securities data
             const response = await fetch("/static/data/symbols.json");
             if (!response.ok) throw new Error("Failed to load securities data");
             securitiesData = await response.json();
 
-            // Get watchlist data from the embedded script
             const watchlistDataElement = document.getElementById('watchlist-data');
             if (watchlistDataElement) {
-                try {
-                    const watchlistData = JSON.parse(watchlistDataElement.textContent);
-                    console.log("Initial watchlist data:", watchlistData);
-                    renderWatchlistItems(watchlistData);
-                } catch (e) {
-                    console.error('Error parsing watchlist data:', e);
-                    renderWatchlistItems([]);
-                }
+                const watchlistData = JSON.parse(watchlistDataElement.textContent);
+                renderWatchlistItems(watchlistData);
             } else {
-                console.log("No watchlist data element found");
                 renderWatchlistItems([]);
             }
 
-
-            // Setup all event handlers
             setupEventListeners();
             setupWatchlistHandlers();
             elements.tableHeader.style.display = "none";
-
         } catch (error) {
             console.error("Initialization error:", error);
             elements.errorMessage.textContent = "Failed to initialize application";
@@ -2666,18 +2688,7 @@ async function renderWatchlistChart(symbol, container) {
         }
     }
 
-// Metrics are now automatically recalculated when prices are updated
-// No separate recalculation function is needed
-
-// Start the application when DOM is ready
-    // document.addEventListener("DOMContentLoaded", init);
-
-document.addEventListener("DOMContentLoaded", () => {
-    init().catch(error => {
-        console.error("Error during initialization:", error);
-        elements.errorMessage.textContent = "Failed to initialize application";
-        elements.errorModal.style.display = "block";
+    document.addEventListener("DOMContentLoaded", () => {
+        init().catch(console.error);
     });
-    
     // Metrics are now automatically recalculated when prices are updated
-});

@@ -148,9 +148,34 @@
             <ul id="watchlistSearchSuggestions" class="search-suggestions hidden"></ul>
         </div>
 
-        <div class="watchlist-securities">
-            <!-- Watchlist items will be rendered here -->
-            <div class="empty-watchlist">No securities in watchlist</div>
+
+        <!-- Updated Watchlist Table -->
+        <table class="watchlist-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Company Name</th>
+                    <th>Exchange</th>
+                    <th>Last Close Price</th>
+                    <th>Last Close Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody class="watchlist-securities">
+                <tr class="empty-watchlist">
+                    <td colspan="6">No securities in watchlist</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Chart Container -->
+        <div id="watchlistChartContainer" class="chart-container hidden">
+            <div class="chart-toggle-buttons">
+                <button data-chart-type="line">Line</button>
+                <button data-chart-type="bar">Bar</button>
+                <button data-chart-type="candlestick">Candlestick</button>
+            </div>
+            <canvas id="watchlistChart"></canvas>
         </div>
 
         <script id="watchlist-data" type="application/json">
