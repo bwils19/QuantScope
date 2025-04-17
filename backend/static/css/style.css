@@ -277,17 +277,6 @@ datalist option {
     transform: rotate(180deg);
 }
 
-.portfolio-watchlist-container .page-title {
-    font-size: 26px;
-    font-family: 'Bodoni Moda', serif;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-weight: 500;
-    color: #2c3e50;
-    margin: 0; /* Ensure consistent spacing */
-}
-
-
 /* --- Streamlined Watchlist Styles --- */
 
 .watchlist-content.hidden {
@@ -2461,7 +2450,7 @@ body.risk-analysis-page {
 }
 
 /*watchlist styles*/
-.watchlist-card {
+.dashboard-card.watchlist-card {
     background: white;
     border-radius: 12px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
@@ -2470,11 +2459,11 @@ body.risk-analysis-page {
     transition: box-shadow 0.3s ease;
   }
   
-  .watchlist-card:hover {
+  .dashboard-card.watchlist-card:hover {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
   }
-
-  .watchlist-card-header {
+  
+  .dashboard-card.watchlist-card .portfolio-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -2483,16 +2472,7 @@ body.risk-analysis-page {
     margin-bottom: 1rem;
   }
   
-  .watchlist-card .portfolio-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 0.75rem;
-  }
-  
-  .watchlist-card .page-title {
+  .dashboard-card.watchlist-card .page-title {
     font-size: 26px;
     font-family: 'Bodoni Moda', serif;
     text-transform: uppercase;
@@ -2501,10 +2481,35 @@ body.risk-analysis-page {
     color: #2c3e50;
     margin: 0;
   }
-  .watchlist-card-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  
+  .dashboard-card.watchlist-card .watchlist-actions .add-to-watchlist-btn {
+    padding: 8px 12px;
+    background-color: #212830;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+    border: none;
+  }
+  
+  .dashboard-card.watchlist-card .watchlist-actions .add-to-watchlist-btn:hover {
+    background-color: #6C7D93;
+  }
+  
+  .dashboard-card.watchlist-card .toggle-watchlist-btn {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .dashboard-card.watchlist-card .chevron-icon {
+    width: 24px;
+    height: 24px;
   }
   
   .add-to-watchlist-btn {
@@ -2518,9 +2523,7 @@ body.risk-analysis-page {
     border: none;
   }
   
-  .add-to-watchlist-btn:hover {
-    background-color: #6C7D93;
-  }
+
   
   /* Container alignment to match portfolios exactly */
   .portfolio-list-container {

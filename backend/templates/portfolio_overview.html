@@ -40,22 +40,19 @@
       </div>
     </div>
 
-    <div class="watchlist-card">
-        <div class="watchlist-card-header">
+    <div class="dashboard-card watchlist-card">
+        <div class="portfolio-header">
           <h3 class="page-title">WATCHLIST</h3>
-          <div class="watchlist-card-actions">
+          <div class="watchlist-actions">
             <button class="add-to-watchlist-btn">
               <i class="fas fa-plus"></i> Add to Watchlist
-            </button>
-            <button class="toggle-watchlist-btn">
-              <img src="/static/images/chevron-down.svg" alt="Toggle Watchlist" class="chevron-icon">
             </button>
           </div>
         </div>
     
         <div class="watchlist-content-wrapper">
           <div class="watchlist-content hidden">
-            <table class="watchlist-table">
+            <table class="securities-table watchlist-table">
               <thead>
                 <tr>
                   <th>Ticker</th>
@@ -66,9 +63,7 @@
                   <th>Actions</th>
                 </tr>
               </thead>
-              <tbody class="watchlist-securities">
-                <!-- Dynamic content here -->
-              </tbody>
+              <tbody class="watchlist-securities"></tbody>
             </table>
           </div>
         </div>
@@ -78,6 +73,10 @@
           <ul id="watchlistSearchSuggestions" class="search-suggestions hidden"></ul>
         </div>
     
+        <button class="toggle-watchlist-btn">
+          <img src="/static/images/chevron-down.svg" alt="Toggle Watchlist" class="chevron-icon">
+        </button>
+      </div>
         <script id="watchlist-data" type="application/json">
           {% if watchlist %}
             {{ watchlist | tojson | safe }}
