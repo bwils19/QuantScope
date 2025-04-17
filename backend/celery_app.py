@@ -72,8 +72,10 @@ def configure_celery(app):
         abstract = True
         
         def __call__(self, *args, **kwargs):
-            # Each task will create its own app context when needed
-            return super().__call__(*args, **kwargs)
+            if not flask_app:
+                raise RuntimeError("Flask app is not initialized")
+            with flask_app.app_context():
+                return super().__call__(*args, **kwargs)
     
     # Apply our custom task class as default
     celery.Task = ContextTask

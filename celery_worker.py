@@ -21,6 +21,6 @@ configure_celery(app)
 logger.info("Flask app created and Celery configured")
 
 # This import MUST come after the app context is set up
-from backend.tasks import backfill_historical_prices
+from backend.tasks import *
 
 logger.info("Celery worker initialization complete")
