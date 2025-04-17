@@ -278,6 +278,9 @@ def backfill_historical_prices(self, force_update=False):
     logger = logging.getLogger('celery.tasks')
     logger.info(f">>> RUNNING backfill_historical_prices <<<")
 
+    from backend.app import create_app
+    app = create_app()
+
     try:
         from backend.services.historical_data_service import HistoricalDataService
         service = HistoricalDataService()
