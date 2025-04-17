@@ -2450,69 +2450,34 @@ body.risk-analysis-page {
 }
 
 /*watchlist styles*/
-.dashboard-card.watchlist-card {
-    background-color: white;
+.watchlist-card {
+    background: white;
     border-radius: 12px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    margin-bottom: 1rem;
     padding: 1.25rem;
-    margin-bottom: 30px;
-    position: relative;
-  }
-  
-  .dashboard-card.watchlist-card:hover {
+    transition: all 0.2s ease;
+}
+
+.watchlist-card:hover {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-  }
-  
-  .dashboard-card.watchlist-card .portfolio-header {
+}
+
+.watchlist-card-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 0.75rem;
-    margin-bottom: 1rem;
-  }
-  
-  .dashboard-card.watchlist-card .page-title {
-    font-size: 26px;
-    font-family: 'Bodoni Moda', serif;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-weight: 500;
-    color: #2c3e50;
-    margin: 0;
-  }
-  
-  .dashboard-card.watchlist-card .watchlist-actions {
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+.watchlist-card-actions {
     display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  
-  .dashboard-card.watchlist-card .add-to-watchlist-btn {
-    padding: 8px 12px;
-    background-color: #212830;
-    color: white;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 14px;
-    border: none;
-  }
-  
-  .dashboard-card.watchlist-card .add-to-watchlist-btn:hover {
-    background-color: #6C7D93;
-  }
-  
-  .dashboard-card.watchlist-card .toggle-watchlist-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-  }
-  
-  .dashboard-card.watchlist-card .chevron-icon {
-    width: 24px;
-    height: 24px;
-  }
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #edf2f7;
+}
   
   .add-to-watchlist-btn {
     padding: 8px 12px;

@@ -40,42 +40,48 @@
       </div>
     </div>
 
-    <div class="dashboard-card watchlist-card">
-        <div class="portfolio-header">
-          <h3 class="page-title">WATCHLIST</h3>
-          <div class="watchlist-actions">
-            <button class="add-to-watchlist-btn">
-              <i class="fas fa-plus"></i> Add to Watchlist
-            </button>
+    <div class="portfolio-watchlist-container">
+        <div class="watchlist-card">
+            <div class="portfolio-header">
+                <h3 class="page-title">WATCHLIST</h3>
+                <div class="watchlist-actions">
+                    <button class="add-to-watchlist-btn">
+                        <i class="fas fa-plus"></i> Add to Watchlist
+                    </button>
+                </div>
+            </div>
+            
+            <div class="watchlist-content-wrapper">
+                <div class="watchlist-content hidden">
+                    <!-- Watchlist Table -->
+                    <div class="watchlist-table-container">
+                        <table class="securities-table watchlist-table">
+                            <thead>
+                                <tr>
+                                    <th>Ticker</th>
+                                    <th>Name</th>
+                                    <th>Exchange</th>
+                                    <th>Last Price</th>
+                                    <th>Last Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="watchlist-securities"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="watchlistSearchContainer" class="watchlist-search-container hidden">
+                <input type="text" id="watchlistSearchInput" placeholder="Search for a security...">
+                <ul id="watchlistSearchSuggestions" class="search-suggestions hidden"></ul>
+            </div>
+    
             <button class="toggle-watchlist-btn">
-              <img src="/static/images/chevron-down.svg" alt="Toggle Watchlist" class="chevron-icon">
+                <img src="/static/images/chevron-down.svg" alt="Toggle Watchlist" class="chevron-icon">
             </button>
-          </div>
         </div>
-    
-        <div class="watchlist-content-wrapper">
-          <div class="watchlist-content hidden">
-            <table class="securities-table watchlist-table">
-              <thead>
-                <tr>
-                  <th>Ticker</th>
-                  <th>Name</th>
-                  <th>Exchange</th>
-                  <th>Last Price</th>
-                  <th>Last Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody class="watchlist-securities"></tbody>
-            </table>
-          </div>
-        </div>
-    
-        <div id="watchlistSearchContainer" class="watchlist-search-container hidden">
-          <input type="text" id="watchlistSearchInput" placeholder="Search for a security...">
-          <ul id="watchlistSearchSuggestions" class="search-suggestions hidden"></ul>
-        </div>
-      </div>
+    </div>
         <script id="watchlist-data" type="application/json">
           {% if watchlist %}
             {{ watchlist | tojson | safe }}
