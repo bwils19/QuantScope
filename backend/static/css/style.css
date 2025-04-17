@@ -242,9 +242,22 @@ datalist option {
     align-items: center;
 }
 
+.watchlist-content {
+    max-height: 1000px; /* Large enough to contain content */
+    opacity: 1;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+}
+
+.watchlist-search-container.hidden {
+    display: none;
+}
+
 .watchlist-content.hidden {
     max-height: 0;
     opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+
 }
 
 
@@ -258,6 +271,7 @@ datalist option {
     border: none;
     cursor: pointer;
     padding: 0;
+    z-index: 10;
 }
 
 
