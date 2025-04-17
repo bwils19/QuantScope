@@ -11,11 +11,17 @@ logger = logging.getLogger('celery_worker')
 
 logger.info("Starting celery worker initialization")
 
+# Add the project directory to the Python path if needed
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import celery first
 from backend.celery_app import celery
 
+# Explicitly import tasks to ensure they're registered
+logger.info("Importing tasks...")
+from backend.tasks import backfill_historical_prices  # This is crucial to register the task
+
+# Define what a celery worker needs
 class FlaskTask(celery.Task):
     abstract = True
     
@@ -25,7 +31,7 @@ class FlaskTask(celery.Task):
 
 celery.Task = FlaskTask
 
-
+# Add a simple test task to verify functionality
 @celery.task(name='test.ping')
 def ping():
     """Simple task to test worker functionality"""
