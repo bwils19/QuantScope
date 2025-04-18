@@ -2808,7 +2808,7 @@ function setupWatchlistToggle() {
 }
 }
 
-document.addEventListener('DOMContentLoaded', setupWatchlistToggle);
+// document.addEventListener('DOMContentLoaded', setupWatchlistToggle);
 
 function renderWatchlistLineChart(data, symbol, container) {
     const chartConfig = {
