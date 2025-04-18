@@ -2652,17 +2652,6 @@ async function fetchHistoricalData(symbol) {
 //     }
 // }
 
-if (window.CandlestickController && window.CandlestickElement && window.OhlcController && window.OhlcElement) {
-    Chart.register(
-      window.CandlestickController,
-      window.CandlestickElement,
-      window.OhlcController,
-      window.OhlcElement
-    );
-  } else {
-    console.error('Financial chart types are not available. Please check if chartjs-chart-financial is properly loaded.');
-  }
-
 async function renderWatchlistChart(type) {
     console.log(`Rendering ${type} chart`);
     
@@ -2731,50 +2720,115 @@ async function renderWatchlistChart(type) {
             }
         });
     } else if (type === 'bar') {
-        const canvas = document.getElementById('watchlistChart');
-        const ctx = canvas.getContext('2d');
-    
-        const ohlcData = currentChartData.dates.map((date, i) => ({
-            x: new Date(date),
-            o: currentChartData.open_prices[i],
-            h: currentChartData.high_prices[i],
-            l: currentChartData.low_prices[i],
-            c: currentChartData.prices[i]
-        }));
-    
-        watchlistChart = new Chart(ctx, {
-            type: 'ohlc',
+        // Create true OHLC bar-style chart
+        const barData = [];
+        
+        // Prepare data in the format needed for OHLC visualization
+        for (let i = 0; i < currentChartData.dates.length; i++) {
+            const openPrice = currentChartData.open_prices ? currentChartData.open_prices[i] : 
+                              (i > 0 ? currentChartData.prices[i-1] : currentChartData.prices[i]);
+            const closePrice = currentChartData.prices[i];
+            const highPrice = currentChartData.high_prices ? currentChartData.high_prices[i] : 
+                              Math.max(openPrice, closePrice) * 1.01; // Add 1% if no real data
+            const lowPrice = currentChartData.low_prices ? currentChartData.low_prices[i] : 
+                             Math.min(openPrice, closePrice) * 0.99; // Subtract 1% if no real data
+            
+            // Only include every 5th point to avoid overcrowding
+            if (i % 5 === 0 || i === currentChartData.dates.length - 1) {
+                barData.push({
+                    x: currentChartData.dates[i],
+                    o: openPrice,
+                    h: highPrice,
+                    l: lowPrice,
+                    c: closePrice
+                });
+            }
+        }
+        
+        // Create a custom bar chart that shows OHLC data
+        watchlistChart = new Chart(canvas, {
+            type: 'bar',
             data: {
+                labels: barData.map(item => item.x),
                 datasets: [{
                     label: `${currentSymbol} OHLC`,
-                    data: ohlcData,
-                    color: {
-                        up: '#2ecc71',
-                        down: '#e74c3c',
-                        unchanged: '#999'
-                    }
+                    data: barData.map(item => item.c - item.o), // Height is close - open
+                    backgroundColor: barData.map(item => 
+                        item.c >= item.o ? 'rgba(75, 192, 75, 0.8)' : 'rgba(255, 99, 99, 0.8)'
+                    ),
+                    borderColor: barData.map(item => 
+                        item.c >= item.o ? 'rgba(75, 192, 75, 1)' : 'rgba(255, 99, 99, 1)'
+                    ),
+                    borderWidth: 1,
+                    // Add custom data for drawing high/low lines
+                    highLowData: barData
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const dataIndex = context.dataIndex;
+                                const item = barData[dataIndex];
+                                return [
+                                    `Open: $${item.o.toFixed(2)}`,
+                                    `High: $${item.h.toFixed(2)}`,
+                                    `Low: $${item.l.toFixed(2)}`,
+                                    `Close: $${item.c.toFixed(2)}`
+                                ];
+                            }
+                        }
+                    }
+                },
                 scales: {
                     x: {
-                        type: 'time',
-                        time: {
-                            unit: 'day'
-                        }
+                        title: { display: true, text: 'Date' }
                     },
                     y: {
-                        title: {
-                            display: true,
-                            text: 'Price (USD)'
-                        }
+                        title: { display: true, text: 'Price (USD)' }
+                    }
+                },
+                animation: {
+                    onComplete: function(animation) {
+                        // Draw the high-low lines after the animation completes
+                        const meta = animation.chart.getDatasetMeta(0);
+                        const ctx = animation.chart.ctx;
+                        const dataset = animation.chart.data.datasets[0];
+                        const highLowData = dataset.highLowData;
+                        
+                        ctx.save();
+                        ctx.lineWidth = 1;
+                        
+                        // For each bar, draw a line from high to low
+                        meta.data.forEach((bar, index) => {
+                            const item = highLowData[index];
+                            const barModel = bar.getProps(['x', 'y', 'base', 'width']);
+                            
+                            // Calculate positions
+                            const centerX = barModel.x;
+                            const barTop = Math.min(barModel.y, barModel.base);
+                            const barBottom = Math.max(barModel.y, barModel.base);
+                            
+                            // Get y positions for high and low
+                            const highY = animation.chart.scales.y.getPixelForValue(item.h);
+                            const lowY = animation.chart.scales.y.getPixelForValue(item.l);
+                            
+                            // Draw high-low line
+                            ctx.beginPath();
+                            ctx.moveTo(centerX, highY);
+                            ctx.lineTo(centerX, lowY);
+                            ctx.strokeStyle = item.c >= item.o ? 'rgba(75, 192, 75, 1)' : 'rgba(255, 99, 99, 1)';
+                            ctx.stroke();
+                        });
+                        
+                        ctx.restore();
                     }
                 }
             }
         });
-    
     } else if (type === 'candlestick') {
         // Check if candlestick controller is available
         if (typeof Chart.controllers.candlestick === 'undefined') {
