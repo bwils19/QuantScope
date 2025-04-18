@@ -2502,46 +2502,234 @@ let watchlistChart = null;
 let currentChartData = null;
 let currentSymbol = '';
 
+// async function renderChartForSecurity(symbol) {
+//     const container = document.getElementById('watchlistChartContainer');
+//     container.classList.remove('hidden');
+
+//     const data = await fetchHistoricalData(symbol);
+//     if (!data) return;
+
+//     currentChartData = data;
+//     currentSymbol = symbol;
+
+//     renderWatchlistChart('line'); // default view
+
+//     document.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
+//         btn.onclick = () => renderWatchlistChart(btn.dataset.chartType);
+//     });
+// }
+
 async function renderChartForSecurity(symbol) {
     const container = document.getElementById('watchlistChartContainer');
     container.classList.remove('hidden');
 
+    // Show loading indicator
+    container.innerHTML = '<div class="loading-spinner">Loading chart data...</div>';
+
     const data = await fetchHistoricalData(symbol);
-    if (!data) return;
+    if (!data) {
+        container.innerHTML = '<div class="error-message">Failed to load chart data</div>';
+        return;
+    }
 
     currentChartData = data;
     currentSymbol = symbol;
+    
+    // Restore the container's original content
+    container.innerHTML = `
+        <div class="chart-toggle-buttons">
+            <button data-chart-type="line" class="active">Line</button>
+            <button data-chart-type="bar">Bar</button>
+            <button data-chart-type="candlestick">Candlestick</button>
+        </div>
+        <div id="watchlistChart"></div>
+    `;
 
-    renderWatchlistChart('line'); // default view
-
+    // Set up button click handlers
     document.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
-        btn.onclick = () => renderWatchlistChart(btn.dataset.chartType);
+        btn.addEventListener('click', function() {
+            // Update active button
+            document.querySelectorAll('.chart-toggle-buttons button').forEach(b => 
+                b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Render the selected chart type
+            renderWatchlistChart(this.dataset.chartType);
+        });
     });
+
+    // Render the default line chart
+    renderWatchlistChart('line');
 }
+
 
 async function fetchHistoricalData(symbol) {
     try {
         const response = await fetch(`/auth/security-historical/${symbol}`, { credentials: 'include' });
-        return response.ok ? await response.json() : null;
+        if (!response.ok) {
+            console.error(`Failed to fetch historical data: ${response.status}`);
+            return null;
+        }
+        
+        const data = await response.json();
+        console.log('Fetched historical data:', data);
+
+        return data;
     } catch (error) {
         console.error('Failed to fetch historical data:', error);
         return null;
     }
 }
 
+// async function renderWatchlistChart(type) {
+//     const container = document.getElementById('watchlistChart');
+//     container.innerHTML = '';  // Clear previous canvas
+
+//     if (watchlistChart) {
+//         watchlistChart.destroy();
+//         watchlistChart = null;
+//     }
+
+//     if (type === 'line') {
+//         renderWatchlistLineChart(currentChartData, currentSymbol, container);
+//     } else if (type === 'bar') {
+//         const ctx = container.getContext('2d');
+//         watchlistChart = new Chart(ctx, {
+//             type: 'bar',
+//             data: {
+//                 labels: currentChartData.dates,
+//                 datasets: [{
+//                     label: `${currentSymbol} Closing Prices`,
+//                     data: currentChartData.prices,
+//                     backgroundColor: '#6C7D93'
+//                 }]
+//             },
+//             options: {
+//                 responsive: true,
+//                 maintainAspectRatio: false
+//             }
+//         });
+//     } else if (type === 'candlestick') {
+//         const ctx = container.getContext('2d');
+//         watchlistChart = new Chart(ctx, {
+//             type: 'candlestick',
+//             data: {
+//                 labels: currentChartData.dates,
+//                 datasets: [{
+//                     label: `${currentSymbol} OHLC`,
+//                     data: currentChartData.candlesticks,
+//                 }]
+//             },
+//             options: {
+//                 responsive: true,
+//                 maintainAspectRatio: false
+//             }
+//         });
+//     }
+// }
+
 async function renderWatchlistChart(type) {
     const container = document.getElementById('watchlistChart');
-    container.innerHTML = '';  // Clear previous canvas
-
+    
+    // Always destroy the previous chart if it exists
     if (watchlistChart) {
         watchlistChart.destroy();
         watchlistChart = null;
     }
-
+    
+    // Clear the container by removing any previous canvas
+    container.innerHTML = '';
+    
+    // Create a new canvas element
+    const canvas = document.createElement('canvas');
+    canvas.id = 'watchlistChartCanvas'; // Give it a unique ID
+    container.appendChild(canvas);
+    
+    const ctx = canvas.getContext('2d');
+    
     if (type === 'line') {
-        renderWatchlistLineChart(currentChartData, currentSymbol, container);
+        watchlistChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: currentChartData.dates,
+                datasets: [{
+                    label: `${currentSymbol} Closing Prices`,
+                    data: currentChartData.prices,
+                    borderColor: 'rgba(108, 125, 147, 1)',
+                    borderWidth: 2,
+                    fill: true,
+                    backgroundColor: function(context) {
+                        const chart = context.chart;
+                        const { ctx, chartArea } = chart;
+                        if (!chartArea) return null;
+                        
+                        const gradient = ctx.createLinearGradient(
+                            0,
+                            chart.scales.y.getPixelForValue(Math.max(...currentChartData.prices)),
+                            0,
+                            chartArea.bottom
+                        );
+                        gradient.addColorStop(0, 'rgba(108, 125, 147, 0.8)');
+                        gradient.addColorStop(1, 'rgba(108, 125, 147, 0.1)');
+                        return gradient;
+                    },
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
+                    pointBackgroundColor: 'rgba(108, 125, 147, 1)',
+                    tension: 0.2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        intersect: false,
+                        mode: 'index',
+                    },
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Date' } },
+                    y: { title: { display: true, text: 'Price (USD)' } }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'nearest'
+                }
+            }
+        });
     } else if (type === 'bar') {
-        const ctx = container.getContext('2d');
+        // OHLC Bar chart implementation
+        // Format data for OHLC bar chart - need to ensure we have OHLC data
+        const barData = [];
+        
+        if (currentChartData.open_prices && currentChartData.high_prices && 
+            currentChartData.low_prices && currentChartData.prices) {
+            // We have full OHLC data
+            for (let i = 0; i < currentChartData.dates.length; i++) {
+                barData.push({
+                    x: new Date(currentChartData.dates[i]),
+                    o: currentChartData.open_prices[i],
+                    h: currentChartData.high_prices[i],
+                    l: currentChartData.low_prices[i],
+                    c: currentChartData.prices[i]  // Close prices
+                });
+            }
+        } else {
+            // Fallback if we only have close prices
+            for (let i = 0; i < currentChartData.dates.length; i++) {
+                // Use the close price as a fallback for other values
+                const closePrice = currentChartData.prices[i];
+                barData.push({
+                    x: new Date(currentChartData.dates[i]),
+                    o: closePrice,
+                    h: closePrice,
+                    l: closePrice,
+                    c: closePrice
+                });
+            }
+        }
+        
         watchlistChart = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -2549,32 +2737,113 @@ async function renderWatchlistChart(type) {
                 datasets: [{
                     label: `${currentSymbol} Closing Prices`,
                     data: currentChartData.prices,
-                    backgroundColor: '#6C7D93'
+                    backgroundColor: function(context) {
+                        // Color bars based on if price increased or decreased
+                        const index = context.dataIndex;
+                        const value = context.dataset.data[index];
+                        const previousValue = index > 0 ? context.dataset.data[index - 1] : value;
+                        return value >= previousValue ? 'rgba(75, 192, 75, 0.8)' : 'rgba(255, 99, 99, 0.8)';
+                    }
                 }]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false
+                maintainAspectRatio: false,
+                scales: {
+                    x: { title: { display: true, text: 'Date' } },
+                    y: { title: { display: true, text: 'Price (USD)' } }
+                }
             }
         });
     } else if (type === 'candlestick') {
-        const ctx = container.getContext('2d');
+        // Format data for candlestick chart
+        const candlestickData = [];
+        
+        if (currentChartData.open_prices && currentChartData.high_prices && 
+            currentChartData.low_prices && currentChartData.prices) {
+            // We have full OHLC data
+            for (let i = 0; i < currentChartData.dates.length; i++) {
+                candlestickData.push({
+                    x: new Date(currentChartData.dates[i]),
+                    o: currentChartData.open_prices[i],
+                    h: currentChartData.high_prices[i],
+                    l: currentChartData.low_prices[i],
+                    c: currentChartData.prices[i]  // Close prices
+                });
+            }
+        } else {
+            // Fallback if we only have close prices
+            // Generate simulated OHLC data for demonstration
+            for (let i = 0; i < currentChartData.dates.length; i++) {
+                const closePrice = currentChartData.prices[i];
+                const prevClose = i > 0 ? currentChartData.prices[i-1] : closePrice;
+                // Create some random but reasonable values for open, high, low
+                const open = prevClose; // Open at previous close
+                const volatility = closePrice * 0.02; // 2% volatility for demo
+                const high = Math.max(open, closePrice) + (Math.random() * volatility);
+                const low = Math.min(open, closePrice) - (Math.random() * volatility);
+                
+                candlestickData.push({
+                    x: new Date(currentChartData.dates[i]),
+                    o: open,
+                    h: high,
+                    l: low,
+                    c: closePrice
+                });
+            }
+        }
+        
+        // Check if the Financial plugin is available
+        if (typeof Chart.controllers.candlestick === 'undefined') {
+            console.error('Candlestick chart type not available. Make sure to include Chart.js Financial plugin.');
+            // Fall back to line chart
+            renderWatchlistChart('line');
+            return;
+        }
+        
         watchlistChart = new Chart(ctx, {
             type: 'candlestick',
             data: {
-                labels: currentChartData.dates,
                 datasets: [{
                     label: `${currentSymbol} OHLC`,
-                    data: currentChartData.candlesticks,
+                    data: candlestickData,
+                    color: {
+                        up: 'rgba(75, 192, 75, 1)',
+                        down: 'rgba(255, 99, 99, 1)',
+                        unchanged: 'rgba(90, 90, 90, 1)',
+                    }
                 }]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'day'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Date'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Price (USD)'
+                        }
+                    }
+                }
             }
         });
+    } else {
+        // Fallback to line chart for unknown types
+        console.warn(`Chart type '${type}' is not supported. Falling back to line chart.`);
+        renderWatchlistChart('line');
     }
 }
+
 function setupWatchlistToggle() {
     const toggleBtn = document.querySelector('.toggle-watchlist-btn');
     const chevronIcon = toggleBtn.querySelector('.chevron-icon');
