@@ -2584,88 +2584,8 @@ async function renderChartForSecurity(symbol) {
     renderWatchlistChart('line');
 }
 
-// debugging function
-function debugChartPlugins() {
-    console.log('Chart.js Debug:');
-    console.log('Chart object available:', typeof Chart !== 'undefined');
-    
-    if (typeof Chart !== 'undefined') {
-        console.log('Chart version:', Chart.version);
-        console.log('Available controllers:', Object.keys(Chart.controllers || {}));
-        console.log('Available elements:', Object.keys(Chart.elements || {}));
-        console.log('Candlestick controller available:', typeof Chart.controllers?.candlestick !== 'undefined');
-        console.log('Financial plugin version:', typeof window.chartjs_financial_version !== 'undefined' ? 
-                   window.chartjs_financial_version : 'not detected');
-    }
-    
-    // Try to register the candlestick controller if not available
-    if (typeof Chart !== 'undefined' && 
-        typeof Chart.controllers?.candlestick === 'undefined' &&
-        typeof window.CandlestickController !== 'undefined') {
-        console.log('Attempting to manually register Candlestick controller');
-        try {
-            Chart.register(window.CandlestickController);
-            console.log('Registration successful:', typeof Chart.controllers?.candlestick !== 'undefined');
-        } catch (e) {
-            console.error('Registration failed:', e);
-        }
-    }
-}
 
-// Call this at the beginning of your initialization
-document.addEventListener("DOMContentLoaded", () => {
-    debugChartPlugins();
-    addChartStyles();
-    init().catch(console.error);
-});
 
-const chartStyles = `
-.chart-toggle-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 5px;
-    margin-bottom: 15px;
-}
-
-.chart-toggle-buttons button {
-    padding: 8px 16px;
-    background-color: #f4f4f4;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.chart-toggle-buttons button.active {
-    background-color: #6C7D93;
-    color: white;
-    border-color: #6C7D93;
-}
-
-#watchlistChartContainer {
-    margin-top: 20px;
-    padding: 15px;
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-#watchlistChart {
-    height: 400px !important; /* Increased height */
-    width: 100%;
-    max-height: 500px;
-}
-`;
-
-// Function to add styles to the document
-function addChartStyles() {
-    if (!document.getElementById('chart-toggle-styles')) {
-        const styleEl = document.createElement('style');
-        styleEl.id = 'chart-toggle-styles';
-        styleEl.textContent = chartStyles;
-        document.head.appendChild(styleEl);
-    }
-}
 
 async function fetchHistoricalData(symbol) {
     try {
@@ -2784,9 +2704,6 @@ async function renderWatchlistChart(type) {
                         intersect: false,
                         mode: 'index',
                     },
-                    legend: {
-                        display: false
-                    }
                 },
                 scales: {
                     x: { 
@@ -2803,220 +2720,162 @@ async function renderWatchlistChart(type) {
             }
         });
     } else if (type === 'bar') {
-        // Creating OHLC-style bar chart
-        // This approximates the bar chart look in the screenshot
-        
-        // Process data for OHLC bar chart display
+        // Create true OHLC bar-style chart
         const barData = [];
-        const dataLabels = [];
-        const bgColors = [];
-        const barWidths = [];
         
-        // Need to filter to avoid too many bars - show every 7th data point
-        for (let i = 0; i < currentChartData.dates.length; i += 7) {
-            const open = currentChartData.open_prices ? currentChartData.open_prices[i] : 
-                       (i > 0 ? currentChartData.prices[i-1] : currentChartData.prices[i]);
-            const close = currentChartData.prices[i];
-            const isUp = close >= open;
+        // Prepare data in the format needed for OHLC visualization
+        for (let i = 0; i < currentChartData.dates.length; i++) {
+            const openPrice = currentChartData.open_prices ? currentChartData.open_prices[i] : 
+                              (i > 0 ? currentChartData.prices[i-1] : currentChartData.prices[i]);
+            const closePrice = currentChartData.prices[i];
+            const highPrice = currentChartData.high_prices ? currentChartData.high_prices[i] : 
+                              Math.max(openPrice, closePrice) * 1.01; // Add 1% if no real data
+            const lowPrice = currentChartData.low_prices ? currentChartData.low_prices[i] : 
+                             Math.min(openPrice, closePrice) * 0.99; // Subtract 1% if no real data
             
-            // Store the change value for the bar height
-            barData.push(close - open);
-            dataLabels.push(currentChartData.dates[i]);
-            
-            // Green for up, red for down days
-            bgColors.push(isUp ? 'rgba(75, 192, 75, 0.8)' : 'rgba(255, 99, 99, 0.8)');
-            barWidths.push(8); // Thinner bars
+            // Only include every 5th point to avoid overcrowding
+            if (i % 5 === 0 || i === currentChartData.dates.length - 1) {
+                barData.push({
+                    x: currentChartData.dates[i],
+                    o: openPrice,
+                    h: highPrice,
+                    l: lowPrice,
+                    c: closePrice
+                });
+            }
         }
         
+        // Create a custom bar chart that shows OHLC data
         watchlistChart = new Chart(canvas, {
             type: 'bar',
             data: {
-                labels: dataLabels,
+                labels: barData.map(item => item.x),
                 datasets: [{
                     label: `${currentSymbol} OHLC`,
-                    data: barData,
-                    backgroundColor: bgColors,
-                    barPercentage: 0.3, // Make bars thinner
-                    barThickness: 'flex',
-                    maxBarThickness: 8
+                    data: barData.map(item => item.c - item.o), // Height is close - open
+                    backgroundColor: barData.map(item => 
+                        item.c >= item.o ? 'rgba(75, 192, 75, 0.8)' : 'rgba(255, 99, 99, 0.8)'
+                    ),
+                    borderColor: barData.map(item => 
+                        item.c >= item.o ? 'rgba(75, 192, 75, 1)' : 'rgba(255, 99, 99, 1)'
+                    ),
+                    borderWidth: 1,
+                    // Add custom data for drawing high/low lines
+                    highLowData: barData
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        display: false
-                    },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                const index = context.dataIndex * 7; // Because we're skipping
-                                if (index >= currentChartData.dates.length) return '';
-                                
-                                const open = currentChartData.open_prices ? 
-                                    currentChartData.open_prices[index] : 
-                                    (index > 0 ? currentChartData.prices[index-1] : currentChartData.prices[index]);
-                                const high = currentChartData.high_prices ? 
-                                    currentChartData.high_prices[index] : Math.max(open, currentChartData.prices[index]);
-                                const low = currentChartData.low_prices ? 
-                                    currentChartData.low_prices[index] : Math.min(open, currentChartData.prices[index]);
-                                const close = currentChartData.prices[index];
-                                
+                                const dataIndex = context.dataIndex;
+                                const item = barData[dataIndex];
                                 return [
-                                    `Open: $${open.toFixed(2)}`,
-                                    `High: $${high.toFixed(2)}`,
-                                    `Low: $${low.toFixed(2)}`,
-                                    `Close: $${close.toFixed(2)}`,
-                                    `Change: $${(close - open).toFixed(2)}`
+                                    `Open: $${item.o.toFixed(2)}`,
+                                    `High: $${item.h.toFixed(2)}`,
+                                    `Low: $${item.l.toFixed(2)}`,
+                                    `Close: $${item.c.toFixed(2)}`
                                 ];
                             }
                         }
                     }
                 },
                 scales: {
-                    x: { 
-                        title: { display: true, text: 'Date' },
-                        grid: {
-                            display: false
-                        }
+                    x: {
+                        title: { display: true, text: 'Date' }
                     },
-                    y: { 
-                        title: { display: true, text: 'Price Change (USD)' },
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        }
+                    y: {
+                        title: { display: true, text: 'Price (USD)' }
                     }
-                }
-            }
-        });
-        
-    } else if (type === 'candlestick') {
-        // Check if candlestick controller is available
-        if (typeof Chart.controllers?.candlestick === 'undefined') {
-            console.error('Candlestick chart type not available. Make sure to include Chart.js Financial plugin.');
-            // Try to register it manually one more time
-            try {
-                // Define a simple candlestick renderer
-                class CustomCandlestickController extends Chart.DatasetController {
-                    draw() {
-                        const ctx = this.chart.ctx;
-                        const dataset = this.getDataset();
-                        const data = dataset.data;
+                },
+                animation: {
+                    onComplete: function(animation) {
+                        // Draw the high-low lines after the animation completes
+                        const meta = animation.chart.getDatasetMeta(0);
+                        const ctx = animation.chart.ctx;
+                        const dataset = animation.chart.data.datasets[0];
+                        const highLowData = dataset.highLowData;
                         
                         ctx.save();
+                        ctx.lineWidth = 1;
                         
-                        for (let i = 0; i < data.length; i++) {
-                            const item = data[i];
+                        // For each bar, draw a line from high to low
+                        meta.data.forEach((bar, index) => {
+                            const item = highLowData[index];
+                            const barModel = bar.getProps(['x', 'y', 'base', 'width']);
                             
-                            // Calculate positions on the canvas
-                            const x = this.chart.scales.x.getPixelForValue(item.x);
-                            const yOpen = this.chart.scales.y.getPixelForValue(item.o);
-                            const yHigh = this.chart.scales.y.getPixelForValue(item.h);
-                            const yLow = this.chart.scales.y.getPixelForValue(item.l);
-                            const yClose = this.chart.scales.y.getPixelForValue(item.c);
+                            // Calculate positions
+                            const centerX = barModel.x;
+                            const barTop = Math.min(barModel.y, barModel.base);
+                            const barBottom = Math.max(barModel.y, barModel.base);
                             
-                            // Determine color (green for up, red for down)
-                            const color = item.c >= item.o ? 'rgba(75, 192, 75, 1)' : 'rgba(255, 99, 99, 1)';
+                            // Get y positions for high and low
+                            const highY = animation.chart.scales.y.getPixelForValue(item.h);
+                            const lowY = animation.chart.scales.y.getPixelForValue(item.l);
                             
                             // Draw high-low line
                             ctx.beginPath();
-                            ctx.moveTo(x, yHigh);
-                            ctx.lineTo(x, yLow);
-                            ctx.strokeStyle = color;
-                            ctx.lineWidth = 1;
+                            ctx.moveTo(centerX, highY);
+                            ctx.lineTo(centerX, lowY);
+                            ctx.strokeStyle = item.c >= item.o ? 'rgba(75, 192, 75, 1)' : 'rgba(255, 99, 99, 1)';
                             ctx.stroke();
-                            
-                            // Draw body
-                            ctx.beginPath();
-                            ctx.fillStyle = color;
-                            const yTop = Math.min(yOpen, yClose);
-                            const height = Math.abs(yClose - yOpen);
-                            ctx.fillRect(x - 4, yTop, 8, height);
-                            ctx.closePath();
-                        }
+                        });
                         
                         ctx.restore();
                     }
                 }
-                
-                // Try to register our custom controller
-                Chart.register({
-                    id: 'candlestick',
-                    controller: CustomCandlestickController
-                });
-                
-                console.log('Tried to register custom candlestick controller');
-            } catch (e) {
-                console.error('Failed to register candlestick controller:', e);
-                renderWatchlistChart('line');
-                return;
             }
+        });
+    } else if (type === 'candlestick') {
+        // Check if candlestick controller is available
+        if (typeof Chart.controllers.candlestick === 'undefined') {
+            console.error('Candlestick chart type not available. Make sure to include Chart.js Financial plugin.');
+            // Fall back to line chart
+            renderWatchlistChart('line');
+            return;
         }
         
-        // Fall back to a custom visualization for candlesticks
-        // We'll use a scatter chart as base but draw our candlesticks in the afterDraw hook
-        
-        // Prepare data
+        // Format data for candlestick chart
         const candlestickData = [];
+        
+        // Check if we have OHLC data
         for (let i = 0; i < currentChartData.dates.length; i++) {
-            const open = currentChartData.open_prices ? currentChartData.open_prices[i] : 
-                       (i > 0 ? currentChartData.prices[i-1] : currentChartData.prices[i]);
-            const close = currentChartData.prices[i];
-            const high = currentChartData.high_prices ? currentChartData.high_prices[i] : 
-                        Math.max(open, close) * 1.01;
-            const low = currentChartData.low_prices ? currentChartData.low_prices[i] : 
-                       Math.min(open, close) * 0.99;
+            const openPrice = currentChartData.open_prices ? currentChartData.open_prices[i] : 
+                             (i > 0 ? currentChartData.prices[i-1] : currentChartData.prices[i]);
+            const closePrice = currentChartData.prices[i];
+            const highPrice = currentChartData.high_prices ? currentChartData.high_prices[i] : 
+                             Math.max(openPrice, closePrice) * 1.01; // Add 1% if no real data
+            const lowPrice = currentChartData.low_prices ? currentChartData.low_prices[i] : 
+                            Math.min(openPrice, closePrice) * 0.99; // Subtract 1% if no real data
             
             candlestickData.push({
-                x: new Date(currentChartData.dates[i]).getTime(),
-                o: open,
-                h: high,
-                l: low,
-                c: close
+                x: new Date(currentChartData.dates[i]),
+                o: openPrice,
+                h: highPrice,
+                l: lowPrice,
+                c: closePrice
             });
         }
         
-        // Create a modified line chart that will be transformed into candlesticks
+        // Create candlestick chart
         watchlistChart = new Chart(canvas, {
-            type: 'line',
+            type: 'candlestick',
             data: {
                 datasets: [{
                     label: `${currentSymbol} OHLC`,
-                    data: currentChartData.prices.map((price, i) => ({
-                        x: new Date(currentChartData.dates[i]).getTime(),
-                        y: price
-                    })),
-                    borderColor: 'rgba(0, 0, 0, 0)',
-                    pointRadius: 0,
-                    fill: false,
-                    tension: 0,
-                    ohlcData: candlestickData
+                    data: candlestickData,
+                    color: {
+                        up: 'rgba(75, 192, 75, 1)',
+                        down: 'rgba(255, 99, 99, 1)',
+                    }
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const index = context.dataIndex;
-                                const ohlcData = context.dataset.ohlcData[index];
-                                return [
-                                    `Date: ${currentChartData.dates[index]}`,
-                                    `Open: $${ohlcData.o.toFixed(2)}`,
-                                    `High: $${ohlcData.h.toFixed(2)}`,
-                                    `Low: $${ohlcData.l.toFixed(2)}`,
-                                    `Close: $${ohlcData.c.toFixed(2)}`
-                                ];
-                            }
-                        }
-                    }
-                },
                 scales: {
                     x: {
                         type: 'time',
@@ -3036,54 +2895,10 @@ async function renderWatchlistChart(type) {
                         title: {
                             display: true,
                             text: 'Price (USD)'
-                        }
+                        },
+                        position: 'right'
                     }
-                },
-                // Draw candlesticks manually
-                plugins: [{
-                    id: 'candlestickRenderer',
-                    afterDraw: (chart) => {
-                        const ctx = chart.ctx;
-                        const dataset = chart.data.datasets[0];
-                        const ohlcData = dataset.ohlcData;
-                        
-                        if (!ohlcData) return;
-                        
-                        ctx.save();
-                        
-                        for (let i = 0; i < ohlcData.length; i++) {
-                            const item = ohlcData[i];
-                            
-                            // Calculate positions
-                            const x = chart.scales.x.getPixelForValue(item.x);
-                            const yOpen = chart.scales.y.getPixelForValue(item.o);
-                            const yHigh = chart.scales.y.getPixelForValue(item.h);
-                            const yLow = chart.scales.y.getPixelForValue(item.l);
-                            const yClose = chart.scales.y.getPixelForValue(item.c);
-                            
-                            // Determine color (green for up, red for down)
-                            const color = item.c >= item.o ? 'rgba(75, 192, 75, 1)' : 'rgba(255, 99, 99, 1)';
-                            
-                            // Draw high-low line
-                            ctx.beginPath();
-                            ctx.moveTo(x, yHigh);
-                            ctx.lineTo(x, yLow);
-                            ctx.strokeStyle = color;
-                            ctx.lineWidth = 1;
-                            ctx.stroke();
-                            
-                            // Draw body
-                            ctx.beginPath();
-                            ctx.fillStyle = color;
-                            const yTop = Math.min(yOpen, yClose);
-                            const height = Math.abs(yClose - yOpen);
-                            ctx.fillRect(x - 4, yTop, 8, height);
-                            ctx.closePath();
-                        }
-                        
-                        ctx.restore();
-                    }
-                }]
+                }
             }
         });
     }
@@ -3161,32 +2976,7 @@ function renderWatchlistLineChart(data, symbol, container) {
 
     new Chart(canvas, chartConfig);
 }
-document.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
-    btn.style.padding = '8px 16px';
-    btn.style.backgroundColor = '#f4f4f4';
-    btn.style.border = '1px solid #ddd';
-    btn.style.borderRadius = '4px';
-    btn.style.cursor = 'pointer';
-    btn.style.transition = 'all 0.2s';
-    
-    btn.addEventListener('mouseover', function() {
-        if (!this.classList.contains('active')) {
-            this.style.backgroundColor = '#e4e4e4';
-        }
-    });
-    
-    btn.addEventListener('mouseout', function() {
-        if (!this.classList.contains('active')) {
-            this.style.backgroundColor = '#f4f4f4';
-        }
-    });
-    
-    if (btn.classList.contains('active')) {
-        btn.style.backgroundColor = '#6C7D93';
-        btn.style.color = 'white';
-        btn.style.borderColor = '#6C7D93';
-    }
-});
+
 
 async function removeSecurityFromWatchlist(id) {
     try {
