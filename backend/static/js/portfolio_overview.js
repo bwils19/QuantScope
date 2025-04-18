@@ -2719,82 +2719,183 @@ async function renderWatchlistChart(type) {
                 }
             }
         });
-        const ohlcData = currentChartData.dates.map((d, i) => {
-            const o = currentChartData.open_prices?.[i]
-                    ?? (i > 0 ? currentChartData.prices[i - 1] : currentChartData.prices[i]);
-            const c = currentChartData.prices[i];
-            const h = currentChartData.high_prices?.[i] ?? Math.max(o, c) * 1.01;
-            const l = currentChartData.low_prices?.[i]  ?? Math.min(o, c) * 0.99;
-            return { x: new Date(d), o, h, l, c };
-          });
+    } else if (type === 'bar') {
+        // Create true OHLC bar-style chart
+        const barData = [];
         
-          // ——— 2️⃣ BAR → OHLC from Financial plugin ———
-          if (type === 'bar') {
-            try {
-              watchlistChart = new Chart(canvas, {
-                type: 'ohlc',
-                data: { datasets: [{ label: `${currentSymbol} OHLC`, data: ohlcData }] },
-                options: {
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  scales: {
-                    x: {
-                      type: 'time',
-                      time: { unit: 'day', displayFormats: { day: 'MMM d' } },
-                      title: { display: true, text: 'Date' },
-                      ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }
-                    },
-                    y: { title: { display: true, text: 'Price (USD)' } }
-                  }
-                }
-              });
-              return;
-            } catch (err) {
-              console.error('OHLC render failed, falling back to line:', err);
-              return renderWatchlistChart('line');
+        // Prepare data in the format needed for OHLC visualization
+        for (let i = 0; i < currentChartData.dates.length; i++) {
+            const openPrice = currentChartData.open_prices ? currentChartData.open_prices[i] : 
+                              (i > 0 ? currentChartData.prices[i-1] : currentChartData.prices[i]);
+            const closePrice = currentChartData.prices[i];
+            const highPrice = currentChartData.high_prices ? currentChartData.high_prices[i] : 
+                              Math.max(openPrice, closePrice) * 1.01; // Add 1% if no real data
+            const lowPrice = currentChartData.low_prices ? currentChartData.low_prices[i] : 
+                             Math.min(openPrice, closePrice) * 0.99; // Subtract 1% if no real data
+            
+            // Only include every 5th point to avoid overcrowding
+            if (i % 5 === 0 || i === currentChartData.dates.length - 1) {
+                barData.push({
+                    x: currentChartData.dates[i],
+                    o: openPrice,
+                    h: highPrice,
+                    l: lowPrice,
+                    c: closePrice
+                });
             }
-          }
+        }
         
-          // ——— 3️⃣ CANDLESTICK ———
-          if (type === 'candlestick') {
-            try {
-              watchlistChart = new Chart(canvas, {
-                type: 'candlestick',
-                data: {
-                  datasets: [{
+        // Create a custom bar chart that shows OHLC data
+        watchlistChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: barData.map(item => item.x),
+                datasets: [{
                     label: `${currentSymbol} OHLC`,
-                    data: ohlcData,
-                    color: { up: 'rgba(75,192,75,1)', down: 'rgba(255,99,99,1)' }
-                  }]
+                    data: barData.map(item => item.c - item.o), // Height is close - open
+                    backgroundColor: barData.map(item => 
+                        item.c >= item.o ? 'rgba(75, 192, 75, 0.8)' : 'rgba(255, 99, 99, 0.8)'
+                    ),
+                    borderColor: barData.map(item => 
+                        item.c >= item.o ? 'rgba(75, 192, 75, 1)' : 'rgba(255, 99, 99, 1)'
+                    ),
+                    borderWidth: 1,
+                    // Add custom data for drawing high/low lines
+                    highLowData: barData
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const dataIndex = context.dataIndex;
+                                const item = barData[dataIndex];
+                                return [
+                                    `Open: $${item.o.toFixed(2)}`,
+                                    `High: $${item.h.toFixed(2)}`,
+                                    `Low: $${item.l.toFixed(2)}`,
+                                    `Close: $${item.c.toFixed(2)}`
+                                ];
+                            }
+                        }
+                    }
                 },
-                options: {
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  scales: {
+                scales: {
                     x: {
-                      type: 'time',
-                      time: { unit: 'day', displayFormats: { day: 'MMM d' } },
-                      title: { display: true, text: 'Date' },
-                      ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }
+                        title: { display: true, text: 'Date' }
                     },
                     y: {
-                      position: 'right',
-                      title: { display: true, text: 'Price (USD)' }
+                        title: { display: true, text: 'Price (USD)' }
                     }
-                  }
+                },
+                animation: {
+                    onComplete: function(animation) {
+                        // Draw the high-low lines after the animation completes
+                        const meta = animation.chart.getDatasetMeta(0);
+                        const ctx = animation.chart.ctx;
+                        const dataset = animation.chart.data.datasets[0];
+                        const highLowData = dataset.highLowData;
+                        
+                        ctx.save();
+                        ctx.lineWidth = 1;
+                        
+                        // For each bar, draw a line from high to low
+                        meta.data.forEach((bar, index) => {
+                            const item = highLowData[index];
+                            const barModel = bar.getProps(['x', 'y', 'base', 'width']);
+                            
+                            // Calculate positions
+                            const centerX = barModel.x;
+                            const barTop = Math.min(barModel.y, barModel.base);
+                            const barBottom = Math.max(barModel.y, barModel.base);
+                            
+                            // Get y positions for high and low
+                            const highY = animation.chart.scales.y.getPixelForValue(item.h);
+                            const lowY = animation.chart.scales.y.getPixelForValue(item.l);
+                            
+                            // Draw high-low line
+                            ctx.beginPath();
+                            ctx.moveTo(centerX, highY);
+                            ctx.lineTo(centerX, lowY);
+                            ctx.strokeStyle = item.c >= item.o ? 'rgba(75, 192, 75, 1)' : 'rgba(255, 99, 99, 1)';
+                            ctx.stroke();
+                        });
+                        
+                        ctx.restore();
+                    }
                 }
-              });
-              return;
-            } catch (err) {
-              console.error('Candlestick render failed, falling back to line:', err);
-              return renderWatchlistChart('line');
             }
-          }
+        });
+    } else if (type === 'candlestick') {
         
-          // ——— Unknown type → fallback ———
-          console.warn(`Unknown chart type "${type}", defaulting to line.`);
-          renderWatchlistChart('line');
+        // Format data for candlestick chart
+        const candlestickData = [];
+        
+        // Check if we have OHLC data
+        for (let i = 0; i < currentChartData.dates.length; i++) {
+            const openPrice = currentChartData.open_prices ? currentChartData.open_prices[i] : 
+                             (i > 0 ? currentChartData.prices[i-1] : currentChartData.prices[i]);
+            const closePrice = currentChartData.prices[i];
+            const highPrice = currentChartData.high_prices ? currentChartData.high_prices[i] : 
+                             Math.max(openPrice, closePrice) * 1.01; // Add 1% if no real data
+            const lowPrice = currentChartData.low_prices ? currentChartData.low_prices[i] : 
+                            Math.min(openPrice, closePrice) * 0.99; // Subtract 1% if no real data
+            
+            candlestickData.push({
+                x: new Date(currentChartData.dates[i]),
+                o: openPrice,
+                h: highPrice,
+                l: lowPrice,
+                c: closePrice
+            });
         }
+        
+        // Create candlestick chart
+        watchlistChart = new Chart(canvas, {
+            type: 'candlestick',
+            data: {
+                datasets: [{
+                    label: `${currentSymbol} OHLC`,
+                    data: candlestickData,
+                    color: {
+                        up: 'rgba(75, 192, 75, 1)',
+                        down: 'rgba(255, 99, 99, 1)',
+                    }
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'day',
+                            displayFormats: {
+                                day: 'MMM d'
+                            }
+                        },
+                        ticks: {
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 10
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Price (USD)'
+                        },
+                        position: 'right'
+                    }
+                }
+            }
+        });
+    }
+}
 
 function setupWatchlistToggle() {
     const toggleBtn = document.querySelector('.toggle-watchlist-btn');
@@ -2806,9 +2907,8 @@ function setupWatchlistToggle() {
         chevronIcon.classList.toggle('rotated');
     });
 }
-}
 
-// document.addEventListener('DOMContentLoaded', setupWatchlistToggle);
+document.addEventListener('DOMContentLoaded', setupWatchlistToggle);
 
 function renderWatchlistLineChart(data, symbol, container) {
     const chartConfig = {
