@@ -423,8 +423,9 @@
     Latest Update: {{ latest_update.strftime('%Y-%m-%d %H:%M:%S') }}
 </div>
 {% endif %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@3.0.0/dist/chartjs-chart-financial.min.js"></script>
+
 
 <script src="{{ url_for('static', filename='js/portfolio_overview.js') }}"></script>
 <script>
