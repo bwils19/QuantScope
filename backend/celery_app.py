@@ -90,3 +90,6 @@ def configure_celery(app):
 
 # Ensure beat schedule directory exists
 os.makedirs('/var/run/quantscope', exist_ok=True)
+
+import backend.tasks
+import backend.services.price_update_service
