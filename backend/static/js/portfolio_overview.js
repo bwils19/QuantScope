@@ -2586,7 +2586,6 @@ async function renderChartForSecurity(symbol) {
 
 
 
-
 async function fetchHistoricalData(symbol) {
     try {
         const response = await fetch(`/auth/security-historical/${symbol}`, { credentials: 'include' });
@@ -2830,6 +2829,13 @@ async function renderWatchlistChart(type) {
             }
         });
     } else if (type === 'candlestick') {
+        // Check if candlestick controller is available
+        if (typeof Chart.controllers.candlestick === 'undefined') {
+            console.error('Candlestick chart type not available. Make sure to include Chart.js Financial plugin.');
+            // Fall back to line chart
+            renderWatchlistChart('line');
+            return;
+        }
         
         // Format data for candlestick chart
         const candlestickData = [];
