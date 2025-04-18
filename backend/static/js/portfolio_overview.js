@@ -2806,6 +2806,7 @@ function setupWatchlistToggle() {
         chevronIcon.classList.toggle('rotated');
     });
 }
+}
 
 document.addEventListener('DOMContentLoaded', setupWatchlistToggle);
 
