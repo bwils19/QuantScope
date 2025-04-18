@@ -424,9 +424,22 @@
 </div>
 {% endif %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
-
+<script>
+  // Make sure candlestick charts are registered
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('Checking and registering financial charts:');
+    if (typeof Chart !== 'undefined') {
+      // Force registering the candlestick element and controller if needed
+      if (typeof Chart.controllers.candlestick === 'undefined' && 
+          typeof window.CandlestickController !== 'undefined') {
+        console.log('Manually registering candlestick controller');
+        Chart.register(window.CandlestickController);
+      }
+      console.log('Candlestick registered:', typeof Chart.controllers.candlestick !== 'undefined');
+    }
+  });
+</script>
 <script src="{{ url_for('static', filename='js/portfolio_overview.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {

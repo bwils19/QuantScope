@@ -2523,31 +2523,53 @@ async function renderChartForSecurity(symbol) {
     const container = document.getElementById('watchlistChartContainer');
     container.classList.remove('hidden');
 
-    // Show loading indicator
-    container.innerHTML = '<div class="loading-spinner">Loading chart data...</div>';
+    // Show loading message
+    const chartArea = document.getElementById('watchlistChart');
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'loading-message';
+    loadingDiv.textContent = 'Loading chart data...';
+    loadingDiv.style.textAlign = 'center';
+    loadingDiv.style.paddingTop = '100px';
+    loadingDiv.style.color = '#6C7D93';
+    loadingDiv.style.fontSize = '16px';
+    chartArea.parentNode.appendChild(loadingDiv);
 
     const data = await fetchHistoricalData(symbol);
+    
+    // Remove loading message
+    loadingDiv.remove();
+    
     if (!data) {
-        container.innerHTML = '<div class="error-message">Failed to load chart data</div>';
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.textContent = 'Failed to load chart data';
+        errorDiv.style.textAlign = 'center';
+        errorDiv.style.paddingTop = '100px';
+        errorDiv.style.color = '#e74c3c';
+        errorDiv.style.fontSize = '16px';
+        chartArea.parentNode.appendChild(errorDiv);
         return;
     }
 
     currentChartData = data;
     currentSymbol = symbol;
     
-    // Restore the container's original content
-    container.innerHTML = `
-        <div class="chart-toggle-buttons">
-            <button data-chart-type="line" class="active">Line</button>
-            <button data-chart-type="bar">Bar</button>
-            <button data-chart-type="candlestick">Candlestick</button>
-        </div>
-        <div id="watchlistChart"></div>
-    `;
-
-    // Set up button click handlers
+    // Remove any previous active class
     document.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.classList.remove('active');
+    });
+    
+    // Add active class to the Line button by default
+    document.querySelector('.chart-toggle-buttons button[data-chart-type="line"]')?.classList.add('active');
+    
+    // Reset event handlers on buttons
+    document.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
+        // Clone and replace to remove old event handlers
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        
+        // Add event listener to the new button
+        newBtn.addEventListener('click', function() {
             // Update active button
             document.querySelectorAll('.chart-toggle-buttons button').forEach(b => 
                 b.classList.remove('active'));
@@ -2557,11 +2579,45 @@ async function renderChartForSecurity(symbol) {
             renderWatchlistChart(this.dataset.chartType);
         });
     });
-
+    
     // Render the default line chart
     renderWatchlistChart('line');
 }
 
+// debugging function
+function debugChartPlugins() {
+    console.log('Chart.js Debug:');
+    console.log('Chart object available:', typeof Chart !== 'undefined');
+    
+    if (typeof Chart !== 'undefined') {
+        console.log('Chart version:', Chart.version);
+        console.log('Available controllers:', Object.keys(Chart.controllers || {}));
+        console.log('Available elements:', Object.keys(Chart.elements || {}));
+        console.log('Candlestick controller available:', typeof Chart.controllers?.candlestick !== 'undefined');
+        console.log('Financial plugin version:', typeof window.chartjs_financial_version !== 'undefined' ? 
+                   window.chartjs_financial_version : 'not detected');
+    }
+    
+    // Try to register the candlestick controller if not available
+    if (typeof Chart !== 'undefined' && 
+        typeof Chart.controllers?.candlestick === 'undefined' &&
+        typeof window.CandlestickController !== 'undefined') {
+        console.log('Attempting to manually register Candlestick controller');
+        try {
+            Chart.register(window.CandlestickController);
+            console.log('Registration successful:', typeof Chart.controllers?.candlestick !== 'undefined');
+        } catch (e) {
+            console.error('Registration failed:', e);
+        }
+    }
+}
+
+// Call this at the beginning of your initialization
+document.addEventListener("DOMContentLoaded", () => {
+    debugChartPlugins();
+    addChartStyles();
+    init().catch(console.error);
+});
 
 async function fetchHistoricalData(symbol) {
     try {
@@ -2629,26 +2685,19 @@ async function fetchHistoricalData(symbol) {
 // }
 
 async function renderWatchlistChart(type) {
-    const container = document.getElementById('watchlistChart');
+    console.log(`Rendering ${type} chart`);
     
-    // Always destroy the previous chart if it exists
+    // Get chart container
+    const canvas = document.getElementById('watchlistChart');
+    
+    // Always destroy the previous chart to prevent conflicts
     if (watchlistChart) {
         watchlistChart.destroy();
         watchlistChart = null;
     }
     
-    // Clear the container by removing any previous canvas
-    container.innerHTML = '';
-    
-    // Create a new canvas element
-    const canvas = document.createElement('canvas');
-    canvas.id = 'watchlistChartCanvas'; // Give it a unique ID
-    container.appendChild(canvas);
-    
-    const ctx = canvas.getContext('2d');
-    
     if (type === 'line') {
-        watchlistChart = new Chart(ctx, {
+        watchlistChart = new Chart(canvas, {
             type: 'line',
             data: {
                 labels: currentChartData.dates,
@@ -2689,8 +2738,12 @@ async function renderWatchlistChart(type) {
                     },
                 },
                 scales: {
-                    x: { title: { display: true, text: 'Date' } },
-                    y: { title: { display: true, text: 'Price (USD)' } }
+                    x: { 
+                        title: { display: true, text: 'Date' }
+                    },
+                    y: { 
+                        title: { display: true, text: 'Price (USD)' }
+                    }
                 },
                 interaction: {
                     intersect: false,
@@ -2699,101 +2752,117 @@ async function renderWatchlistChart(type) {
             }
         });
     } else if (type === 'bar') {
-        // OHLC Bar chart implementation
-        // Format data for OHLC bar chart - need to ensure we have OHLC data
+        // Create true OHLC bar-style chart
         const barData = [];
         
-        if (currentChartData.open_prices && currentChartData.high_prices && 
-            currentChartData.low_prices && currentChartData.prices) {
-            // We have full OHLC data
-            for (let i = 0; i < currentChartData.dates.length; i++) {
+        // Prepare data in the format needed for OHLC visualization
+        for (let i = 0; i < currentChartData.dates.length; i++) {
+            const openPrice = currentChartData.open_prices ? currentChartData.open_prices[i] : 
+                              (i > 0 ? currentChartData.prices[i-1] : currentChartData.prices[i]);
+            const closePrice = currentChartData.prices[i];
+            const highPrice = currentChartData.high_prices ? currentChartData.high_prices[i] : 
+                              Math.max(openPrice, closePrice) * 1.01; // Add 1% if no real data
+            const lowPrice = currentChartData.low_prices ? currentChartData.low_prices[i] : 
+                             Math.min(openPrice, closePrice) * 0.99; // Subtract 1% if no real data
+            
+            // Only include every 5th point to avoid overcrowding
+            if (i % 5 === 0 || i === currentChartData.dates.length - 1) {
                 barData.push({
-                    x: new Date(currentChartData.dates[i]),
-                    o: currentChartData.open_prices[i],
-                    h: currentChartData.high_prices[i],
-                    l: currentChartData.low_prices[i],
-                    c: currentChartData.prices[i]  // Close prices
-                });
-            }
-        } else {
-            // Fallback if we only have close prices
-            for (let i = 0; i < currentChartData.dates.length; i++) {
-                // Use the close price as a fallback for other values
-                const closePrice = currentChartData.prices[i];
-                barData.push({
-                    x: new Date(currentChartData.dates[i]),
-                    o: closePrice,
-                    h: closePrice,
-                    l: closePrice,
+                    x: currentChartData.dates[i],
+                    o: openPrice,
+                    h: highPrice,
+                    l: lowPrice,
                     c: closePrice
                 });
             }
         }
         
-        watchlistChart = new Chart(ctx, {
+        // Create a custom bar chart that shows OHLC data
+        watchlistChart = new Chart(canvas, {
             type: 'bar',
             data: {
-                labels: currentChartData.dates,
+                labels: barData.map(item => item.x),
                 datasets: [{
-                    label: `${currentSymbol} Closing Prices`,
-                    data: currentChartData.prices,
-                    backgroundColor: function(context) {
-                        // Color bars based on if price increased or decreased
-                        const index = context.dataIndex;
-                        const value = context.dataset.data[index];
-                        const previousValue = index > 0 ? context.dataset.data[index - 1] : value;
-                        return value >= previousValue ? 'rgba(75, 192, 75, 0.8)' : 'rgba(255, 99, 99, 0.8)';
-                    }
+                    label: `${currentSymbol} OHLC`,
+                    data: barData.map(item => item.c - item.o), // Height is close - open
+                    backgroundColor: barData.map(item => 
+                        item.c >= item.o ? 'rgba(75, 192, 75, 0.8)' : 'rgba(255, 99, 99, 0.8)'
+                    ),
+                    borderColor: barData.map(item => 
+                        item.c >= item.o ? 'rgba(75, 192, 75, 1)' : 'rgba(255, 99, 99, 1)'
+                    ),
+                    borderWidth: 1,
+                    // Add custom data for drawing high/low lines
+                    highLowData: barData
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const dataIndex = context.dataIndex;
+                                const item = barData[dataIndex];
+                                return [
+                                    `Open: $${item.o.toFixed(2)}`,
+                                    `High: $${item.h.toFixed(2)}`,
+                                    `Low: $${item.l.toFixed(2)}`,
+                                    `Close: $${item.c.toFixed(2)}`
+                                ];
+                            }
+                        }
+                    }
+                },
                 scales: {
-                    x: { title: { display: true, text: 'Date' } },
-                    y: { title: { display: true, text: 'Price (USD)' } }
+                    x: {
+                        title: { display: true, text: 'Date' }
+                    },
+                    y: {
+                        title: { display: true, text: 'Price (USD)' }
+                    }
+                },
+                animation: {
+                    onComplete: function(animation) {
+                        // Draw the high-low lines after the animation completes
+                        const meta = animation.chart.getDatasetMeta(0);
+                        const ctx = animation.chart.ctx;
+                        const dataset = animation.chart.data.datasets[0];
+                        const highLowData = dataset.highLowData;
+                        
+                        ctx.save();
+                        ctx.lineWidth = 1;
+                        
+                        // For each bar, draw a line from high to low
+                        meta.data.forEach((bar, index) => {
+                            const item = highLowData[index];
+                            const barModel = bar.getProps(['x', 'y', 'base', 'width']);
+                            
+                            // Calculate positions
+                            const centerX = barModel.x;
+                            const barTop = Math.min(barModel.y, barModel.base);
+                            const barBottom = Math.max(barModel.y, barModel.base);
+                            
+                            // Get y positions for high and low
+                            const highY = animation.chart.scales.y.getPixelForValue(item.h);
+                            const lowY = animation.chart.scales.y.getPixelForValue(item.l);
+                            
+                            // Draw high-low line
+                            ctx.beginPath();
+                            ctx.moveTo(centerX, highY);
+                            ctx.lineTo(centerX, lowY);
+                            ctx.strokeStyle = item.c >= item.o ? 'rgba(75, 192, 75, 1)' : 'rgba(255, 99, 99, 1)';
+                            ctx.stroke();
+                        });
+                        
+                        ctx.restore();
+                    }
                 }
             }
         });
     } else if (type === 'candlestick') {
-        // Format data for candlestick chart
-        const candlestickData = [];
-        
-        if (currentChartData.open_prices && currentChartData.high_prices && 
-            currentChartData.low_prices && currentChartData.prices) {
-            // We have full OHLC data
-            for (let i = 0; i < currentChartData.dates.length; i++) {
-                candlestickData.push({
-                    x: new Date(currentChartData.dates[i]),
-                    o: currentChartData.open_prices[i],
-                    h: currentChartData.high_prices[i],
-                    l: currentChartData.low_prices[i],
-                    c: currentChartData.prices[i]  // Close prices
-                });
-            }
-        } else {
-            // Fallback if we only have close prices
-            // Generate simulated OHLC data for demonstration
-            for (let i = 0; i < currentChartData.dates.length; i++) {
-                const closePrice = currentChartData.prices[i];
-                const prevClose = i > 0 ? currentChartData.prices[i-1] : closePrice;
-                // Create some random but reasonable values for open, high, low
-                const open = prevClose; // Open at previous close
-                const volatility = closePrice * 0.02; // 2% volatility for demo
-                const high = Math.max(open, closePrice) + (Math.random() * volatility);
-                const low = Math.min(open, closePrice) - (Math.random() * volatility);
-                
-                candlestickData.push({
-                    x: new Date(currentChartData.dates[i]),
-                    o: open,
-                    h: high,
-                    l: low,
-                    c: closePrice
-                });
-            }
-        }
-        
-        // Check if the Financial plugin is available
+        // Check if candlestick controller is available
         if (typeof Chart.controllers.candlestick === 'undefined') {
             console.error('Candlestick chart type not available. Make sure to include Chart.js Financial plugin.');
             // Fall back to line chart
@@ -2801,7 +2870,30 @@ async function renderWatchlistChart(type) {
             return;
         }
         
-        watchlistChart = new Chart(ctx, {
+        // Format data for candlestick chart
+        const candlestickData = [];
+        
+        // Check if we have OHLC data
+        for (let i = 0; i < currentChartData.dates.length; i++) {
+            const openPrice = currentChartData.open_prices ? currentChartData.open_prices[i] : 
+                             (i > 0 ? currentChartData.prices[i-1] : currentChartData.prices[i]);
+            const closePrice = currentChartData.prices[i];
+            const highPrice = currentChartData.high_prices ? currentChartData.high_prices[i] : 
+                             Math.max(openPrice, closePrice) * 1.01; // Add 1% if no real data
+            const lowPrice = currentChartData.low_prices ? currentChartData.low_prices[i] : 
+                            Math.min(openPrice, closePrice) * 0.99; // Subtract 1% if no real data
+            
+            candlestickData.push({
+                x: new Date(currentChartData.dates[i]),
+                o: openPrice,
+                h: highPrice,
+                l: lowPrice,
+                c: closePrice
+            });
+        }
+        
+        // Create candlestick chart
+        watchlistChart = new Chart(canvas, {
             type: 'candlestick',
             data: {
                 datasets: [{
@@ -2810,7 +2902,6 @@ async function renderWatchlistChart(type) {
                     color: {
                         up: 'rgba(75, 192, 75, 1)',
                         down: 'rgba(255, 99, 99, 1)',
-                        unchanged: 'rgba(90, 90, 90, 1)',
                     }
                 }]
             },
@@ -2821,26 +2912,27 @@ async function renderWatchlistChart(type) {
                     x: {
                         type: 'time',
                         time: {
-                            unit: 'day'
+                            unit: 'day',
+                            displayFormats: {
+                                day: 'MMM d'
+                            }
                         },
-                        title: {
-                            display: true,
-                            text: 'Date'
+                        ticks: {
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 10
                         }
                     },
                     y: {
                         title: {
                             display: true,
                             text: 'Price (USD)'
-                        }
+                        },
+                        position: 'right'
                     }
                 }
             }
         });
-    } else {
-        // Fallback to line chart for unknown types
-        console.warn(`Chart type '${type}' is not supported. Falling back to line chart.`);
-        renderWatchlistChart('line');
     }
 }
 
