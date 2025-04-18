@@ -2655,144 +2655,147 @@ async function fetchHistoricalData(symbol) {
 async function renderWatchlistChart(type) {
     console.log(`Rendering ${type} chart`);
     
-    // Get chart container & destroy old instance
+    // Get chart container
     const canvas = document.getElementById('watchlistChart');
+    
+    // Always destroy the previous chart to prevent conflicts
     if (watchlistChart) {
-      watchlistChart.destroy();
-      watchlistChart = null;
+        watchlistChart.destroy();
+        watchlistChart = null;
     }
-  
-    // 1️⃣ LINE (unchanged)
+    
     if (type === 'line') {
-      watchlistChart = new Chart(canvas, {
-        type: 'line',
-        data: {
-          labels: currentChartData.dates,
-          datasets: [{
-            label: `${currentSymbol} Closing Prices`,
-            data: currentChartData.prices,
-            borderColor: 'rgba(108, 125, 147, 1)',
-            borderWidth: 2,
-            fill: true,
-            backgroundColor(ctx) {
-              const { chart, chartArea } = ctx;
-              if (!chartArea) return null;
-              const yMaxPx = chart.scales.y.getPixelForValue(
-                Math.max(...currentChartData.prices)
-              );
-              const gradient = chart.ctx.createLinearGradient(
-                0, yMaxPx, 
-                0, chartArea.bottom
-              );
-              gradient.addColorStop(0, 'rgba(108, 125, 147, 0.8)');
-              gradient.addColorStop(1, 'rgba(108, 125, 147, 0.1)');
-              return gradient;
+        watchlistChart = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: currentChartData.dates,
+                datasets: [{
+                    label: `${currentSymbol} Closing Prices`,
+                    data: currentChartData.prices,
+                    borderColor: 'rgba(108, 125, 147, 1)',
+                    borderWidth: 2,
+                    fill: true,
+                    backgroundColor: function(context) {
+                        const chart = context.chart;
+                        const { ctx, chartArea } = chart;
+                        if (!chartArea) return null;
+                        
+                        const gradient = ctx.createLinearGradient(
+                            0,
+                            chart.scales.y.getPixelForValue(Math.max(...currentChartData.prices)),
+                            0,
+                            chartArea.bottom
+                        );
+                        gradient.addColorStop(0, 'rgba(108, 125, 147, 0.8)');
+                        gradient.addColorStop(1, 'rgba(108, 125, 147, 0.1)');
+                        return gradient;
+                    },
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
+                    pointBackgroundColor: 'rgba(108, 125, 147, 1)',
+                    tension: 0.2
+                }]
             },
-            pointRadius: 2,
-            pointHoverRadius: 4,
-            pointBackgroundColor: 'rgba(108, 125, 147, 1)',
-            tension: 0.2
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            tooltip: { intersect: false, mode: 'index' }
-          },
-          scales: {
-            x: { title: { display: true, text: 'Date' } },
-            y: { title: { display: true, text: 'Price (USD)' } }
-          },
-          interaction: { intersect: false, mode: 'nearest' }
-        }
-      });
-      return;
-    }
-  
-    // Build a single OHLC array once for both Bar and Candlestick
-    const ohlcData = currentChartData.dates.map((dateStr, i) => {
-      const o = currentChartData.open_prices?.[i]
-              ?? (i > 0 ? currentChartData.prices[i - 1] : currentChartData.prices[i]);
-      const c = currentChartData.prices[i];
-      const h = currentChartData.high_prices?.[i] ?? Math.max(o, c) * 1.01;
-      const l = currentChartData.low_prices?.[i]  ?? Math.min(o, c) * 0.99;
-      return { x: new Date(dateStr), o, h, l, c };
-    });
-  
-    // 2️⃣ BAR → use the plugin’s OHLC controller
-    if (type === 'bar') {
-      // ensure plugin is registered
-      if (!Chart.registry.getController('ohlc')) {
-        console.error('Financial plugin not registered: ohlc controller missing');
-        return renderWatchlistChart('line');
-      }
-      watchlistChart = new Chart(canvas, {
-        type: 'ohlc',
-        data: {
-          datasets: [{
-            label: `${currentSymbol} OHLC`,
-            data: ohlcData
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: {
-              type: 'time',
-              time: { unit: 'day', displayFormats: { day: 'MMM d' } },
-              title: { display: true, text: 'Date' }
-            },
-            y: {
-              title: { display: true, text: 'Price (USD)' }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        intersect: false,
+                        mode: 'index',
+                    },
+                },
+                scales: {
+                    x: { 
+                        title: { display: true, text: 'Date' }
+                    },
+                    y: { 
+                        title: { display: true, text: 'Price (USD)' }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'nearest'
+                }
+            }
+        });
+        const ohlcData = currentChartData.dates.map((d, i) => {
+            const o = currentChartData.open_prices?.[i]
+                    ?? (i > 0 ? currentChartData.prices[i - 1] : currentChartData.prices[i]);
+            const c = currentChartData.prices[i];
+            const h = currentChartData.high_prices?.[i] ?? Math.max(o, c) * 1.01;
+            const l = currentChartData.low_prices?.[i]  ?? Math.min(o, c) * 0.99;
+            return { x: new Date(d), o, h, l, c };
+          });
+        
+          // ——— 2️⃣ BAR → OHLC from Financial plugin ———
+          if (type === 'bar') {
+            try {
+              watchlistChart = new Chart(canvas, {
+                type: 'ohlc',
+                data: { datasets: [{ label: `${currentSymbol} OHLC`, data: ohlcData }] },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  scales: {
+                    x: {
+                      type: 'time',
+                      time: { unit: 'day', displayFormats: { day: 'MMM d' } },
+                      title: { display: true, text: 'Date' },
+                      ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }
+                    },
+                    y: { title: { display: true, text: 'Price (USD)' } }
+                  }
+                }
+              });
+              return;
+            } catch (err) {
+              console.error('OHLC render failed, falling back to line:', err);
+              return renderWatchlistChart('line');
             }
           }
-        }
-      });
-      return;
-    }
-  
-    // 3️⃣ CANDLESTICK → use the plugin’s Candlestick controller
-    if (type === 'candlestick') {
-      if (!Chart.registry.getController('candlestick')) {
-        console.error('Financial plugin not registered: candlestick controller missing');
-        return renderWatchlistChart('line');
-      }
-      watchlistChart = new Chart(canvas, {
-        type: 'candlestick',
-        data: {
-          datasets: [{
-            label: `${currentSymbol} OHLC`,
-            data: ohlcData,
-            color: { up: 'rgba(75,192,75,1)', down: 'rgba(255,99,99,1)' }
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: {
-              type: 'time',
-              time: { unit: 'day', displayFormats: { day: 'MMM d' } },
-              title: { display: true, text: 'Date' },
-              ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }
-            },
-            y: {
-              position: 'right',
-              title: { display: true, text: 'Price (USD)' }
+        
+          // ——— 3️⃣ CANDLESTICK ———
+          if (type === 'candlestick') {
+            try {
+              watchlistChart = new Chart(canvas, {
+                type: 'candlestick',
+                data: {
+                  datasets: [{
+                    label: `${currentSymbol} OHLC`,
+                    data: ohlcData,
+                    color: { up: 'rgba(75,192,75,1)', down: 'rgba(255,99,99,1)' }
+                  }]
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  scales: {
+                    x: {
+                      type: 'time',
+                      time: { unit: 'day', displayFormats: { day: 'MMM d' } },
+                      title: { display: true, text: 'Date' },
+                      ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }
+                    },
+                    y: {
+                      position: 'right',
+                      title: { display: true, text: 'Price (USD)' }
+                    }
+                  }
+                }
+              });
+              return;
+            } catch (err) {
+              console.error('Candlestick render failed, falling back to line:', err);
+              return renderWatchlistChart('line');
             }
           }
+        
+          // ——— Unknown type → fallback ———
+          console.warn(`Unknown chart type "${type}", defaulting to line.`);
+          renderWatchlistChart('line');
         }
-      });
-      return;
-    }
-  
-    // Fallback: unknown type
-    console.warn(`Unknown chart type "${type}", defaulting to line.`);
-    renderWatchlistChart('line');
-  }
-  
+
 function setupWatchlistToggle() {
     const toggleBtn = document.querySelector('.toggle-watchlist-btn');
     const chevronIcon = toggleBtn.querySelector('.chevron-icon');
