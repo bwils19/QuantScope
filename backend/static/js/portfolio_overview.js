@@ -2875,6 +2875,21 @@ async function renderWatchlistChart(type) {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const dataPoint = context.dataset.data[context.dataIndex];
+                                return [
+                                    `Open: $${dataPoint.o.toFixed(2)}`,
+                                    `High: $${dataPoint.h.toFixed(2)}`,
+                                    `Low: $${dataPoint.l.toFixed(2)}`,
+                                    `Close: $${dataPoint.c.toFixed(2)}`
+                                ];
+                            }
+                        }
+                    }
+                },
                 scales: {
                     x: {
                         type: 'time',
