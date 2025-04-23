@@ -2789,6 +2789,7 @@ function loadScript(src) {
 ///////////////////////
 
 
+// Function to render the chart with a specific type
 function renderWatchlistChart(type) {
     // Destroy existing chart if there is one
     if (watchlistChart) {
@@ -2845,7 +2846,6 @@ function renderWatchlistChart(type) {
     let options = {
         series: [],
         chart: {
-            type: 'line',
             height: 300,
             width: '100%',
             animations: {
@@ -2881,8 +2881,7 @@ function renderWatchlistChart(type) {
             }
         },
         tooltip: {
-            shared: false,
-            custom: undefined
+            shared: false
         },
         grid: {
             borderColor: '#f1f1f1'
@@ -2891,6 +2890,7 @@ function renderWatchlistChart(type) {
     
     if (type === 'line') {
         // Line chart
+        options.chart.type = 'line';
         options.series = [{
             name: currentSymbol,
             data: currentChartData.prices.map((price, index) => ({
@@ -2898,7 +2898,6 @@ function renderWatchlistChart(type) {
                 y: price
             }))
         }];
-        options.chart.type = 'line';
         options.stroke = {
             curve: 'smooth',
             width: 2
@@ -2907,75 +2906,91 @@ function renderWatchlistChart(type) {
             size: 0
         };
     } else if (type === 'bar') {
-        // OHLC Bar chart
+        // OHLC Bar chart - we'll use a specialized OHLC chart
+        options.chart.type = 'rangeBar';
         options.series = [{
             name: currentSymbol,
             data: ohlcData
         }];
-        options.chart.type = 'bar';
         options.plotOptions = {
             bar: {
-                colors: {
-                    ranges: [{
-                        from: -1000,
-                        to: 0,
-                        color: '#F15B46'
-                    }, {
-                        from: 0,
-                        to: 1000,
-                        color: '#39A96B'
-                    }]
-                }
-            }
-        };
-        options.tooltip = {
-            custom: function({ seriesIndex, dataPointIndex, w }) {
-                const o = w.globals.seriesCandleO[seriesIndex][dataPointIndex];
-                const h = w.globals.seriesCandleH[seriesIndex][dataPointIndex];
-                const l = w.globals.seriesCandleL[seriesIndex][dataPointIndex];
-                const c = w.globals.seriesCandleC[seriesIndex][dataPointIndex];
-                return (
-                    '<div class="apexcharts-tooltip-box apexcharts-tooltip-candlestick">' +
-                    '<div>Open: <span>$' + o.toFixed(2) + '</span></div>' +
-                    '<div>High: <span>$' + h.toFixed(2) + '</span></div>' +
-                    '<div>Low: <span>$' + l.toFixed(2) + '</span></div>' +
-                    '<div>Close: <span>$' + c.toFixed(2) + '</span></div>' +
-                    '</div>'
-                );
-            }
-        };
-    } else if (type === 'candlestick') {
-        // Candlestick chart
-        options.series = [{
-            name: currentSymbol,
-            data: ohlcData
-        }];
-        options.chart.type = 'candlestick';
-        options.plotOptions = {
-            candlestick: {
+                horizontal: false,
+                rangeBarOverlap: true,
+                columnWidth: '60%',
                 colors: {
                     upward: '#39A96B',
                     downward: '#F15B46'
                 }
             }
         };
+        // Use a simpler tooltip to avoid the error
         options.tooltip = {
+            shared: false,
             custom: function({ seriesIndex, dataPointIndex, w }) {
-                const o = w.globals.seriesCandleO[seriesIndex][dataPointIndex];
-                const h = w.globals.seriesCandleH[seriesIndex][dataPointIndex];
-                const l = w.globals.seriesCandleL[seriesIndex][dataPointIndex];
-                const c = w.globals.seriesCandleC[seriesIndex][dataPointIndex];
-                return (
-                    '<div class="apexcharts-tooltip-box apexcharts-tooltip-candlestick">' +
-                    '<div>Open: <span>$' + o.toFixed(2) + '</span></div>' +
-                    '<div>High: <span>$' + h.toFixed(2) + '</span></div>' +
-                    '<div>Low: <span>$' + l.toFixed(2) + '</span></div>' +
-                    '<div>Close: <span>$' + c.toFixed(2) + '</span></div>' +
-                    '</div>'
-                );
+                try {
+                    const datapoint = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
+                    if (datapoint && datapoint.y && datapoint.y.length === 4) {
+                        const [o, h, l, c] = datapoint.y;
+                        return `
+                            <div class="apexcharts-tooltip-box apexcharts-tooltip-candlestick">
+                                <div>Open: <span>$${o.toFixed(2)}</span></div>
+                                <div>High: <span>$${h.toFixed(2)}</span></div>
+                                <div>Low: <span>$${l.toFixed(2)}</span></div>
+                                <div>Close: <span>$${c.toFixed(2)}</span></div>
+                            </div>
+                        `;
+                    }
+                    return 'No data';
+                } catch (e) {
+                    console.log('Tooltip error:', e);
+                    return 'Error displaying data';
+                }
+            }
+        };
+    } else if (type === 'candlestick') {
+        // Candlestick chart
+        options.chart.type = 'candlestick';
+        options.series = [{
+            name: currentSymbol,
+            data: ohlcData
+        }];
+        options.plotOptions = {
+            candlestick: {
+                colors: {
+                    upward: '#39A96B',
+                    downward: '#F15B46'
+                },
+                wick: {
+                    useFillColor: true
+                }
+            }
+        };
+        options.tooltip = {
+            shared: false,
+            custom: function({ seriesIndex, dataPointIndex, w }) {
+                try {
+                    const datapoint = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
+                    if (datapoint && datapoint.y && datapoint.y.length === 4) {
+                        const [o, h, l, c] = datapoint.y;
+                        return `
+                            <div class="apexcharts-tooltip-box apexcharts-tooltip-candlestick">
+                                <div>Open: <span>$${o.toFixed(2)}</span></div>
+                                <div>High: <span>$${h.toFixed(2)}</span></div>
+                                <div>Low: <span>$${l.toFixed(2)}</span></div>
+                                <div>Close: <span>$${c.toFixed(2)}</span></div>
+                            </div>
+                        `;
+                    }
+                    return 'No data';
+                } catch (e) {
+                    console.log('Tooltip error:', e);
+                    return 'Error displaying data';
+                }
             }
         };
     }
+    
+    // Create the chart
     watchlistChart = new ApexCharts(chartContainer, options);
     watchlistChart.render();
 }
