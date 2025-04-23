@@ -2479,6 +2479,7 @@ function renderWatchlistItems(data = null) {
         tbody.appendChild(row);
     });
 
+    // Important: Call this after rendering the table
     setupWatchlistButtons();
 }
 
@@ -2548,106 +2549,78 @@ async function loadChartJsLibraries() {
 
 
 async function renderChartForSecurity(symbol) {
-    const container = document.getElementById('watchlistChartContainer');
-    container.classList.remove('hidden');
-    container.innerHTML = '<div class="loading-spinner">Loading chart data...</div>';
-
-    try {
-        // Load the Lightweight Charts library
-        await loadLightweightCharts();
+    // Get or create the modal container
+    let modalContainer = document.getElementById('watchlistChartModal');
+    if (!modalContainer) {
+        modalContainer = document.createElement('div');
+        modalContainer.id = 'watchlistChartModal';
+        modalContainer.className = 'modal';
         
+        // Create modal content structure
+        modalContainer.innerHTML = `
+            <div class="modal-content chart-modal-content">
+                <span class="close">&times;</span>
+                <div class="chart-header">
+                    <h3>${symbol} Price Chart</h3>
+                    <div class="chart-toggle-buttons">
+                        <button data-chart-type="line" class="active">Line</button>
+                        <button data-chart-type="bar">Bar</button>
+                        <button data-chart-type="candlestick">Candlestick</button>
+                    </div>
+                </div>
+                <div id="watchlistChartContainer" class="modal-chart-container">
+                    <div class="loading-spinner">Loading chart data...</div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modalContainer);
+        
+        // Set up close button handler
+        const closeBtn = modalContainer.querySelector('.close');
+        closeBtn.addEventListener('click', function() {
+            modalContainer.style.display = 'none';
+        });
+        
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            if (event.target === modalContainer) {
+                modalContainer.style.display = 'none';
+            }
+        });
+    } else {
+        // Update existing modal
+        modalContainer.querySelector('.chart-header h3').textContent = `${symbol} Price Chart`;
+        document.getElementById('watchlistChartContainer').innerHTML = '<div class="loading-spinner">Loading chart data...</div>';
+    }
+    
+    // Show the modal
+    modalContainer.style.display = 'block';
+    
+    // Load ApexCharts directly - replace dynamic loading with direct script tag in HTML
+    // <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    
+    try {
         // Fetch the historical data
         const data = await fetchHistoricalData(symbol);
         if (!data || !data.dates || data.dates.length === 0) {
-            container.innerHTML = '<div class="error-message">Failed to load chart data</div>';
+            document.getElementById('watchlistChartContainer').innerHTML = 
+                '<div class="error-message">Failed to load chart data</div>';
             return;
         }
-
-        currentChartData = data;
-        currentSymbol = symbol;
-
-        // Prepare container for the chart
-        container.innerHTML = `
-            <div class="chart-header">
-                <h3>${symbol} Price Chart</h3>
-                <div class="chart-toggle-buttons">
-                    <button data-chart-type="line" class="active">Line</button>
-                    <button data-chart-type="bar">Bar</button>
-                    <button data-chart-type="candlestick">Candlestick</button>
-                </div>
-            </div>
-            <div id="watchlistChart" style="height: 300px;"></div>
-        `;
-
-        // Set up the chart
-        const chartContainer = document.getElementById('watchlistChart');
-        const chart = LightweightCharts.createChart(chartContainer, {
-            width: chartContainer.clientWidth,
-            height: 300,
-            layout: {
-                backgroundColor: '#ffffff',
-                textColor: '#333',
-            },
-            grid: {
-                vertLines: { color: '#f0f3fa' },
-                horzLines: { color: '#f0f3fa' },
-            },
-            timeScale: {
-                timeVisible: true,
-                borderColor: '#ddd',
-            },
-            rightPriceScale: {
-                borderColor: '#ddd',
-            },
-            crosshair: {
-                mode: LightweightCharts.CrosshairMode.Normal,
-            }
-        });
-
-        // Initialize empty series array to track our series
-        chart.series = [];
-
-        // Create OHLC data formatted for Lightweight Charts
-        const ohlcData = [];
-        if (data.open_prices && data.high_prices && data.low_prices && data.prices) {
-            // We have full OHLC data
-            for (let i = 0; i < data.dates.length; i++) {
-                const timestamp = new Date(data.dates[i]).getTime() / 1000;
-                ohlcData.push({
-                    time: timestamp,
-                    open: data.open_prices[i],
-                    high: data.high_prices[i],
-                    low: data.low_prices[i],
-                    close: data.prices[i]  // Close price
-                });
-            }
-        } else {
-            // Fallback using just closing prices
-            for (let i = 0; i < data.dates.length; i++) {
-                const timestamp = new Date(data.dates[i]).getTime() / 1000;
-                const close = data.prices[i];
-                const prevClose = i > 0 ? data.prices[i-1] : close;
-                
-                // Create simulated OHLC data
-                const volatility = close * 0.02;
-                const open = prevClose;
-                const high = Math.max(open, close) + (Math.random() * volatility);
-                const low = Math.min(open, close) - (Math.random() * volatility);
-                
-                ohlcData.push({
-                    time: timestamp,
-                    open: open,
-                    high: high,
-                    low: low,
-                    close: close
-                });
-            }
-        }
-
-        // Set initial chart type to line
-        renderWatchlistChartWithType('line', chart, ohlcData);
-
-        // Set up the chart type toggle buttons
+        
+        // Store data for chart type changes
+        window.currentChartData = data;
+        window.currentSymbol = symbol;
+        
+        // Prepare container for chart
+        const chartContainer = document.getElementById('watchlistChartContainer');
+        chartContainer.innerHTML = '<div id="watchlistChart"></div>';
+        
+        // Render default line chart
+        renderChart('line');
+        
+        // Set up chart type toggle buttons
         document.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
             btn.addEventListener('click', function() {
                 // Update active button
@@ -2656,20 +2629,14 @@ async function renderChartForSecurity(symbol) {
                 this.classList.add('active');
                 
                 // Render the selected chart type
-                renderWatchlistChartWithType(this.dataset.chartType, chart, ohlcData);
+                renderChart(this.dataset.chartType);
             });
         });
-
-        // Make the chart responsive
-        window.addEventListener('resize', () => {
-            chart.applyOptions({
-                width: chartContainer.clientWidth
-            });
-        });
-
+        
     } catch (error) {
         console.error('Error rendering chart:', error);
-        container.innerHTML = `<div class="error-message">Error loading chart: ${error.message}</div>`;
+        document.getElementById('watchlistChartContainer').innerHTML = 
+            `<div class="error-message">Error loading chart: ${error.message}</div>`;
     }
 }
 
@@ -3043,6 +3010,198 @@ async function loadLightweightCharts() {
     }
     return Promise.resolve();
 }
+
+function renderChart(type) {
+    // Ensure we have data
+    if (!window.currentChartData || !window.currentSymbol) {
+        console.error('No chart data available');
+        return;
+    }
+    
+    const data = window.currentChartData;
+    const symbol = window.currentSymbol;
+    
+    // Clear previous chart
+    const chartElement = document.getElementById('watchlistChart');
+    chartElement.innerHTML = '';
+    
+    // Convert dates to timestamps for ApexCharts
+    const dates = data.dates.map(d => new Date(d).getTime());
+    
+    // Format OHLC data if available (for candlestick)
+    const ohlcData = [];
+    
+    if (data.open_prices && data.high_prices && data.low_prices) {
+        // We have full OHLC data
+        for (let i = 0; i < data.dates.length; i++) {
+            ohlcData.push({
+                x: new Date(data.dates[i]).getTime(),
+                y: [
+                    data.open_prices[i],
+                    data.high_prices[i],
+                    data.low_prices[i],
+                    data.prices[i] // Close price
+                ]
+            });
+        }
+    } else {
+        // Create simulated OHLC from close prices
+        for (let i = 0; i < data.dates.length; i++) {
+            const closePrice = data.prices[i];
+            const prevClose = i > 0 ? data.prices[i-1] : closePrice;
+            
+            // Simple simulation - not ideal but works for visualization
+            const variation = closePrice * 0.01; // 1% variation
+            const open = prevClose;
+            const high = Math.max(open, closePrice) + variation;
+            const low = Math.min(open, closePrice) - variation;
+            
+            ohlcData.push({
+                x: new Date(data.dates[i]).getTime(),
+                y: [open, high, low, closePrice]
+            });
+        }
+    }
+    
+    // Chart options - base configuration
+    const options = {
+        chart: {
+            type: 'line', // Default, will be overridden
+            height: 400,
+            animations: {
+                enabled: true,
+                easing: 'easeinout',
+                speed: 800
+            },
+            toolbar: {
+                show: true,
+                tools: {
+                    download: true,
+                    selection: true,
+                    zoom: true,
+                    zoomin: true,
+                    zoomout: true,
+                    pan: true
+                }
+            }
+        },
+        title: {
+            text: `${symbol} Price History`,
+            align: 'left'
+        },
+        xaxis: {
+            type: 'datetime',
+            labels: {
+                datetimeUTC: false
+            }
+        },
+        yaxis: {
+            tooltip: {
+                enabled: true
+            },
+            labels: {
+                formatter: function(value) {
+                    return '$' + value.toFixed(2);
+                }
+            }
+        },
+        tooltip: {
+            enabled: true,
+            theme: 'light',
+            x: {
+                format: 'MMM dd, yyyy'
+            }
+        },
+        grid: {
+            borderColor: '#e0e0e0',
+            strokeDashArray: 2
+        },
+        colors: ['#2E8BC0', '#6C7D93', '#4CAF50', '#F44336']
+    };
+    
+    // Adjust options based on chart type
+    switch(type) {
+        case 'line':
+            options.chart.type = 'line';
+            options.series = [{
+                name: symbol,
+                data: data.prices.map((price, i) => [dates[i], price])
+            }];
+            options.stroke = {
+                curve: 'smooth',
+                width: 2
+            };
+            options.markers = {
+                size: 0,
+                hover: {
+                    size: 5
+                }
+            };
+            break;
+            
+        case 'bar':
+            options.chart.type = 'bar';
+            options.series = [{
+                name: symbol,
+                data: data.prices.map((price, i) => [dates[i], price])
+            }];
+            options.plotOptions = {
+                bar: {
+                    borderRadius: 2,
+                    columnWidth: '60%'
+                }
+            };
+            break;
+            
+        case 'candlestick':
+            options.chart.type = 'candlestick';
+            options.series = [{
+                name: symbol,
+                data: ohlcData
+            }];
+            options.plotOptions = {
+                candlestick: {
+                    colors: {
+                        upward: '#26a69a',
+                        downward: '#ef5350'
+                    },
+                    wick: {
+                        useFillColor: true
+                    }
+                }
+            };
+            options.tooltip = {
+                custom: function({ seriesIndex, dataPointIndex, w }) {
+                    const o = w.globals.seriesCandleO[seriesIndex][dataPointIndex];
+                    const h = w.globals.seriesCandleH[seriesIndex][dataPointIndex];
+                    const l = w.globals.seriesCandleL[seriesIndex][dataPointIndex];
+                    const c = w.globals.seriesCandleC[seriesIndex][dataPointIndex];
+                    const date = new Date(w.globals.seriesX[seriesIndex][dataPointIndex]);
+                    
+                    return `
+                        <div class="apexcharts-tooltip-candlestick">
+                            <div><b>Date:</b> ${date.toLocaleDateString()}</div>
+                            <div><b>Open:</b> $${o.toFixed(2)}</div>
+                            <div><b>High:</b> $${h.toFixed(2)}</div>
+                            <div><b>Low:</b> $${l.toFixed(2)}</div>
+                            <div><b>Close:</b> $${c.toFixed(2)}</div>
+                        </div>
+                    `;
+                }
+            };
+            break;
+    }
+    
+    // Create new chart
+    if (typeof ApexCharts !== 'undefined') {
+        const chart = new ApexCharts(chartElement, options);
+        chart.render();
+    } else {
+        chartElement.innerHTML = 'ApexCharts library not loaded';
+        console.error('ApexCharts is not loaded');
+    }
+}
+
 
 async function renderChartForSecurity(symbol) {
     // Create or update modal container
