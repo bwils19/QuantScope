@@ -2871,7 +2871,8 @@ function renderWatchlistChart(type) {
     
     // Get chart container
     const chartElement = document.getElementById('watchlistChart');
-    
+    chartElement.style.height = '400px';
+    chartElement.style.width = '100%';
     // Clear previous chart content
     chartElement.innerHTML = '';
     
@@ -3049,6 +3050,8 @@ function renderChart(type) {
     
     // Clear previous chart
     const chartElement = document.getElementById('watchlistChart');
+    chartElement.style.height = '400px';
+    chartElement.style.width = '100%';
     chartElement.innerHTML = '';
     
     // Convert dates to timestamps for ApexCharts
@@ -3283,6 +3286,8 @@ async function renderChartForSecurity(symbol) {
     
     // Show loading spinner
     const chartElement = document.getElementById('watchlistChart');
+    chartElement.style.height = '400px';
+    chartElement.style.width = '100%';
     chartElement.innerHTML = '<div class="loading-spinner">Loading chart data...</div>';
     
     try {
@@ -3350,6 +3355,8 @@ function renderWatchlistChart(type) {
     
     // Get chart element
     const chartElement = document.getElementById('watchlistChart');
+    chartElement.style.height = '400px';
+    chartElement.style.width = '100%';
     
     // Clear previous chart
     chartElement.innerHTML = '';
