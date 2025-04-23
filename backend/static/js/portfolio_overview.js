@@ -3222,19 +3222,19 @@ function renderChart(type) {
 
 
 async function renderChartForSecurity(symbol) {
-    // Create or update modal container
+    // Create or get modal container
     let modalContainer = document.getElementById('watchlistChartModal');
     if (!modalContainer) {
+        // Create modal if it doesn't exist
         modalContainer = document.createElement('div');
         modalContainer.id = 'watchlistChartModal';
         modalContainer.className = 'modal';
         
-        // Create modal content structure
         modalContainer.innerHTML = `
             <div class="modal-content chart-modal-content">
                 <span class="close">&times;</span>
                 <div class="chart-header">
-                    <h3></h3>
+                    <h3>${symbol} Price Chart</h3>
                     <div class="chart-toggle-buttons">
                         <button data-chart-type="line" class="active">Line</button>
                         <button data-chart-type="bar">Bar</button>
@@ -3242,81 +3242,73 @@ async function renderChartForSecurity(symbol) {
                     </div>
                 </div>
                 <div id="watchlistChartContainer" class="modal-chart-container">
-                    <div class="loading-spinner">Loading chart data...</div>
+                    <div id="watchlistChart"></div>
                 </div>
             </div>
         `;
         
         document.body.appendChild(modalContainer);
         
-        // Set up close button handler
+        // Set up event handlers
         const closeBtn = modalContainer.querySelector('.close');
-        closeBtn.addEventListener('click', function() {
+        closeBtn.addEventListener('click', () => {
             modalContainer.style.display = 'none';
-            
-            // Destroy chart when modal is closed to free up resources
-            if (watchlistChart) {
-                watchlistChart.destroy();
-                watchlistChart = null;
+            if (window.watchlistChart) {
+                window.watchlistChart.destroy();
+                window.watchlistChart = null;
             }
         });
         
-        // Close modal when clicking outside
-        window.addEventListener('click', function(event) {
+        // Close when clicking outside
+        window.addEventListener('click', (event) => {
             if (event.target === modalContainer) {
                 modalContainer.style.display = 'none';
-                
-                // Destroy chart when modal is closed
-                if (watchlistChart) {
-                    watchlistChart.destroy();
-                    watchlistChart = null;
+                if (window.watchlistChart) {
+                    window.watchlistChart.destroy();
+                    window.watchlistChart = null;
                 }
             }
         });
-    }
-    
-    // Set chart title
-    modalContainer.querySelector('.chart-header h3').textContent = `${symbol} Price Chart`;
-    
-    // Show the modal
-    modalContainer.style.display = 'block';
-    
-    // Get the chart container
-    const chartContainer = document.getElementById('watchlistChartContainer');
-    chartContainer.innerHTML = '<div class="loading-spinner">Loading chart data...</div>';
-    
-    try {
-        // Load ApexCharts
-        await loadApexCharts();
         
-        // Fetch the data
-        const data = await fetchHistoricalData(symbol);
-        if (!data || !data.dates || data.dates.length === 0) {
-            chartContainer.innerHTML = '<div class="error-message">Failed to load chart data</div>';
-            return;
-        }
-        
-        // Store the data and symbol for later reference
-        currentChartData = data;
-        currentSymbol = symbol;
-        
-        // Prepare container for the chart
-        chartContainer.innerHTML = '<div id="watchlistChart"></div>';
-        
-        // Set up click handlers for chart type buttons
-        document.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
+        // Set up chart type toggle buttons
+        const buttons = modalContainer.querySelectorAll('.chart-toggle-buttons button');
+        buttons.forEach(btn => {
             btn.addEventListener('click', function() {
-                // Update active button
-                document.querySelectorAll('.chart-toggle-buttons button').forEach(b => 
-                    b.classList.remove('active'));
+                buttons.forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
-                
-                // Render the chart with the selected type
                 renderWatchlistChart(this.dataset.chartType);
             });
         });
+    } else {
+        // Update existing modal title
+        modalContainer.querySelector('.chart-header h3').textContent = `${symbol} Price Chart`;
+    }
+    
+    // Show modal
+    modalContainer.style.display = 'block';
+    
+    // Show loading state
+    const chartContainer = document.getElementById('watchlistChartContainer');
+    chartContainer.innerHTML = '<div id="watchlistChart"><div class="loading-spinner">Loading chart data...</div></div>';
+    
+    try {
+        // Ensure ApexCharts is loaded
+        if (typeof ApexCharts === 'undefined') {
+            await loadApexChartsLibrary();
+        }
         
-        // Render the default line chart
+        // Fetch historical data
+        const data = await fetchHistoricalData(symbol);
+        if (!data || !data.dates || data.dates.length === 0) {
+            chartContainer.innerHTML = '<div class="error-message">No data available for this security</div>';
+            return;
+        }
+        
+        // Store data globally for chart type switching
+        window.currentChartData = data;
+        window.currentSymbol = symbol;
+        
+        // Render default chart type (line)
         renderWatchlistChart('line');
         
     } catch (error) {
@@ -3325,75 +3317,204 @@ async function renderChartForSecurity(symbol) {
     }
 }
 
+function loadApexChartsLibrary() {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/apexcharts';
+        script.async = true;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
 
-function renderWatchlistChartWithType(type, chart, ohlcData) {
-    // Remove existing series if any
-    try {
-        const existingSeries = chart.series || [];
-        if (existingSeries.length > 0) {
-            existingSeries.forEach(series => {
-                chart.removeSeries(series);
+
+function renderWatchlistChart(type) {
+    // Get data from global variables
+    const data = window.currentChartData;
+    const symbol = window.currentSymbol;
+    
+    if (!data || !symbol) {
+        console.error('No chart data available');
+        return;
+    }
+    
+    // Clear previous chart
+    const chartElement = document.getElementById('watchlistChart');
+    chartElement.innerHTML = '';
+    
+    // Destroy existing chart instance
+    if (window.watchlistChart) {
+        window.watchlistChart.destroy();
+        window.watchlistChart = null;
+    }
+    
+    // Process OHLC data for candlestick and bar charts
+    const dates = data.dates.map(d => new Date(d).getTime());
+    const ohlcData = [];
+    
+    // Process data based on availability
+    if (data.open_prices && data.high_prices && data.low_prices) {
+        // Full OHLC data available
+        for (let i = 0; i < data.dates.length; i++) {
+            ohlcData.push({
+                x: new Date(data.dates[i]).getTime(),
+                y: [
+                    data.open_prices[i],
+                    data.high_prices[i],
+                    data.low_prices[i],
+                    data.prices[i] // Close price
+                ]
             });
         }
-    } catch (err) {
-        // Chart might not have any series yet or use a different method
-        console.log('No existing series to remove or different API');
+    } else {
+        // Simulate OHLC from close prices
+        for (let i = 0; i < data.dates.length; i++) {
+            const closePrice = data.prices[i];
+            const prevClose = i > 0 ? data.prices[i-1] : closePrice;
+            
+            const volatility = closePrice * 0.02;
+            const open = prevClose;
+            const high = Math.max(open, closePrice) + (Math.random() * volatility);
+            const low = Math.min(open, closePrice) - (Math.random() * volatility);
+            
+            ohlcData.push({
+                x: new Date(data.dates[i]).getTime(),
+                y: [open, high, low, closePrice]
+            });
+        }
     }
     
-    let series;
+    // Base chart options
+    const options = {
+        series: [],
+        chart: {
+            type: 'line', // Default type, will be overridden
+            height: 350,
+            width: '100%',
+            animations: {
+                enabled: false
+            },
+            toolbar: {
+                show: true,
+                tools: {
+                    download: true,
+                    zoom: true,
+                    zoomin: true,
+                    zoomout: true,
+                    pan: true,
+                    reset: true
+                }
+            },
+            zoom: { enabled: true }
+        },
+        title: {
+            text: `${symbol} Price History`,
+            align: 'left',
+            style: {
+                fontSize: '16px',
+                fontWeight: 'bold',
+                color: '#333'
+            }
+        },
+        xaxis: {
+            type: 'datetime',
+            labels: {
+                datetimeUTC: false,
+                format: 'MMM dd'
+            }
+        },
+        yaxis: {
+            tooltip: { enabled: true },
+            labels: {
+                formatter: value => '$' + value.toFixed(2)
+            }
+        },
+        tooltip: { shared: false },
+        grid: { borderColor: '#f1f1f1' }
+    };
     
-    switch(type) {
-        case 'line':
-            // Create line series
-            series = chart.addLineSeries({
-                color: '#2962FF',
-                lineWidth: 2,
-            });
-            
-            // Format data for line chart (only need time and close price)
-            const lineData = ohlcData.map(item => ({
-                time: item.time,
-                value: item.close
-            }));
-            
-            series.setData(lineData);
-            break;
-            
-        case 'bar':
-            // Create bar series (OHLC)
-            series = chart.addBarSeries({
-                upColor: '#26a69a',
-                downColor: '#ef5350',
-                thinBars: false,
-            });
-            
-            series.setData(ohlcData);
-            break;
-            
-        case 'candlestick':
-            // Create candlestick series
-            series = chart.addCandlestickSeries({
-                upColor: '#26a69a',
-                downColor: '#ef5350',
-                borderVisible: false,
-                wickUpColor: '#26a69a',
-                wickDownColor: '#ef5350'
-            });
-            
-            series.setData(ohlcData);
-            break;
-            
-        default:
-            console.warn(`Chart type '${type}' not recognized, falling back to line`);
-            renderWatchlistChartWithType('line', chart, ohlcData);
-            return;
+    // Configure chart based on type
+    if (type === 'line') {
+        options.chart.type = 'line';
+        options.series = [{
+            name: symbol,
+            data: data.prices.map((price, index) => ({
+                x: dates[index],
+                y: price
+            }))
+        }];
+        options.stroke = {
+            curve: 'smooth',
+            width: 2
+        };
+        options.markers = { size: 0 };
+    } else if (type === 'bar') {
+        options.chart.type = 'bar';
+        options.series = [{
+            name: symbol,
+            data: data.prices.map((price, index) => ({
+                x: dates[index],
+                y: price
+            }))
+        }];
+        options.plotOptions = {
+            bar: {
+                horizontal: false,
+                columnWidth: '60%',
+                colors: {
+                    ranges: [{
+                        from: 0,
+                        to: 999999,
+                        color: '#6C7D93'
+                    }]
+                }
+            }
+        };
+    } else if (type === 'candlestick') {
+        options.chart.type = 'candlestick';
+        options.series = [{
+            name: symbol,
+            data: ohlcData
+        }];
+        options.plotOptions = {
+            candlestick: {
+                colors: {
+                    upward: '#39A96B',
+                    downward: '#F15B46'
+                },
+                wick: { useFillColor: true }
+            }
+        };
+        // Simplified tooltip to avoid errors
+        options.tooltip = {
+            custom: function({ seriesIndex, dataPointIndex, w }) {
+                const datapoint = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
+                if (datapoint && datapoint.y && datapoint.y.length === 4) {
+                    const [o, h, l, c] = datapoint.y;
+                    return `
+                        <div class="apexcharts-tooltip-box">
+                            <div>Open: <span>$${o.toFixed(2)}</span></div>
+                            <div>High: <span>$${h.toFixed(2)}</span></div>
+                            <div>Low: <span>$${l.toFixed(2)}</span></div>
+                            <div>Close: <span>$${c.toFixed(2)}</span></div>
+                        </div>
+                    `;
+                }
+                return 'No data';
+            }
+        };
     }
     
-    // Store the series for later reference
-    chart.series = [series];
-    
-    // Fit the content to view
-    chart.timeScale().fitContent();
+    // Create and render chart
+    try {
+        window.watchlistChart = new ApexCharts(chartElement, options);
+        window.watchlistChart.render();
+        console.log(`Chart rendered successfully (${type} type)`);
+    } catch (error) {
+        console.error('Error rendering chart:', error);
+        chartElement.innerHTML = `<div class="error-message">Error rendering chart: ${error.message}</div>`;
+    }
 }
 
 function setupWatchlistToggle() {
