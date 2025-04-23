@@ -2882,6 +2882,7 @@ body.risk-analysis-page {
 }
 
 
+/* Chart styles */
 #watchlistChartContainer {
     background-color: white;
     border-radius: 8px;
@@ -2889,6 +2890,11 @@ body.risk-analysis-page {
     margin-top: 20px;
     padding: 15px;
     position: relative;
+}
+
+#watchlistChart {
+    height: 300px;
+    width: 100%;
 }
 
 .chart-header {
@@ -2962,4 +2968,23 @@ body.risk-analysis-page {
     color: #e74c3c;
     font-size: 14px;
     text-align: center;
+}
+
+/* ApexCharts Tooltip Custom Styles */
+.apexcharts-tooltip-box {
+    padding: 10px;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.apexcharts-tooltip-candlestick div {
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.apexcharts-tooltip-candlestick span {
+    font-weight: bold;
+    color: #333;
 }
