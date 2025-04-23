@@ -2944,9 +2944,12 @@ body.risk-analysis-page {
 }
 
 #watchlistChart {
-    height: 100%;
-    width: 100%;
-    max-height: 500px;
+    height: 400px !important;
+    width: 100% !important;
+    position: relative;
+    visibility: visible !important;
+    display: block !important;
+    z-index: 10;
 }
 
 /* Loading State */
