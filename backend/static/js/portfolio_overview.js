@@ -2580,12 +2580,24 @@ async function renderChartForSecurity(symbol) {
         const closeBtn = modalContainer.querySelector('.close');
         closeBtn.addEventListener('click', function() {
             modalContainer.style.display = 'none';
+            
+            // Destroy chart when modal is closed to free up resources
+            if (watchlistChart) {
+                watchlistChart.destroy();
+                watchlistChart = null;
+            }
         });
         
         // Close modal when clicking outside
         window.addEventListener('click', function(event) {
             if (event.target === modalContainer) {
                 modalContainer.style.display = 'none';
+                
+                // Destroy chart when modal is closed
+                if (watchlistChart) {
+                    watchlistChart.destroy();
+                    watchlistChart = null;
+                }
             }
         });
     } else {
@@ -2597,11 +2609,29 @@ async function renderChartForSecurity(symbol) {
     // Show the modal
     modalContainer.style.display = 'block';
     
-    // Load ApexCharts directly - replace dynamic loading with direct script tag in HTML
-    // <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-    
+    // Important: Check if ApexCharts is already loaded
+    if (typeof ApexCharts === 'undefined') {
+        // If not loaded, add the script
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/apexcharts';
+        script.async = true;
+        script.onload = function() {
+            // Once loaded, continue with chart rendering
+            loadDataAndRenderChart(symbol);
+        };
+        script.onerror = function() {
+            document.getElementById('watchlistChartContainer').innerHTML = 
+                '<div class="error-message">Failed to load chart library</div>';
+        };
+        document.head.appendChild(script);
+    } else {
+        // ApexCharts already loaded, proceed with data fetching and rendering
+        loadDataAndRenderChart(symbol);
+    }
+}
+async function loadDataAndRenderChart(symbol) {
     try {
-        // Fetch the historical data
+        // Fetch the data
         const data = await fetchHistoricalData(symbol);
         if (!data || !data.dates || data.dates.length === 0) {
             document.getElementById('watchlistChartContainer').innerHTML = 
@@ -2609,16 +2639,15 @@ async function renderChartForSecurity(symbol) {
             return;
         }
         
-        // Store data for chart type changes
-        window.currentChartData = data;
-        window.currentSymbol = symbol;
+        // Store the data for later use with different chart types
+        currentChartData = data;
+        currentSymbol = symbol;
         
-        // Prepare container for chart
-        const chartContainer = document.getElementById('watchlistChartContainer');
-        chartContainer.innerHTML = '<div id="watchlistChart"></div>';
+        // Prepare container for the chart
+        document.getElementById('watchlistChartContainer').innerHTML = '<div id="watchlistChart"></div>';
         
-        // Render default line chart
-        renderChart('line');
+        // Render the default line chart
+        renderWatchlistChart('line');
         
         // Set up chart type toggle buttons
         document.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
@@ -2629,7 +2658,7 @@ async function renderChartForSecurity(symbol) {
                 this.classList.add('active');
                 
                 // Render the selected chart type
-                renderChart(this.dataset.chartType);
+                renderWatchlistChart(this.dataset.chartType);
             });
         });
         
@@ -2639,6 +2668,7 @@ async function renderChartForSecurity(symbol) {
             `<div class="error-message">Error loading chart: ${error.message}</div>`;
     }
 }
+
 
 async function fetchHistoricalData(symbol) {
     try {
@@ -2813,16 +2843,16 @@ function renderWatchlistChart(type) {
     let options = {
         series: [],
         chart: {
-            height: 300,
+            height: 350,
             width: '100%',
             animations: {
                 enabled: false
             },
             toolbar: {
-                show: false
+                show: true
             },
             zoom: {
-                enabled: false
+                enabled: true
             }
         },
         title: {
@@ -2873,44 +2903,25 @@ function renderWatchlistChart(type) {
             size: 0
         };
     } else if (type === 'bar') {
-        // OHLC Bar chart - we'll use a specialized OHLC chart
-        options.chart.type = 'rangeBar';
+        // Bar chart
+        options.chart.type = 'bar';
         options.series = [{
             name: currentSymbol,
-            data: ohlcData
+            data: currentChartData.prices.map((price, index) => ({
+                x: dates[index],
+                y: price
+            }))
         }];
         options.plotOptions = {
             bar: {
                 horizontal: false,
-                rangeBarOverlap: true,
                 columnWidth: '60%',
                 colors: {
-                    upward: '#39A96B',
-                    downward: '#F15B46'
-                }
-            }
-        };
-        // Use a simpler tooltip to avoid the error
-        options.tooltip = {
-            shared: false,
-            custom: function({ seriesIndex, dataPointIndex, w }) {
-                try {
-                    const datapoint = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
-                    if (datapoint && datapoint.y && datapoint.y.length === 4) {
-                        const [o, h, l, c] = datapoint.y;
-                        return `
-                            <div class="apexcharts-tooltip-box apexcharts-tooltip-candlestick">
-                                <div>Open: <span>$${o.toFixed(2)}</span></div>
-                                <div>High: <span>$${h.toFixed(2)}</span></div>
-                                <div>Low: <span>$${l.toFixed(2)}</span></div>
-                                <div>Close: <span>$${c.toFixed(2)}</span></div>
-                            </div>
-                        `;
-                    }
-                    return 'No data';
-                } catch (e) {
-                    console.log('Tooltip error:', e);
-                    return 'Error displaying data';
+                    ranges: [{
+                        from: 0,
+                        to: 999999,
+                        color: '#6C7D93'
+                    }]
                 }
             }
         };
@@ -2932,6 +2943,7 @@ function renderWatchlistChart(type) {
                 }
             }
         };
+        // Use a simplified tooltip to avoid errors
         options.tooltip = {
             shared: false,
             custom: function({ seriesIndex, dataPointIndex, w }) {
@@ -2940,7 +2952,7 @@ function renderWatchlistChart(type) {
                     if (datapoint && datapoint.y && datapoint.y.length === 4) {
                         const [o, h, l, c] = datapoint.y;
                         return `
-                            <div class="apexcharts-tooltip-box apexcharts-tooltip-candlestick">
+                            <div class="apexcharts-tooltip-box">
                                 <div>Open: <span>$${o.toFixed(2)}</span></div>
                                 <div>High: <span>$${h.toFixed(2)}</span></div>
                                 <div>Low: <span>$${l.toFixed(2)}</span></div>
@@ -2958,8 +2970,14 @@ function renderWatchlistChart(type) {
     }
     
     // Create the chart
-    watchlistChart = new ApexCharts(chartContainer, options);
-    watchlistChart.render();
+    try {
+        watchlistChart = new ApexCharts(chartContainer, options);
+        watchlistChart.render();
+        console.log('Chart rendered successfully');
+    } catch (e) {
+        console.error('Error rendering chart:', e);
+        chartContainer.innerHTML = `<div class="error-message">Error rendering chart: ${e.message}</div>`;
+    }
 }
 
 
