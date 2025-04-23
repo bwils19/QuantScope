@@ -2465,6 +2465,7 @@ function renderWatchlistItems(data = null) {
 
     watchlistItems.forEach(item => {
         const row = document.createElement('tr');
+        row.setAttribute('data-symbol', item.ticker);
         row.innerHTML = `
             <td>${item.ticker}</td>
             <td>${item.name}</td>
@@ -2523,6 +2524,17 @@ async function renderChartForSecurity(symbol) {
     const container = document.getElementById('watchlistChartContainer');
     container.classList.remove('hidden');
 
+    // Remove active class from all rows
+    document.querySelectorAll('.watchlist-securities tr').forEach(row => {
+        row.classList.remove('active');
+    });
+
+    // Add active class to the row with the selected symbol
+    const activeRow = document.querySelector(`.watchlist-securities tr[data-symbol="${symbol}"]`);
+    if (activeRow) {
+        activeRow.classList.add('active');
+    }
+
     // Show loading message
     const chartArea = document.getElementById('watchlistChart');
     const loadingDiv = document.createElement('div');
@@ -2571,7 +2583,7 @@ async function renderChartForSecurity(symbol) {
         // Add event listener to the new button
         newBtn.addEventListener('click', function() {
             // Update active button
-            document.querySelectorAll('.chart-toggle-buttons button').forEach(b => 
+            document.querySelectorAll('.chart-toggle-buttons button').forEach(b =>
                 b.classList.remove('active'));
             this.classList.add('active');
             
