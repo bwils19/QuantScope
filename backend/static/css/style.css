@@ -2988,3 +2988,118 @@ body.risk-analysis-page {
     font-weight: bold;
     color: #333;
 }
+
+/* Modal Chart Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.chart-modal-content {
+    background-color: #fff;
+    margin: 5% auto;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: 80%;
+    max-width: 1200px;
+    position: relative;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.close:hover,
+.close:focus {
+    color: #333;
+    text-decoration: none;
+}
+
+.modal-chart-container {
+    height: 600px;
+    position: relative;
+    margin-top: 20px;
+}
+
+#watchlistChart {
+    height: 100%;
+    width: 100%;
+}
+
+/* Chart header in modal */
+.chart-modal-content .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.chart-modal-content .chart-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 500;
+    color: #333;
+}
+
+.chart-modal-content .chart-toggle-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.chart-modal-content .chart-toggle-buttons button {
+    background-color: #f1f3f5;
+    border: 1px solid #ddd;
+    color: #333;
+    font-size: 14px;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chart-modal-content .chart-toggle-buttons button.active {
+    background-color: #6C7D93;
+    border-color: #556070;
+    color: white;
+}
+
+/* Loading and error indicators in modal */
+.modal-chart-container .loading-spinner,
+.modal-chart-container .error-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .chart-modal-content {
+        width: 95%;
+        margin: 10% auto;
+    }
+    
+    .modal-chart-container {
+        height: 400px;
+    }
+    
+    .chart-modal-content .chart-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+}

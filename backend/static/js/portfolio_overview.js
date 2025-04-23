@@ -3045,11 +3045,68 @@ async function loadLightweightCharts() {
 }
 
 async function renderChartForSecurity(symbol) {
-    const container = document.getElementById('watchlistChartContainer');
-    container.classList.remove('hidden');
+    // Create or update modal container
+    let modalContainer = document.getElementById('watchlistChartModal');
+    if (!modalContainer) {
+        modalContainer = document.createElement('div');
+        modalContainer.id = 'watchlistChartModal';
+        modalContainer.className = 'modal';
+        
+        // Create modal content structure
+        modalContainer.innerHTML = `
+            <div class="modal-content chart-modal-content">
+                <span class="close">&times;</span>
+                <div class="chart-header">
+                    <h3></h3>
+                    <div class="chart-toggle-buttons">
+                        <button data-chart-type="line" class="active">Line</button>
+                        <button data-chart-type="bar">Bar</button>
+                        <button data-chart-type="candlestick">Candlestick</button>
+                    </div>
+                </div>
+                <div id="watchlistChartContainer" class="modal-chart-container">
+                    <div class="loading-spinner">Loading chart data...</div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modalContainer);
+        
+        // Set up close button handler
+        const closeBtn = modalContainer.querySelector('.close');
+        closeBtn.addEventListener('click', function() {
+            modalContainer.style.display = 'none';
+            
+            // Destroy chart when modal is closed to free up resources
+            if (watchlistChart) {
+                watchlistChart.destroy();
+                watchlistChart = null;
+            }
+        });
+        
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            if (event.target === modalContainer) {
+                modalContainer.style.display = 'none';
+                
+                // Destroy chart when modal is closed
+                if (watchlistChart) {
+                    watchlistChart.destroy();
+                    watchlistChart = null;
+                }
+            }
+        });
+    }
     
-    // Show loading indicator
-    container.innerHTML = '<div class="loading-spinner">Loading chart data...</div>';
+    // Set chart title
+    modalContainer.querySelector('.chart-header h3').textContent = `${symbol} Price Chart`;
+    
+    // Show the modal
+    modalContainer.style.display = 'block';
+    
+    // Get the chart container
+    const chartContainer = document.getElementById('watchlistChartContainer');
+    chartContainer.innerHTML = '<div class="loading-spinner">Loading chart data...</div>';
     
     try {
         // Load ApexCharts
@@ -3058,7 +3115,7 @@ async function renderChartForSecurity(symbol) {
         // Fetch the data
         const data = await fetchHistoricalData(symbol);
         if (!data || !data.dates || data.dates.length === 0) {
-            container.innerHTML = '<div class="error-message">Failed to load chart data</div>';
+            chartContainer.innerHTML = '<div class="error-message">Failed to load chart data</div>';
             return;
         }
         
@@ -3066,18 +3123,8 @@ async function renderChartForSecurity(symbol) {
         currentChartData = data;
         currentSymbol = symbol;
         
-        // Prepare the container
-        container.innerHTML = `
-            <div class="chart-header">
-                <h3>${symbol} Price Chart</h3>
-                <div class="chart-toggle-buttons">
-                    <button data-chart-type="line" class="active">Line</button>
-                    <button data-chart-type="bar">Bar</button>
-                    <button data-chart-type="candlestick">Candlestick</button>
-                </div>
-            </div>
-            <div id="watchlistChart"></div>
-        `;
+        // Prepare container for the chart
+        chartContainer.innerHTML = '<div id="watchlistChart"></div>';
         
         // Set up click handlers for chart type buttons
         document.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
@@ -3097,7 +3144,7 @@ async function renderChartForSecurity(symbol) {
         
     } catch (error) {
         console.error('Error rendering chart:', error);
-        container.innerHTML = `<div class="error-message">Error loading chart: ${error.message}</div>`;
+        chartContainer.innerHTML = `<div class="error-message">Error loading chart: ${error.message}</div>`;
     }
 }
 
