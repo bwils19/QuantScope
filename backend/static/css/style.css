@@ -2843,204 +2843,8 @@ body.risk-analysis-page {
     margin: 0;
   }
 
-/* watchlist Chart styles */
-
-  .chart-toggle-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 5px;
-    margin-bottom: 15px;
-}
-
-.chart-toggle-buttons button {
-    padding: 8px 16px;
-    background-color: #f4f4f4;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.chart-toggle-buttons button.active {
-    background-color: #6C7D93;
-    color: white;
-    border-color: #6C7D93;
-}
-
-#watchlistChartContainer {
-    margin-top: 20px;
-    padding: 15px;
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-#watchlistChart {
-    height: 400px !important; /* Increased height */
-    width: 100%;
-    max-height: 500px;
-}
-
-
-/* Chart styles */
-#watchlistChartContainer {
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    margin-top: 20px;
-    padding: 15px;
-    position: relative;
-}
-
-#watchlistChart {
-    height: 300px;
-    width: 100%;
-}
-
-.chart-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.chart-header h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 500;
-    color: #333;
-}
-
-.chart-toggle-buttons {
-    display: flex;
-    gap: 10px;
-}
-
-.chart-toggle-buttons button {
-    background-color: #f1f3f5;
-    border: 1px solid #ddd;
-    color: #333;
-    font-size: 14px;
-    padding: 6px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.chart-toggle-buttons button.active {
-    background-color: #6C7D93;
-    border-color: #556070;
-    color: white;
-}
-
-.loading-spinner {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-    color: #6C7D93;
-    font-size: 14px;
-}
-
-.loading-spinner:before {
-    content: '';
-    display: block;
-    width: 30px;
-    height: 30px;
-    margin: 0 auto 10px;
-    border-radius: 50%;
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #6C7D93;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.error-message {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: #e74c3c;
-    font-size: 14px;
-    text-align: center;
-}
-
-/* ApexCharts Tooltip Custom Styles */
-.apexcharts-tooltip-box {
-    padding: 10px;
-    background-color: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-}
-
-.apexcharts-tooltip-candlestick div {
-    margin-bottom: 4px;
-    font-size: 12px;
-}
-
-.apexcharts-tooltip-candlestick span {
-    font-weight: bold;
-    color: #333;
-}
-
-/* Modal Chart Styles */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: auto;
-    background-color: rgba(0, 0, 0, 0.4);
-}
-
-.chart-modal-content {
-    background-color: #fff;
-    margin: 5% auto;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    width: 80%;
-    max-width: 1200px;
-    position: relative;
-}
-
-.close {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-    line-height: 1;
-}
-
-.close:hover,
-.close:focus {
-    color: #333;
-    text-decoration: none;
-}
-
-.modal-chart-container {
-    height: 600px;
-    position: relative;
-    margin-top: 20px;
-}
-
-#watchlistChart {
-    height: 100%;
-    width: 100%;
-}
-
-/* Chart header in modal */
-.modal {
+/* Modal Structure */
+.modal, #watchlistChartModal {
     display: none;
     position: fixed;
     z-index: 1000;
@@ -3061,8 +2865,28 @@ body.risk-analysis-page {
     max-width: 900px;
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    position: relative;
 }
 
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    line-height: 1;
+}
+
+.close:hover,
+.close:focus {
+    color: #333;
+    text-decoration: none;
+}
+
+/* Chart Header */
 .chart-header {
     display: flex;
     justify-content: space-between;
@@ -3072,9 +2896,19 @@ body.risk-analysis-page {
     padding-bottom: 10px;
 }
 
+.chart-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: #333;
+}
+
+/* Chart Toggle Buttons */
 .chart-toggle-buttons {
     display: flex;
     gap: 8px;
+    margin-bottom: 15px;
+    justify-content: center;
 }
 
 .chart-toggle-buttons button {
@@ -3083,6 +2917,7 @@ body.risk-analysis-page {
     padding: 6px 12px;
     border-radius: 4px;
     cursor: pointer;
+    transition: all 0.2s;
 }
 
 .chart-toggle-buttons button.active {
@@ -3091,35 +2926,88 @@ body.risk-analysis-page {
     border-color: #6C7D93;
 }
 
+/* Chart Container */
 .modal-chart-container {
     height: 400px;
     width: 100%;
+    position: relative;
+    margin-top: 20px;
 }
 
+#watchlistChartContainer {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+    padding: 15px;
+    position: relative;
+}
+
+#watchlistChart {
+    height: 100%;
+    width: 100%;
+    max-height: 500px;
+}
+
+/* Loading State */
 .loading-spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: #6C7D93;
+    font-size: 14px;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100%;
-    color: #6C7D93;
 }
 
+.loading-spinner:before {
+    content: '';
+    display: block;
+    width: 30px;
+    height: 30px;
+    margin: 0 auto 10px;
+    border-radius: 50%;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #6C7D93;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Error Messages */
 .error-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     color: #e74c3c;
+    font-size: 14px;
     text-align: center;
     padding: 20px;
 }
 
-.close {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
+/* ApexCharts Tooltip Custom Styles */
+.apexcharts-tooltip-box {
+    padding: 10px;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
-.close:hover,
-.close:focus {
-    color: black;
-    text-decoration: none;
+.apexcharts-tooltip-candlestick div {
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.apexcharts-tooltip-candlestick span {
+    font-weight: bold;
+    color: #333;
 }
