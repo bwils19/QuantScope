@@ -2656,154 +2656,59 @@ async function renderWatchlistChart(type) {
     
     // Get chart container
     const canvas = document.getElementById('watchlistChart');
-    
-    // Always destroy the previous chart to prevent conflicts
-    if (watchlistChart) {
-        watchlistChart.destroy();
-        watchlistChart = null;
-    }
-    
-    if (type === 'line') {
-        watchlistChart = new Chart(canvas, {
-            type: 'line',
-            data: {
-                labels: currentChartData.dates,
-                datasets: [{
-                    label: `${currentSymbol} Closing Prices`,
-                    data: currentChartData.prices,
-                    borderColor: 'rgba(108, 125, 147, 1)',
-                    borderWidth: 2,
-                    fill: true,
-                    backgroundColor: function(context) {
-                        const chart = context.chart;
-                        const { ctx, chartArea } = chart;
-                        if (!chartArea) return null;
-                        
-                        const gradient = ctx.createLinearGradient(
-                            0,
-                            chart.scales.y.getPixelForValue(Math.max(...currentChartData.prices)),
-                            0,
-                            chartArea.bottom
-                        );
-                        gradient.addColorStop(0, 'rgba(108, 125, 147, 0.8)');
-                        gradient.addColorStop(1, 'rgba(108, 125, 147, 0.1)');
-                        return gradient;
-                    },
-                    pointRadius: 2,
-                    pointHoverRadius: 4,
-                    pointBackgroundColor: 'rgba(108, 125, 147, 1)',
-                    tension: 0.2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    tooltip: {
-                        intersect: false,
-                        mode: 'index',
-                    },
-                },
-                scales: {
-                    x: { 
-                        title: { display: true, text: 'Date' }
-                    },
-                    y: { 
-                        title: { display: true, text: 'Price (USD)' }
-                    }
-                },
-                interaction: {
-                    intersect: false,
-                    mode: 'nearest'
-                }
-            }
-        });
-    } else if (type === 'bar') {
-        // Prepare bar chart data
-        const barData = currentChartData.dates.map((date, i) => ({
-            x: date,
-            o: currentChartData.open_prices ? currentChartData.open_prices[i] :
-               (i > 0 ? currentChartData.prices[i-1] : currentChartData.prices[i]),
-            h: currentChartData.high_prices ? currentChartData.high_prices[i] :
-               Math.max(currentChartData.open_prices ? currentChartData.open_prices[i] : currentChartData.prices[i],
-                        currentChartData.prices[i]) * 1.01,
-            l: currentChartData.low_prices ? currentChartData.low_prices[i] :
-               Math.min(currentChartData.open_prices ? currentChartData.open_prices[i] : currentChartData.prices[i],
-                        currentChartData.prices[i]) * 0.99,
-            c: currentChartData.prices[i]
-        }));
+    const currentSymbol = document.querySelector('.watchlist-securities .active')?.dataset.symbol;
 
-        // Create bar chart
-        watchlistChart = new Chart(canvas, {
-            type: 'bar',
-            data: {
-                labels: barData.map(item => item.x),
-                datasets: [{
-                    label: `${currentSymbol} OHLC`,
-                    data: barData.map(item => item.c - item.o),
-                    backgroundColor: barData.map(item =>
-                        item.c >= item.o ? 'green' : 'red'
-                    )
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const item = barData[context.dataIndex];
-                                return [
-                                    `Open: $${item.o.toFixed(2)}`,
-                                    `High: $${item.h.toFixed(2)}`,
-                                    `Low: $${item.l.toFixed(2)}`,
-                                    `Close: $${item.c.toFixed(2)}`
-                                ];
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: {
-                            unit: 'day'
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Price Change'
-                        }
-                    }
-                }
-            }
-        });
-    } else if (type === 'candlestick') {
-        // Ensure we have OHLC data
-        if (!currentChartData.open_prices || !currentChartData.high_prices || !currentChartData.low_prices) {
-            console.warn('Insufficient OHLC data for candlestick chart. Falling back to line chart.');
-            renderWatchlistChart('line');
-            return;
+    if (!currentSymbol) {
+        console.error('No active symbol selected');
+        return;
+    }
+
+    try {
+        // Fetch historical data for the selected symbol
+        const currentChartData = await fetchHistoricalData(currentSymbol);
+
+        // Validate OHLC data
+        const hasOHLCData = currentChartData.open_prices &&
+                            currentChartData.high_prices &&
+                            currentChartData.low_prices;
+
+        // Always destroy the previous chart to prevent conflicts
+        if (window.watchlistChart) {
+            window.watchlistChart.destroy();
         }
         
-        // Prepare candlestick data
-        const candlestickData = currentChartData.dates.map((date, i) => ({
-            x: new Date(date),
-            o: currentChartData.open_prices[i],
-            h: currentChartData.high_prices[i],
-            l: currentChartData.low_prices[i],
-            c: currentChartData.prices[i]
-        }));
-        
-        // Create candlestick chart
-        watchlistChart = new Chart(canvas, {
-            type: 'candlestick',
+        // Prepare common data transformation
+        const prepareChartData = (dates, prices, openPrices, highPrices, lowPrices) =>
+            dates.map((date, i) => ({
+                x: new Date(date),
+                o: openPrices ? openPrices[i] : (i > 0 ? prices[i-1] : prices[i]),
+                h: highPrices ? highPrices[i] : Math.max(
+                    openPrices ? openPrices[i] : prices[i],
+                    prices[i]
+                ) * 1.01,
+                l: lowPrices ? lowPrices[i] : Math.min(
+                    openPrices ? openPrices[i] : prices[i],
+                    prices[i]
+                ) * 0.99,
+                c: prices[i]
+            }));
+
+        // Chart configuration template
+        const createChartConfig = (chartType, data, options = {}) => ({
+            type: chartType,
             data: {
+                labels: data.map(item => item.x),
                 datasets: [{
                     label: `${currentSymbol} OHLC`,
-                    data: candlestickData
+                    data: chartType === 'bar'
+                        ? data.map(item => item.c - item.o)
+                        : data,
+                    backgroundColor: chartType === 'bar'
+                        ? data.map(item => item.c >= item.o ? 'green' : 'red')
+                        : undefined,
+                    borderColor: chartType === 'candlestick'
+                        ? data.map(item => item.c >= item.o ? 'green' : 'red')
+                        : undefined
                 }]
             },
             options: {
@@ -2813,7 +2718,7 @@ async function renderWatchlistChart(type) {
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                const dataPoint = context.dataset.data[context.dataIndex];
+                                const dataPoint = data[context.dataIndex];
                                 return [
                                     `Open: $${dataPoint.o.toFixed(2)}`,
                                     `High: $${dataPoint.h.toFixed(2)}`,
@@ -2827,19 +2732,131 @@ async function renderWatchlistChart(type) {
                 scales: {
                     x: {
                         type: 'time',
-                        time: {
-                            unit: 'day'
-                        }
+                        time: { unit: 'day' },
+                        adapters: { date: { locale: 'en-US' } }
                     },
                     y: {
                         title: {
                             display: true,
-                            text: 'Price (USD)'
+                            text: chartType === 'bar' ? 'Price Change' : 'Price (USD)'
                         }
                     }
-                }
+                },
+                ...options
             }
         });
+
+        // Render specific chart types
+        switch(type) {
+            case 'line':
+                window.watchlistChart = new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: currentChartData.dates.map(date => new Date(date)),
+                        datasets: [{
+                            label: `${currentSymbol} Closing Prices`,
+                            data: currentChartData.prices,
+                            borderColor: 'rgba(108, 125, 147, 1)',
+                            borderWidth: 2,
+                            fill: true,
+                            backgroundColor: function(context) {
+                                const chart = context.chart;
+                                const { ctx, chartArea } = chart;
+                                if (!chartArea) return null;
+                                
+                                const gradient = ctx.createLinearGradient(
+                                    0,
+                                    chart.scales.y.getPixelForValue(Math.max(...currentChartData.prices)),
+                                    0,
+                                    chartArea.bottom
+                                );
+                                gradient.addColorStop(0, 'rgba(108, 125, 147, 0.8)');
+                                gradient.addColorStop(1, 'rgba(108, 125, 147, 0.1)');
+                                return gradient;
+                            },
+                            pointRadius: 2,
+                            pointHoverRadius: 4,
+                            pointBackgroundColor: 'rgba(108, 125, 147, 1)',
+                            tension: 0.2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            tooltip: {
+                                intersect: false,
+                                mode: 'index',
+                            },
+                        },
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { unit: 'day' },
+                                title: { display: true, text: 'Date' }
+                            },
+                            y: {
+                                title: { display: true, text: 'Price (USD)' }
+                            }
+                        },
+                        interaction: {
+                            intersect: false,
+                            mode: 'nearest'
+                        }
+                    }
+                });
+                break;
+
+            case 'bar':
+                if (!hasOHLCData) {
+                    console.warn('Insufficient OHLC data for bar chart. Falling back to line chart.');
+                    renderWatchlistChart('line');
+                    return;
+                }
+                const barData = prepareChartData(
+                    currentChartData.dates,
+                    currentChartData.prices,
+                    currentChartData.open_prices,
+                    currentChartData.high_prices,
+                    currentChartData.low_prices
+                );
+                window.watchlistChart = new Chart(canvas, createChartConfig('bar', barData));
+                break;
+
+            case 'candlestick':
+                if (!hasOHLCData) {
+                    console.warn('Insufficient OHLC data for candlestick chart. Falling back to line chart.');
+                    renderWatchlistChart('line');
+                    return;
+                }
+                const candlestickData = prepareChartData(
+                    currentChartData.dates,
+                    currentChartData.prices,
+                    currentChartData.open_prices,
+                    currentChartData.high_prices,
+                    currentChartData.low_prices
+                );
+                window.watchlistChart = new Chart(canvas, createChartConfig('candlestick', candlestickData, {
+                    plugins: {
+                        candlestick: {
+                            color: {
+                                up: 'green',
+                                down: 'red',
+                                unchanged: 'blue'
+                            }
+                        }
+                    }
+                }));
+                break;
+
+            default:
+                console.error(`Unsupported chart type: ${type}`);
+                renderWatchlistChart('line');
+        }
+    } catch (error) {
+        console.error(`Error rendering ${type} chart:`, error);
+        // Fallback to line chart if any error occurs
+        renderWatchlistChart('line');
     }
 }
 
