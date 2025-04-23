@@ -2628,6 +2628,44 @@ async function fetchHistoricalData(symbol) {
 //     }
 // }
 
+async function loadChartLibraries() {
+    // Check if Chart.js is already loaded
+    if (typeof Chart === 'undefined') {
+        console.log('Loading Chart.js...');
+        await loadScript('https://cdn.jsdelivr.net/npm/chart.js');
+    }
+    
+    // Check if date adapter is loaded
+    if (typeof window.adapters === 'undefined') {
+        console.log('Loading date adapter...');
+        await loadScript('https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns');
+    }
+    
+    // Check if financial charts are loaded
+    if (typeof Chart.controllers.candlestick === 'undefined') {
+        console.log('Loading financial charts...');
+        await loadScript('https://cdn.jsdelivr.net/npm/chartjs-chart-financial');
+    }
+    
+    console.log('All chart libraries loaded successfully');
+}
+
+// Helper function to load a script and wait for it to complete
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+        
+        document.head.appendChild(script);
+    });
+}
+///////////////////////
+
+
 async function renderWatchlistChart(type) {
     const container = document.getElementById('watchlistChart');
     
@@ -2654,8 +2692,9 @@ async function renderWatchlistChart(type) {
         currentChartData.low_prices && currentChartData.prices) {
         // We have full OHLC data
         for (let i = 0; i < currentChartData.dates.length; i++) {
+            const date = new Date(currentChartData.dates[i]);
             ohlcData.push({
-                x: new Date(currentChartData.dates[i]),
+                x: date,
                 o: currentChartData.open_prices[i], // Open
                 h: currentChartData.high_prices[i], // High
                 l: currentChartData.low_prices[i],  // Low
@@ -2665,6 +2704,7 @@ async function renderWatchlistChart(type) {
     } else {
         // Fallback if we only have close prices - simulate OHLC data
         for (let i = 0; i < currentChartData.dates.length; i++) {
+            const date = new Date(currentChartData.dates[i]);
             const closePrice = currentChartData.prices[i];
             const prevClose = i > 0 ? currentChartData.prices[i-1] : closePrice;
             // Create some reasonable OHLC values
@@ -2674,7 +2714,7 @@ async function renderWatchlistChart(type) {
             const low = Math.min(open, closePrice) - (Math.random() * volatility);
             
             ohlcData.push({
-                x: new Date(currentChartData.dates[i]),
+                x: date,
                 o: open,
                 h: high,
                 l: low,
@@ -2736,99 +2776,71 @@ async function renderWatchlistChart(type) {
             }
         });
     } else if (type === 'bar') {
-        // Create actual OHLC bar chart
-        // First load the financial chart plugin
-        loadFinancialChartPlugin();
-        
-        watchlistChart = new Chart(ctx, {
-            type: 'ohlc',
-            data: {
-                datasets: [{
-                    label: `${currentSymbol} OHLC`,
-                    data: ohlcData,
-                    color: {
-                        up: 'rgba(75, 192, 75, 1)',    // Green for up days
-                        down: 'rgba(255, 99, 99, 1)',  // Red for down days
-                        unchanged: 'rgba(90, 90, 90, 1)' // Gray for unchanged
-                    }
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: {
-                            unit: 'day',
-                            tooltipFormat: 'MMM DD, YYYY'
-                        },
-                        title: {
-                            display: true,
-                            text: 'Date'
+        try {
+            // Create actual OHLC bar chart
+            watchlistChart = new Chart(ctx, {
+                type: 'ohlc',
+                data: {
+                    datasets: [{
+                        label: `${currentSymbol} OHLC`,
+                        data: ohlcData,
+                        borderColor: function(ctx) {
+                            const item = ctx.raw;
+                            return item.o <= item.c ? 'rgba(75, 192, 75, 1)' : 'rgba(255, 99, 99, 1)';
                         }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Price (USD)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day'
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
+        } catch (error) {
+            console.error('Error creating bar chart:', error);
+            // Fall back to line chart
+            renderWatchlistChart('line');
+        }
     } else if (type === 'candlestick') {
-        // Create candlestick chart
-        // First load the financial chart plugin
-        loadFinancialChartPlugin();
-        
-        watchlistChart = new Chart(ctx, {
-            type: 'candlestick',
-            data: {
-                datasets: [{
-                    label: `${currentSymbol} OHLC`,
-                    data: ohlcData,
-                    color: {
-                        up: 'rgba(75, 192, 75, 1)',    // Green for up days
-                        down: 'rgba(255, 99, 99, 1)',  // Red for down days
-                        unchanged: 'rgba(90, 90, 90, 1)' // Gray for unchanged
-                    },
-                    borderColor: function(ctx) {
-                        const item = ctx.dataset.data[ctx.dataIndex];
-                        // Return green if up, red if down
-                        return item.o <= item.c ? 'rgba(75, 192, 75, 1)' : 'rgba(255, 99, 99, 1)';
-                    },
-                    backgroundColor: function(ctx) {
-                        const item = ctx.dataset.data[ctx.dataIndex];
-                        // Return green for up, red for down days
-                        return item.o <= item.c ? 'rgba(75, 192, 75, 0.5)' : 'rgba(255, 99, 99, 0.5)';
-                    }
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: {
-                            unit: 'day',
-                            tooltipFormat: 'MMM DD, YYYY'
-                        },
-                        title: {
-                            display: true,
-                            text: 'Date'
+        try {
+            // Create candlestick chart
+            watchlistChart = new Chart(ctx, {
+                type: 'candlestick',
+                data: {
+                    datasets: [{
+                        label: `${currentSymbol} OHLC`,
+                        data: ohlcData,
+                        color: {
+                            up: 'rgba(75, 192, 75, 1)',
+                            down: 'rgba(255, 99, 99, 1)'
                         }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Price (USD)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day'
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
+        } catch (error) {
+            console.error('Error creating candlestick chart:', error);
+            // Fall back to line chart
+            renderWatchlistChart('line');
+        }
     } else {
         // Fallback to line chart for unknown types
         console.warn(`Chart type '${type}' is not supported. Falling back to line chart.`);
@@ -2877,43 +2889,48 @@ async function renderChartForSecurity(symbol) {
     // Show loading indicator
     container.innerHTML = '<div class="loading-spinner">Loading chart data...</div>';
 
-    // First, ensure the Chart.js Financial plugin is loaded
-    await loadFinancialChartPlugin();
+    try {
+        // Load all required libraries first
+        await loadChartLibraries();
+        
+        const data = await fetchHistoricalData(symbol);
+        if (!data) {
+            container.innerHTML = '<div class="error-message">Failed to load chart data</div>';
+            return;
+        }
 
-    const data = await fetchHistoricalData(symbol);
-    if (!data) {
-        container.innerHTML = '<div class="error-message">Failed to load chart data</div>';
-        return;
-    }
+        currentChartData = data;
+        currentSymbol = symbol;
+        
+        // Restore the container's original content
+        container.innerHTML = `
+            <div class="chart-toggle-buttons">
+                <button data-chart-type="line" class="active">Line</button>
+                <button data-chart-type="bar">Bar</button>
+                <button data-chart-type="candlestick">Candlestick</button>
+            </div>
+            <div id="watchlistChart"></div>
+        `;
 
-    currentChartData = data;
-    currentSymbol = symbol;
-    
-    // Restore the container's original content
-    container.innerHTML = `
-        <div class="chart-toggle-buttons">
-            <button data-chart-type="line" class="active">Line</button>
-            <button data-chart-type="bar">Bar</button>
-            <button data-chart-type="candlestick">Candlestick</button>
-        </div>
-        <div id="watchlistChart"></div>
-    `;
-
-    // Set up button click handlers
-    document.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
-        btn.addEventListener('click', function() {
-            // Update active button
-            document.querySelectorAll('.chart-toggle-buttons button').forEach(b => 
-                b.classList.remove('active'));
-            this.classList.add('active');
-            
-            // Render the selected chart type
-            renderWatchlistChart(this.dataset.chartType);
+        // Set up button click handlers
+        document.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                // Update active button
+                document.querySelectorAll('.chart-toggle-buttons button').forEach(b => 
+                    b.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Render the selected chart type
+                renderWatchlistChart(this.dataset.chartType);
+            });
         });
-    });
 
-    // Render the default line chart
-    renderWatchlistChart('line');
+        // Render the default line chart
+        renderWatchlistChart('line');
+    } catch (error) {
+        console.error('Error rendering chart:', error);
+        container.innerHTML = `<div class="error-message">Error loading chart: ${error.message}</div>`;
+    }
 }
 
 function setupWatchlistToggle() {
