@@ -3211,52 +3211,80 @@ function renderChart(type) {
             break;
             
         case 'bar':
-            // Prepare data for colored bars based on price movement
-            const barData = [];
+            // Create bar data with color indicators
+            const barColors = [];
             
-            for (let i = 0; i < data.dates.length; i++) {
-                const closePrice = data.prices[i];
-                const prevClose = i > 0 ? data.prices[i-1] : closePrice;
+            // Standard data format for the bar chart
+            const priceData = data.prices.map((price, i) => {
+                const prevPrice = i > 0 ? data.prices[i-1] : price;
+                // Track if price went up or down
+                const isUp = price >= prevPrice;
+                // Add color to our colors array
+                barColors.push(isUp ? '#26a69a' : '#ef5350');
                 
-                // Determine if this is an up or down day
-                const isUp = closePrice >= prevClose;
-                
-                barData.push({
+                return {
                     x: dates[i],
-                    y: closePrice,
-                    fillColor: isUp ? '#26a69a' : '#ef5350' // Green for up, red for down
-                });
-            }
+                    y: price
+                };
+            });
             
             options.chart.type = 'bar';
             options.series = [{
                 name: symbol,
-                data: barData
+                data: priceData
             }];
+            
+            // Set colors directly in the options
+            options.colors = barColors;
+            
+            // Use distributed: true to apply individual colors
             options.plotOptions = {
                 bar: {
                     borderRadius: 2,
                     columnWidth: '60%',
-                    distributed: false
+                    distributed: true,
+                    colors: {
+                        ranges: [{
+                            from: -100000,
+                            to: 0,
+                            color: '#ef5350' // Ensure negative values are red
+                        }]
+                    }
                 }
             };
             
-            // Add tooltip for bar chart
+            // Hide the legend for distributed bars
+            options.legend = {
+                show: false
+            };
+            
+            // Modify x-axis labels to be more compact
+            options.xaxis.labels = {
+                rotate: -45,
+                rotateAlways: false,
+                style: {
+                    fontSize: '10px'
+                }
+            };
+            
+            // Update tooltip for price change
             options.tooltip = {
-                enabledOnSeries: [0],
-                custom: function({ series, seriesIndex, dataPointIndex, w }) {
-                    const closePrice = series[seriesIndex][dataPointIndex];
+                shared: true,
+                custom: function({ series, seriesIndex, dataPointIndex }) {
+                    const price = series[seriesIndex][dataPointIndex];
                     const date = new Date(dates[dataPointIndex]).toLocaleDateString();
-                    const prevClose = dataPointIndex > 0 ? series[seriesIndex][dataPointIndex-1] : closePrice;
-                    const change = closePrice - prevClose;
-                    const changePercent = ((closePrice / prevClose) - 1) * 100;
-                    const changeColor = change >= 0 ? '#26a69a' : '#ef5350';
+                    const prevPrice = dataPointIndex > 0 ? series[seriesIndex][dataPointIndex-1] : price;
+                    const change = price - prevPrice;
+                    const pctChange = ((price / prevPrice) - 1) * 100;
+                    const color = change >= 0 ? '#26a69a' : '#ef5350';
                     
                     return `
-                        <div class="apexcharts-tooltip-box" style="padding:10px;">
+                        <div style="padding:8px">
                             <div><b>Date:</b> ${date}</div>
-                            <div><b>Close:</b> $${closePrice.toFixed(2)}</div>
-                            <div style="color:${changeColor}"><b>Change:</b> ${change >= 0 ? '+' : ''}$${change.toFixed(2)} (${changePercent.toFixed(2)}%)</div>
+                            <div><b>Price:</b> $${price.toFixed(2)}</div>
+                            <div style="color:${color}">
+                                <b>Change:</b> ${change >= 0 ? '+' : ''}$${change.toFixed(2)} (${pctChange.toFixed(2)}%)
+                            </div>
                         </div>
                     `;
                 }
