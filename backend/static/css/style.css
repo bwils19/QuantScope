@@ -261,6 +261,15 @@ datalist option {
     vertical-align: middle;
 }
 
+.portfolio-watchlist-container .watchlist-table td,
+.portfolio-watchlist-container .watchlist-table th {
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  height: 34px !important;         
+  vertical-align: middle !important;
+}
+
 
 .watchlist-table th {
     background-color: #f9f9f9;
@@ -2775,6 +2784,7 @@ body.risk-analysis-page {
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     padding: 20px;
     margin-bottom: 20px;
+    width: 100%;
   }
   
   .portfolio-watchlist-container
