@@ -16,6 +16,10 @@ const MAX_NAME_SIMILARITY = 0.8;
 let watchlistItems = [];
 let watchlistStockData = {};
 
+let watchlistChart = null;
+let currentChartData = null;
+let currentSymbol = '';
+
 // Cache DOM elements
 const elements = {
     portfolioList: document.getElementById("portfolio-list"),
@@ -2455,11 +2459,16 @@ function renderWatchlistItems(data = null) {
         watchlistItems = data;
     }
 
-    const tbody = document.querySelector('.watchlist-securities');
-    tbody.innerHTML = '';
+    const watchlistContainer = document.querySelector('.watchlist-securities');
+    if (!watchlistContainer) {
+        console.error('Watchlist container not found');
+        return;
+    }
+    
+    watchlistContainer.innerHTML = '';
 
     if (watchlistItems.length === 0) {
-        tbody.innerHTML = `<tr class="empty-watchlist"><td colspan="6">No securities in watchlist</td></tr>`;
+        watchlistContainer.innerHTML = '<div class="empty-watchlist">No securities in watchlist</div>';
         return;
     }
 
@@ -2476,10 +2485,10 @@ function renderWatchlistItems(data = null) {
                 <button class="remove-security-btn" data-id="${item.id}">Remove</button>
             </td>
         `;
-        tbody.appendChild(row);
+        watchlistContainer.appendChild(row);
     });
 
-    // Important: Call this after rendering the table
+    // Set up the event handlers for the buttons
     setupWatchlistButtons();
 }
 
@@ -2494,14 +2503,12 @@ function setupWatchlistButtons() {
     document.querySelectorAll('.remove-security-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const id = btn.getAttribute('data-id');
-            removeSecurityFromWatchlist(id);
+            await removeSecurityFromWatchlist(id);
         });
     });
 }
 
-let watchlistChart = null;
-let currentChartData = null;
-let currentSymbol = '';
+
 
 // async function renderChartForSecurity(symbol) {
 //     const container = document.getElementById('watchlistChartContainer');
@@ -2837,21 +2844,18 @@ async function ensureApexChartsLoaded() {
     return Promise.resolve();
 }
 
+
 // Safely destroy chart if it exists
 function safelyDestroyChart() {
     if (watchlistChart !== null) {
         try {
-            // Check if destroy is a function before calling it
             if (typeof watchlistChart.destroy === 'function') {
                 watchlistChart.destroy();
                 console.log("Chart destroyed successfully");
-            } else {
-                console.log("Chart instance doesn't have a destroy method, setting to null");
             }
         } catch (e) {
             console.warn("Error destroying chart:", e);
         }
-        // Always set to null after attempting to destroy
         watchlistChart = null;
     }
 }
@@ -3243,6 +3247,7 @@ async function renderChartForSecurity(symbol) {
         modalContainer.id = 'watchlistChartModal';
         modalContainer.className = 'modal';
         
+        // Define modal content with chart container
         modalContainer.innerHTML = `
             <div class="modal-content chart-modal-content">
                 <span class="close">&times;</span>
@@ -3255,21 +3260,20 @@ async function renderChartForSecurity(symbol) {
                     </div>
                 </div>
                 <div class="modal-chart-container">
-                    <div id="watchlistChart"></div>
+                    <div id="watchlistChart" style="height: 400px; width: 100%;"></div>
                 </div>
             </div>
         `;
         
         document.body.appendChild(modalContainer);
         
-        // Set up event handlers for closing the modal
+        // Set up event handlers for the modal
         const closeBtn = modalContainer.querySelector('.close');
         closeBtn.addEventListener('click', () => {
             modalContainer.style.display = 'none';
             safelyDestroyChart();
         });
         
-        // Close modal when clicking outside
         window.addEventListener('click', (event) => {
             if (event.target === modalContainer) {
                 modalContainer.style.display = 'none';
@@ -3281,17 +3285,15 @@ async function renderChartForSecurity(symbol) {
         modalContainer.querySelector('.chart-header h3').textContent = `${symbol} Price Chart`;
     }
     
-    // Show the modal
+    // Show the modal - do this before attempting to render
     modalContainer.style.display = 'block';
     
     // Show loading spinner
     const chartElement = document.getElementById('watchlistChart');
-    chartElement.style.height = '400px';
-    chartElement.style.width = '100%';
     chartElement.innerHTML = '<div class="loading-spinner">Loading chart data...</div>';
     
     try {
-        // Make sure ApexCharts is loaded
+        // Ensure ApexCharts is loaded
         await ensureApexChartsLoaded();
         
         // Fetch historical data
@@ -3306,14 +3308,9 @@ async function renderChartForSecurity(symbol) {
         currentSymbol = symbol;
         
         // Set up chart type toggle buttons
-        const buttons = document.querySelectorAll('.chart-toggle-buttons button');
+        const buttons = modalContainer.querySelectorAll('.chart-toggle-buttons button');
         buttons.forEach(btn => {
-            // Remove previous event listeners
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
-            
-            // Add new event listener
-            newBtn.addEventListener('click', function() {
+            btn.addEventListener('click', function() {
                 buttons.forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
                 renderWatchlistChart(this.dataset.chartType);
@@ -3344,21 +3341,20 @@ function loadApexChartsLibrary() {
 function renderWatchlistChart(type) {
     console.log(`Rendering ${type} chart with ApexCharts`);
     
-    // Get data from global variables
-    const data = currentChartData;
-    const symbol = currentSymbol;
+    // Get the chart element
+    const chartElement = document.getElementById('watchlistChart');
+    if (!chartElement) {
+        console.error('Chart element not found');
+        return;
+    }
     
-    if (!data || !symbol) {
+    // Make sure we have data to render
+    if (!currentChartData || !currentSymbol) {
         console.error('No chart data available');
         return;
     }
     
-    // Get chart element
-    const chartElement = document.getElementById('watchlistChart');
-    chartElement.style.height = '400px';
-    chartElement.style.width = '100%';
-    
-    // Clear previous chart
+    // Clear previous chart content
     chartElement.innerHTML = '';
     
     // Safely destroy any existing chart
@@ -3366,9 +3362,9 @@ function renderWatchlistChart(type) {
     
     try {
         // Process data for the chart
-        const dates = data.dates.map(d => new Date(d).getTime());
+        const dates = currentChartData.dates.map(d => new Date(d).getTime());
         
-        // Set up chart options based on type
+        // Base options that apply to all chart types
         let chartOptions = {
             series: [],
             chart: {
@@ -3381,11 +3377,11 @@ function renderWatchlistChart(type) {
                     enabled: true
                 },
                 animations: {
-                    enabled: false
+                    enabled: false // Disable animations for better performance
                 }
             },
             title: {
-                text: `${symbol} Price History`,
+                text: `${currentSymbol} Price History`,
                 align: 'left'
             },
             xaxis: {
@@ -3397,52 +3393,81 @@ function renderWatchlistChart(type) {
                         return '$' + value.toFixed(2);
                     }
                 }
+            },
+            tooltip: {
+                theme: 'light',
+                x: {
+                    format: 'MMM dd, yyyy'
+                }
             }
         };
         
         // Configure series data based on chart type
         if (type === 'line') {
+            // Line chart configuration
             chartOptions.series = [{
-                name: symbol,
-                data: data.prices.map((price, i) => ({
+                name: currentSymbol,
+                data: currentChartData.prices.map((price, i) => ({
                     x: dates[i],
                     y: price
                 }))
             }];
+            chartOptions.stroke = {
+                curve: 'smooth',
+                width: 2
+            };
+            chartOptions.fill = {
+                type: 'gradient',
+                gradient: {
+                    shade: 'light',
+                    type: 'vertical',
+                    shadeIntensity: 0.5,
+                    opacityFrom: 0.7,
+                    opacityTo: 0.2
+                }
+            };
         } 
         else if (type === 'bar') {
+            // Bar chart configuration
             chartOptions.series = [{
-                name: symbol,
-                data: data.prices.map((price, i) => ({
+                name: currentSymbol,
+                data: currentChartData.prices.map((price, i) => ({
                     x: dates[i],
                     y: price
                 }))
             }];
+            chartOptions.plotOptions = {
+                bar: {
+                    borderRadius: 2,
+                    columnWidth: '60%'
+                }
+            };
+            chartOptions.colors = ['#6C7D93'];
         } 
         else if (type === 'candlestick') {
-            // Prepare OHLC data
+            // Prepare OHLC data for candlestick chart
             const ohlcData = [];
             
-            if (data.open_prices && data.high_prices && data.low_prices) {
-                // We have full OHLC data
-                for (let i = 0; i < data.dates.length; i++) {
+            if (currentChartData.open_prices && currentChartData.high_prices && currentChartData.low_prices) {
+                // Use real OHLC data if available
+                for (let i = 0; i < currentChartData.dates.length; i++) {
                     ohlcData.push({
                         x: dates[i],
                         y: [
-                            data.open_prices[i],
-                            data.high_prices[i],
-                            data.low_prices[i],
-                            data.prices[i]
+                            currentChartData.open_prices[i],
+                            currentChartData.high_prices[i],
+                            currentChartData.low_prices[i],
+                            currentChartData.prices[i]
                         ]
                     });
                 }
             } else {
-                // Generate synthetic OHLC from close prices
-                for (let i = 0; i < data.dates.length; i++) {
-                    const closePrice = data.prices[i];
-                    const prevClose = i > 0 ? data.prices[i-1] : closePrice;
+                // Generate synthetic OHLC data if only close prices are available
+                for (let i = 0; i < currentChartData.dates.length; i++) {
+                    const closePrice = currentChartData.prices[i];
+                    const prevClose = i > 0 ? currentChartData.prices[i-1] : closePrice;
                     
-                    // Simple simulation
+                    // Simple simulation with small volatility
                     const volatility = closePrice * 0.02;
                     const open = prevClose;
                     const high = Math.max(open, closePrice) + (Math.random() * volatility);
@@ -3456,23 +3481,28 @@ function renderWatchlistChart(type) {
             }
             
             chartOptions.series = [{
-                name: symbol,
+                name: currentSymbol,
                 data: ohlcData
             }];
+            
+            // Candlestick-specific options
+            chartOptions.plotOptions = {
+                candlestick: {
+                    colors: {
+                        upward: '#26a69a',
+                        downward: '#ef5350'
+                    },
+                    wick: {
+                        useFillColor: true
+                    }
+                }
+            };
         }
         
-        // Verify ApexCharts is available
-        if (typeof ApexCharts !== 'function') {
-            throw new Error("ApexCharts is not loaded properly");
-        }
-        
-        // Create the chart
-        console.log("Creating new ApexCharts instance with:", chartOptions);
+        // Create and render the chart
         watchlistChart = new ApexCharts(chartElement, chartOptions);
-        
-        // Render the chart
         watchlistChart.render();
-        console.log("Chart rendered successfully");
+        console.log(`Chart rendered successfully (${type} type)`);
         
     } catch (error) {
         console.error("Error rendering chart:", error);
@@ -3493,6 +3523,17 @@ function setupWatchlistToggle() {
 }
 
 document.addEventListener('DOMContentLoaded', setupWatchlistToggle);
+
+function showModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'block';
+        // Force recalculate layout
+        setTimeout(() => {
+            window.dispatchEvent(new Event('resize'));
+        }, 100);
+    }
+}
 
 function renderWatchlistLineChart(data, symbol, container) {
     const chartConfig = {
