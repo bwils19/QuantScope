@@ -3360,7 +3360,6 @@ async function renderChartForSecurity(symbol) {
                     <h3 style="margin: 0; font-size: 18px;">${symbol} Price Chart</h3>
                     <div class="chart-toggle-buttons" style="display: flex; gap: 8px;">
                         <button data-chart-type="line" class="chart-type-btn active" style="padding: 8px 16px; background-color: #6C7D93; color: white; border: none; border-radius: 4px; cursor: pointer;">Line</button>
-                        // <button data-chart-type="bar" class="chart-type-btn" style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer;">Bar</button>
                         <button data-chart-type="candlestick" class="chart-type-btn" style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer;">Candlestick</button>
                     </div>
                 </div>
