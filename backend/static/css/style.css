@@ -246,12 +246,17 @@ datalist option {
   }
   
   /* More generous padding for readability */
-  .watchlist-table th,
+  /* .watchlist-table th,
   .watchlist-table td {
     padding: 1rem;
     text-align: left;
     border-bottom: 1px solid #ddd;
-  }
+  } */
+
+  .watchlist-table td, .watchlist-table th {
+    padding: 6px 12px;
+    font-size: 13px;
+}
 
 /* .watchlist-toggle-container {
     position: absolute;
@@ -2782,12 +2787,12 @@ body.risk-analysis-page {
     opacity: 0;
   }
   
-  .portfolio-watchlist-container
+  /* .portfolio-watchlist-container
     .watchlist-table-container {
     width: 100%;
     overflow-x: auto;
     margin-top: 1rem;
-  }
+  } */
 
   .portfolio-watchlist-container
   > .watchlist-card
@@ -2804,14 +2809,16 @@ body.risk-analysis-page {
     border-collapse: collapse;
   }
   
-  .portfolio-watchlist-container
+/* Do i need the one below this?? */
+
+  /* .portfolio-watchlist-container
     .watchlist-table th,
   .portfolio-watchlist-container
     .watchlist-table td {
     padding: 1rem;
     text-align: left;
     border-bottom: 1px solid #ddd;
-  }
+  } */
   
   .portfolio-watchlist-container
     .toggle-watchlist-btn {
