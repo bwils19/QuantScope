@@ -2487,23 +2487,23 @@ body.risk-analysis-page {
 }
 
 /*watchlist styles*/
-/* .watchlist-card {
+.watchlist-card {
   background: white;
   border-radius: 12px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
   margin-bottom: 1rem;
   padding: 1.25rem;
   transition: all 0.2s ease;
-} */
+}
 
-.watchlist-card {
+/* .watchlist-card {
     position: relative;               /* for the absolute toggle button */
     background-color: #f9f9f9;        /* match portfolios & header card */
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     margin-bottom: 20px;
     padding: 20px;
-  }
+  } */
 
 /* added this */
 
