@@ -3210,86 +3210,86 @@ function renderChart(type) {
             };
             break;
             
-        case 'bar':
-            // Create bar data with color indicators
-            const barColors = [];
+        // case 'bar':
+        //     // Create bar data with color indicators
+        //     const barColors = [];
             
-            // Standard data format for the bar chart
-            const priceData = data.prices.map((price, i) => {
-                const prevPrice = i > 0 ? data.prices[i-1] : price;
-                // Track if price went up or down
-                const isUp = price >= prevPrice;
-                // Add color to our colors array
-                barColors.push(isUp ? '#26a69a' : '#ef5350');
+        //     // Standard data format for the bar chart
+        //     const priceData = data.prices.map((price, i) => {
+        //         const prevPrice = i > 0 ? data.prices[i-1] : price;
+        //         // Track if price went up or down
+        //         const isUp = price >= prevPrice;
+        //         // Add color to our colors array
+        //         barColors.push(isUp ? '#26a69a' : '#ef5350');
                 
-                return {
-                    x: dates[i],
-                    y: price
-                };
-            });
+        //         return {
+        //             x: dates[i],
+        //             y: price
+        //         };
+        //     });
             
-            options.chart.type = 'bar';
-            options.series = [{
-                name: symbol,
-                data: priceData
-            }];
+        //     options.chart.type = 'bar';
+        //     options.series = [{
+        //         name: symbol,
+        //         data: priceData
+        //     }];
             
-            // Set colors directly in the options
-            options.colors = barColors;
+        //     // Set colors directly in the options
+        //     options.colors = barColors;
             
-            // Use distributed: true to apply individual colors
-            options.plotOptions = {
-                bar: {
-                    borderRadius: 2,
-                    columnWidth: '60%',
-                    distributed: true,
-                    colors: {
-                        ranges: [{
-                            from: -100000,
-                            to: 0,
-                            color: '#ef5350' // Ensure negative values are red
-                        }]
-                    }
-                }
-            };
+        //     // Use distributed: true to apply individual colors
+        //     options.plotOptions = {
+        //         bar: {
+        //             borderRadius: 2,
+        //             columnWidth: '60%',
+        //             distributed: true,
+        //             colors: {
+        //                 ranges: [{
+        //                     from: -100000,
+        //                     to: 0,
+        //                     color: '#ef5350' // Ensure negative values are red
+        //                 }]
+        //             }
+        //         }
+        //     };
             
-            // Hide the legend for distributed bars
-            options.legend = {
-                show: false
-            };
+        //     // Hide the legend for distributed bars
+        //     options.legend = {
+        //         show: false
+        //     };
             
-            // Modify x-axis labels to be more compact
-            options.xaxis.labels = {
-                rotate: -45,
-                rotateAlways: false,
-                style: {
-                    fontSize: '10px'
-                }
-            };
+        //     // Modify x-axis labels to be more compact
+        //     options.xaxis.labels = {
+        //         rotate: -45,
+        //         rotateAlways: false,
+        //         style: {
+        //             fontSize: '10px'
+        //         }
+        //     };
             
-            // Update tooltip for price change
-            options.tooltip = {
-                shared: true,
-                custom: function({ series, seriesIndex, dataPointIndex }) {
-                    const price = series[seriesIndex][dataPointIndex];
-                    const date = new Date(dates[dataPointIndex]).toLocaleDateString();
-                    const prevPrice = dataPointIndex > 0 ? series[seriesIndex][dataPointIndex-1] : price;
-                    const change = price - prevPrice;
-                    const pctChange = ((price / prevPrice) - 1) * 100;
-                    const color = change >= 0 ? '#26a69a' : '#ef5350';
+        //     // Update tooltip for price change
+        //     options.tooltip = {
+        //         shared: true,
+        //         custom: function({ series, seriesIndex, dataPointIndex }) {
+        //             const price = series[seriesIndex][dataPointIndex];
+        //             const date = new Date(dates[dataPointIndex]).toLocaleDateString();
+        //             const prevPrice = dataPointIndex > 0 ? series[seriesIndex][dataPointIndex-1] : price;
+        //             const change = price - prevPrice;
+        //             const pctChange = ((price / prevPrice) - 1) * 100;
+        //             const color = change >= 0 ? '#26a69a' : '#ef5350';
                     
-                    return `
-                        <div style="padding:8px">
-                            <div><b>Date:</b> ${date}</div>
-                            <div><b>Price:</b> $${price.toFixed(2)}</div>
-                            <div style="color:${color}">
-                                <b>Change:</b> ${change >= 0 ? '+' : ''}$${change.toFixed(2)} (${pctChange.toFixed(2)}%)
-                            </div>
-                        </div>
-                    `;
-                }
-            };
-            break;
+        //             return `
+        //                 <div style="padding:8px">
+        //                     <div><b>Date:</b> ${date}</div>
+        //                     <div><b>Price:</b> $${price.toFixed(2)}</div>
+        //                     <div style="color:${color}">
+        //                         <b>Change:</b> ${change >= 0 ? '+' : ''}$${change.toFixed(2)} (${pctChange.toFixed(2)}%)
+        //                     </div>
+        //                 </div>
+        //             `;
+        //         }
+        //     };
+        //     break;
             
         case 'candlestick':
             options.chart.type = 'candlestick';
@@ -3360,7 +3360,7 @@ async function renderChartForSecurity(symbol) {
                     <h3 style="margin: 0; font-size: 18px;">${symbol} Price Chart</h3>
                     <div class="chart-toggle-buttons" style="display: flex; gap: 8px;">
                         <button data-chart-type="line" class="chart-type-btn active" style="padding: 8px 16px; background-color: #6C7D93; color: white; border: none; border-radius: 4px; cursor: pointer;">Line</button>
-                        <button data-chart-type="bar" class="chart-type-btn" style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer;">Bar</button>
+                        // <button data-chart-type="bar" class="chart-type-btn" style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer;">Bar</button>
                         <button data-chart-type="candlestick" class="chart-type-btn" style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer;">Candlestick</button>
                     </div>
                 </div>
