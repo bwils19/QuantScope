@@ -239,11 +239,11 @@ datalist option {
   }
 
   /* Full‑width table with auto layout */
-.watchlist-table {
+/* .watchlist-table {
     width: 100%;
     table-layout: auto;
     border-collapse: collapse;
-  }
+  } */
   
   /* More generous padding for readability */
   /* .watchlist-table th,
@@ -254,9 +254,13 @@ datalist option {
   } */
 
   .watchlist-table td, .watchlist-table th {
-    padding: 6px 12px;
+    padding: 4px 8px;
     font-size: 13px;
+    height: 36px; /* Add this to compact row height */
+    line-height: 1.2;
+    vertical-align: middle;
 }
+
 
 .watchlist-table th {
     background-color: #f9f9f9;
@@ -2753,10 +2757,17 @@ body.risk-analysis-page {
 /*------------------------------------------------
   WATCHLIST — unified card, content & table styles
 ------------------------------------------------*/
-.portfolio-watchlist-container {
+/* .portfolio-watchlist-container {
     position: relative;
-    padding-bottom: 30px; /* space for toggle chevron */
-  }
+    padding-bottom: 30px; 
+  } */
+
+  .portfolio-watchlist-container {
+    max-width: 1000px;
+    margin: 0 auto 20px auto;
+    padding-bottom: 60px;
+}
+
   
   .portfolio-watchlist-container > .watchlist-card {
     background-color: #f9f9f9;
