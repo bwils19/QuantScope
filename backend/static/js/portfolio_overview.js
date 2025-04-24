@@ -2970,15 +2970,15 @@ function renderWatchlistChart(type) {
                 width: 2
             };
         } 
-        else if (type === 'bar') {
-            options.series = [{
-                name: currentSymbol,
-                data: currentChartData.prices.map((price, i) => ({
-                    x: dates[i],
-                    y: price
-                }))
-            }];
-        } 
+        // else if (type === 'bar') {
+        //     options.series = [{
+        //         name: currentSymbol,
+        //         data: currentChartData.prices.map((price, i) => ({
+        //             x: dates[i],
+        //             y: price
+        //         }))
+        //     }];
+        // } 
         else if (type === 'candlestick') {
             // Generate OHLC data
             const ohlcData = [];
@@ -3505,74 +3505,74 @@ async function renderChartForSecurity(symbol) {
                     }))
                 }];
             } 
-            else if (type === 'bar') {
-                // Create bar data with color indicators
-                const barData = [];
-                const barColors = [];
+            // else if (type === 'bar') {
+            //     // Create bar data with color indicators
+            //     const barData = [];
+            //     const barColors = [];
                 
-                for (let i = 0; i < currentChartData.dates.length; i++) {
-                    const closePrice = currentChartData.prices[i];
-                    const prevClose = i > 0 ? currentChartData.prices[i-1] : closePrice;
+            //     for (let i = 0; i < currentChartData.dates.length; i++) {
+            //         const closePrice = currentChartData.prices[i];
+            //         const prevClose = i > 0 ? currentChartData.prices[i-1] : closePrice;
                     
-                    // Check if price went up or down
-                    const isUp = closePrice >= prevClose;
+            //         // Check if price went up or down
+            //         const isUp = closePrice >= prevClose;
                     
-                    // Color for this specific bar
-                    barColors.push(isUp ? '#26a69a' : '#ef5350');
+            //         // Color for this specific bar
+            //         barColors.push(isUp ? '#26a69a' : '#ef5350');
                     
-                    // Data point
-                    barData.push({
-                        x: dates[i],
-                        y: closePrice
-                    });
-                }
+            //         // Data point
+            //         barData.push({
+            //             x: dates[i],
+            //             y: closePrice
+            //         });
+            //     }
                 
-                // Set the data series
-                options.series = [{
-                    name: currentSymbol,
-                    data: barData
-                }];
+            //     // Set the data series
+            //     options.series = [{
+            //         name: currentSymbol,
+            //         data: barData
+            //     }];
                 
-                // Set additional options needed for distributed coloring
-                options.plotOptions = {
-                    bar: {
-                        distributed: true, // This is key for individual colors
-                        columnWidth: '60%',
-                        borderRadius: 2
-                    }
-                };
+            //     // Set additional options needed for distributed coloring
+            //     options.plotOptions = {
+            //         bar: {
+            //             distributed: true, // This is key for individual colors
+            //             columnWidth: '60%',
+            //             borderRadius: 2
+            //         }
+            //     };
                 
-                // Apply custom colors
-                options.colors = barColors;
+            //     // Apply custom colors
+            //     options.colors = barColors;
                 
-                // Hide legend since each bar has its own color
-                options.legend = {
-                    show: false
-                };
+            //     // Hide legend since each bar has its own color
+            //     options.legend = {
+            //         show: false
+            //     };
                 
-                // Enhanced tooltip for bars
-                options.tooltip = {
-                    shared: false,
-                    custom: function({ series, seriesIndex, dataPointIndex }) {
-                        const closePrice = series[seriesIndex][dataPointIndex];
-                        const date = new Date(dates[dataPointIndex]).toLocaleDateString();
-                        const prevClose = dataPointIndex > 0 ? series[seriesIndex][dataPointIndex-1] : closePrice;
-                        const change = closePrice - prevClose;
-                        const pctChange = prevClose ? ((closePrice / prevClose) - 1) * 100 : 0;
-                        const changeColor = change >= 0 ? '#26a69a' : '#ef5350';
+            //     // Enhanced tooltip for bars
+            //     options.tooltip = {
+            //         shared: false,
+            //         custom: function({ series, seriesIndex, dataPointIndex }) {
+            //             const closePrice = series[seriesIndex][dataPointIndex];
+            //             const date = new Date(dates[dataPointIndex]).toLocaleDateString();
+            //             const prevClose = dataPointIndex > 0 ? series[seriesIndex][dataPointIndex-1] : closePrice;
+            //             const change = closePrice - prevClose;
+            //             const pctChange = prevClose ? ((closePrice / prevClose) - 1) * 100 : 0;
+            //             const changeColor = change >= 0 ? '#26a69a' : '#ef5350';
                         
-                        return `
-                            <div style="padding:10px;">
-                                <div><b>Date:</b> ${date}</div>
-                                <div><b>Price:</b> $${closePrice.toFixed(2)}</div>
-                                <div style="color:${changeColor}">
-                                    <b>Change:</b> ${change >= 0 ? '+' : ''}$${change.toFixed(2)} (${pctChange.toFixed(2)}%)
-                                </div>
-                            </div>
-                        `;
-                    }
-                };
-            }
+            //             return `
+            //                 <div style="padding:10px;">
+            //                     <div><b>Date:</b> ${date}</div>
+            //                     <div><b>Price:</b> $${closePrice.toFixed(2)}</div>
+            //                     <div style="color:${changeColor}">
+            //                         <b>Change:</b> ${change >= 0 ? '+' : ''}$${change.toFixed(2)} (${pctChange.toFixed(2)}%)
+            //                     </div>
+            //                 </div>
+            //             `;
+            //         }
+            //     };
+            // }
             else if (type === 'candlestick') {
                 // Prepare OHLC data
                 const ohlcData = [];
@@ -3757,22 +3757,22 @@ function renderWatchlistChart(type) {
                 }
             };
         } 
-        else if (type === 'bar') {
-            // Bar chart configuration
-            chartOptions.series = [{
-                name: currentSymbol,
-                data: currentChartData.prices.map((price, i) => ({
-                    x: dates[i],
-                    y: price
-                }))
-            }];
-            chartOptions.plotOptions = {
-                bar: {
-                    borderRadius: 2,
-                    columnWidth: '60%'
-                }
-            };
-        } 
+        // else if (type === 'bar') {
+        //     // Bar chart configuration
+        //     chartOptions.series = [{
+        //         name: currentSymbol,
+        //         data: currentChartData.prices.map((price, i) => ({
+        //             x: dates[i],
+        //             y: price
+        //         }))
+        //     }];
+        //     chartOptions.plotOptions = {
+        //         bar: {
+        //             borderRadius: 2,
+        //             columnWidth: '60%'
+        //         }
+        //     };
+        // } 
         else if (type === 'candlestick') {
             // Prepare OHLC data for candlestick chart
             const ohlcData = [];
