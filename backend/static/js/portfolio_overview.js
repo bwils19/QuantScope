@@ -2488,11 +2488,24 @@ function renderWatchlistItems(data = null) {
         watchlistContainer.appendChild(row);
     });
 
-    // Inject enhanced styles
-    injectEnhancedStyles();
-    
-    // Set up the event handlers for the buttons
-    setupWatchlistButtons();
+    // Set up event listeners for buttons AFTER they're added to the DOM
+    document.querySelectorAll('.view-chart-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const symbol = this.getAttribute('data-symbol');
+            renderChartForSecurity(symbol);
+        });
+    });
+
+    document.querySelectorAll('.remove-security-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = this.getAttribute('data-id');
+            removeSecurityFromWatchlist(id);
+        });
+    });
 }
 
 function setupWatchlistButtons() {
@@ -2897,6 +2910,7 @@ function safelyDestroyChart() {
     }
 }
 
+
 // Function to render the chart with a specific type
 function renderWatchlistChart(type) {
     console.log(`Rendering ${type} chart with ApexCharts`);
@@ -3263,121 +3277,226 @@ function renderChart(type) {
 async function renderChartForSecurity(symbol) {
     console.log(`Rendering chart for ${symbol}`);
     
-    // Create or get the modal container
-    let modalContainer = document.getElementById('watchlistChartModal');
-    if (!modalContainer) {
-        // Create modal container if it doesn't exist
-        modalContainer = document.createElement('div');
-        modalContainer.id = 'watchlistChartModal';
-        modalContainer.className = 'modal';
-        
-        // Define modal content with chart container - LARGER MODAL
-        modalContainer.innerHTML = `
-            <div class="modal-content chart-modal-content" style="width: 90%; max-width: 1200px; margin: 2% auto;">
-                <span class="close">&times;</span>
-                <div class="chart-header">
-                    <h3>${symbol} Price Chart</h3>
-                    <div class="chart-toggle-buttons">
-                        <button data-chart-type="line" class="active">Line</button>
-                        <button data-chart-type="bar">Bar</button>
-                        <button data-chart-type="candlestick">Candlestick</button>
-                    </div>
-                </div>
-                <div class="modal-chart-container" style="height: 600px;">
-                    <div id="watchlistChart" style="height: 100%; width: 100%;"></div>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modalContainer);
-        
-        // Set up event handlers for the modal
-        const closeBtn = modalContainer.querySelector('.close');
-        closeBtn.addEventListener('click', () => {
-            modalContainer.style.display = 'none';
-            safelyDestroyChart();
-        });
-        
-        window.addEventListener('click', (event) => {
-            if (event.target === modalContainer) {
-                modalContainer.style.display = 'none';
-                safelyDestroyChart();
-            }
-        });
-    } else {
-        // Update existing modal title
-        modalContainer.querySelector('.chart-header h3').textContent = `${symbol} Price Chart`;
+    // Remove any existing modal first to ensure clean state
+    const existingModal = document.getElementById('watchlistChartModal');
+    if (existingModal) {
+        safelyDestroyChart();
+        existingModal.remove();
     }
     
-    // Show the modal
-    modalContainer.style.display = 'block';
+    // Create a completely new modal with fixed size chart container
+    const modalHTML = `
+        <div id="watchlistChartModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+            <div class="modal-content" style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 90%; max-width: 1200px; position: relative;">
+                <span class="close" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; position: absolute; top: 10px; right: 20px;">&times;</span>
+                <div class="chart-header" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="margin: 0; font-size: 18px;">${symbol} Price Chart</h3>
+                    <div class="chart-toggle-buttons" style="display: flex; gap: 8px;">
+                        <button data-chart-type="line" class="chart-type-btn active" style="padding: 8px 16px; background-color: #6C7D93; color: white; border: none; border-radius: 4px; cursor: pointer;">Line</button>
+                        <button data-chart-type="bar" class="chart-type-btn" style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer;">Bar</button>
+                        <button data-chart-type="candlestick" class="chart-type-btn" style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer;">Candlestick</button>
+                    </div>
+                </div>
+                <div id="chart-container" style="width: 100%; height: 500px; background-color: #fff; border: 1px solid #eee; border-radius: 4px;"></div>
+            </div>
+        </div>
+    `;
     
-    // Ensure the chart container exists and is visible
-    const chartElement = document.getElementById('watchlistChart');
-    if (!chartElement) {
-        console.error('Chart element not found!');
+    // Insert the modal into the document
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Setup close button handler
+    document.querySelector('#watchlistChartModal .close').addEventListener('click', () => {
+        safelyDestroyChart();
+        document.getElementById('watchlistChartModal').remove();
+    });
+    
+    // Setup window click handler for closing the modal
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('watchlistChartModal');
+        if (event.target === modal) {
+            safelyDestroyChart();
+            modal.remove();
+        }
+    });
+    
+    // Setup chart type toggle buttons
+    document.querySelectorAll('.chart-type-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Update active button styling
+            document.querySelectorAll('.chart-type-btn').forEach(b => {
+                b.style.backgroundColor = '#f8f9fa';
+                b.style.color = '#333';
+                b.classList.remove('active');
+            });
+            this.style.backgroundColor = '#6C7D93';
+            this.style.color = 'white';
+            this.classList.add('active');
+            
+            // Render the selected chart type
+            renderChart(this.dataset.chartType);
+        });
+    });
+    
+    // Wait for ApexCharts to load
+    await ensureApexChartsLoaded();
+    
+    // Fetch data
+    const data = await fetchHistoricalData(symbol);
+    if (!data || !data.dates || data.dates.length === 0) {
+        document.getElementById('chart-container').innerHTML = 
+            '<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: #e74c3c;">No data available for this security</div>';
         return;
     }
     
-    // Show loading spinner
-    chartElement.innerHTML = '<div class="loading-spinner">Loading chart data...</div>';
+    // Store data
+    currentChartData = data;
+    currentSymbol = symbol;
     
-    try {
-        // Make sure ApexCharts is loaded before proceeding
-        await ensureApexChartsLoaded();
+    // Create chart-container div for ApexCharts
+    const chartContainer = document.getElementById('chart-container');
+    chartContainer.innerHTML = '';
+    
+    // Create a specific element for the chart with explicit dimensions
+    const chartElement = document.createElement('div');
+    chartElement.id = 'watchlist-apex-chart';
+    chartElement.style.width = '100%';
+    chartElement.style.height = '100%';
+    chartContainer.appendChild(chartElement);
+    
+    // Render the default line chart
+    renderChart('line');
+    
+    function renderChart(type) {
+        console.log(`Rendering ${type} chart`);
         
-        // Add a delay to ensure modal is fully rendered before creating chart
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Always destroy existing chart first
+        safelyDestroyChart();
         
-        // Fetch historical data
-        const data = await fetchHistoricalData(symbol);
-        if (!data || !data.dates || data.dates.length === 0) {
-            chartElement.innerHTML = '<div class="error-message">No data available for this security</div>';
-            return;
+        // Get mounted dimensions
+        const container = document.getElementById('watchlist-apex-chart');
+        console.log('Chart container dimensions:', container.offsetWidth, container.offsetHeight);
+        
+        // If still zero dimensions, force with inline styles
+        if (container.offsetWidth === 0 || container.offsetHeight === 0) {
+            console.warn('Container still has zero dimensions - setting explicit styles');
+            container.style.width = '100%';
+            container.style.height = '500px';
+            // Force reflow
+            void container.offsetHeight;
         }
         
-        // Store data for later use
-        currentChartData = data;
-        currentSymbol = symbol;
-        
-        // Clear any previous chart
-        chartElement.innerHTML = '';
-        
-        // Reset button event listeners
-        const buttons = modalContainer.querySelectorAll('.chart-toggle-buttons button');
-        buttons.forEach(btn => {
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
-        });
-        
-        // Set up chart type toggle buttons
-        modalContainer.querySelectorAll('.chart-toggle-buttons button').forEach(btn => {
-            btn.addEventListener('click', function() {
-                modalContainer.querySelectorAll('.chart-toggle-buttons button').forEach(b => 
-                    b.classList.remove('active'));
-                this.classList.add('active');
-                renderWatchlistChart(this.dataset.chartType);
-            });
-        });
-        
-        // Make sure the container has dimension before rendering
-        console.log('Chart container dimensions:', 
-            chartElement.offsetWidth, 
-            chartElement.offsetHeight);
-        
-        if (chartElement.offsetWidth === 0 || chartElement.offsetHeight === 0) {
-            console.warn('Chart container has zero dimensions - forcing size');
-            chartElement.style.width = '100%';
-            chartElement.style.height = '500px';
-        }
-        
-        // Render the default chart (line)
-        renderWatchlistChart('line');
-        
-    } catch (error) {
-        console.error("Error in renderChartForSecurity:", error);
-        if (chartElement) {
-            chartElement.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+        try {
+            // Process chart data
+            const dates = currentChartData.dates.map(d => new Date(d).getTime());
+            
+            // Base options
+            const options = {
+                series: [],
+                chart: {
+                    type: type,
+                    height: container.offsetHeight || 500,
+                    width: container.offsetWidth || '100%',
+                    animations: {
+                        enabled: false
+                    },
+                    background: '#ffffff',
+                    toolbar: {
+                        show: true
+                    }
+                },
+                title: {
+                    text: `${currentSymbol} Price History`,
+                    align: 'left',
+                    style: {
+                        fontSize: '16px',
+                        fontWeight: 'bold'
+                    }
+                },
+                xaxis: {
+                    type: 'datetime'
+                },
+                yaxis: {
+                    labels: {
+                        formatter: function(value) {
+                            return '$' + value.toFixed(2);
+                        }
+                    }
+                },
+                tooltip: {
+                    enabled: true
+                }
+            };
+            
+            // Configure series based on chart type
+            if (type === 'line') {
+                options.series = [{
+                    name: currentSymbol,
+                    data: currentChartData.prices.map((price, i) => ({
+                        x: dates[i],
+                        y: price
+                    }))
+                }];
+            } 
+            else if (type === 'bar') {
+                options.series = [{
+                    name: currentSymbol,
+                    data: currentChartData.prices.map((price, i) => ({
+                        x: dates[i],
+                        y: price
+                    }))
+                }];
+            } 
+            else if (type === 'candlestick') {
+                // Prepare OHLC data
+                const ohlcData = [];
+                
+                if (currentChartData.open_prices && currentChartData.high_prices && currentChartData.low_prices) {
+                    // Use real OHLC data
+                    for (let i = 0; i < currentChartData.dates.length; i++) {
+                        ohlcData.push({
+                            x: dates[i],
+                            y: [
+                                currentChartData.open_prices[i],
+                                currentChartData.high_prices[i],
+                                currentChartData.low_prices[i],
+                                currentChartData.prices[i]
+                            ]
+                        });
+                    }
+                } else {
+                    // Generate synthetic OHLC
+                    for (let i = 0; i < currentChartData.dates.length; i++) {
+                        const closePrice = currentChartData.prices[i];
+                        const prevClose = i > 0 ? currentChartData.prices[i-1] : closePrice;
+                        
+                        const volatility = closePrice * 0.02;
+                        const open = prevClose;
+                        const high = Math.max(open, closePrice) + (Math.random() * volatility);
+                        const low = Math.min(open, closePrice) - (Math.random() * volatility);
+                        
+                        ohlcData.push({
+                            x: dates[i],
+                            y: [open, high, low, closePrice]
+                        });
+                    }
+                }
+                
+                options.series = [{
+                    name: currentSymbol,
+                    data: ohlcData
+                }];
+            }
+            
+            // Create and render chart
+            watchlistChart = new ApexCharts(container, options);
+            watchlistChart.render();
+            console.log('Chart rendered successfully');
+            
+        } catch (error) {
+            console.error('Error rendering chart:', error);
+            document.getElementById('watchlist-apex-chart').innerHTML = 
+                `<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: #e74c3c;">Error: ${error.message}</div>`;
         }
     }
 }
