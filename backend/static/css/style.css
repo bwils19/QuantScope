@@ -53,7 +53,7 @@ label {
 }
 
 input[type="text"],
-input[type="email"],
+input[type="login_id"],
 input[type="password"] {
     width: 100%;
     padding: 10px;
