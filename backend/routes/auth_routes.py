@@ -212,8 +212,6 @@ def check_jwt():
 def signup():
     data = request.form
 
-    # these two checks need to generate a user-facing error message.
-
     # Check if the email already exists
     existing_user = User.query.filter_by(email=data['email']).first()
     if existing_user:
@@ -238,7 +236,7 @@ def signup():
     db.session.add(user)
     db.session.commit()
 
-    return redirect(url_for('auth.login_page'))
+    return jsonify({'success': True, 'message': 'Sign up successful! Please log in.'}), 200
 
 
 @auth_blueprint.route('/login', methods=['POST'])
@@ -246,9 +244,19 @@ def login():
     """Handle login form submission"""
     try:
         data = request.form
-        user = User.query.filter_by(email=data['email']).first()
+        login_id = data['login_id']  # This could be email or username
+        password = data['password']
+        
+        # Check if input is an email or username
+        is_email = '@' in login_id
+        
+        # Query the user based on either email or username
+        if is_email:
+            user = User.query.filter_by(email=login_id).first()
+        else:
+            user = User.query.filter_by(username=login_id).first()
 
-        if user and bcrypt.check_password_hash(user.password_hash, data['password']):
+        if user and bcrypt.check_password_hash(user.password_hash, password):
             additional_claims = {
                 "email": user.email,
                 "first_name": user.first_name,
@@ -260,20 +268,18 @@ def login():
             # Create response with redirect
             response = make_response(redirect(url_for('auth.portfolio_overview')))
 
-            # Set secure cookie flags
+            # Set cookies
             response.set_cookie(
                 'access_token_cookie',
                 access_token,
                 httponly=True,
-                # secure=True,  # Require HTTPS
                 secure=False,
                 samesite='Lax',
-                max_age=7200  # will log out after 2 hours
+                max_age=7200
             )
             response.set_cookie(
                 'csrf_access_token',
                 csrf_token,
-                # secure=True,
                 secure=False,
                 samesite='Lax',
                 max_age=7200
@@ -283,14 +289,14 @@ def login():
         # Invalid credentials
         if not user:
             return jsonify({
-                    "status": "error",
-                    "message": "No account found with that email address"
-                }), 401
+                "status": "error",
+                "message": "No account found with those credentials"
+            }), 401
         else:
             return jsonify({
-                    "status": "error",
-                    "message": "Invalid password"
-                }), 401
+                "status": "error",
+                "message": "Invalid password"
+            }), 401
 
     except Exception as e:
         print(f"Error in login: {e}")
@@ -698,7 +704,6 @@ def get_security_historical(symbol):
         if not historical_data:
             return jsonify({"message": "No historical data found"}), 404
 
-        # Format data using your actual column names
         data = {
             'dates': [record.date.strftime('%Y-%m-%d') for record in reversed(historical_data)],
             'prices': [float(record.close_price) for record in reversed(historical_data)],

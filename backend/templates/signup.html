@@ -42,36 +42,50 @@
         </div>
     </div>
 
-<script>
-    document.getElementById('signupForm').addEventListener('submit', function (event) {
-        event.preventDefault();
-
-        const formData = new FormData(this);
-
-        fetch("{{ url_for('auth.signup') }}", {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => {
-            if (response.ok) {
-                // Redirect to login on success
-                window.location.href = "{{ url_for('auth.login_page') }}";
-            } else {
-                // Show error message on failure
-                response.json().then(data => {
+    <script>
+        document.getElementById('signupForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+    
+            const formData = new FormData(this);
+    
+            fetch("{{ url_for('auth.signup') }}", {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    // Show success message and THEN redirect to login
                     Swal.fire({
-                        icon: 'error',
-                        title: 'Signup Failed',
-                        text: data.message,
-                        showConfirmButton: true
+                        icon: 'success',
+                        title: 'Success!',
+                        text: 'Sign up successful! Please log in.',
+                        confirmButtonText: 'Go to Login'
+                    }).then((result) => {
+                        // After clicking the button, redirect to login page
+                        window.location.href = "{{ url_for('auth.login_page') }}";
                     });
+                } else {
+                    // Show error message on failure
+                    response.json().then(data => {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Signup Failed',
+                            text: data.message,
+                            showConfirmButton: true
+                        });
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Something went wrong. Please try again.',
+                    showConfirmButton: true
                 });
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
+            });
         });
-    });
-</script>
+    </script>
 </body>
 </html>
