@@ -8,32 +8,58 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        .swal-modal {
-            border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-            font-family: Arial, sans-serif; /* Match your site's font */
+        /* Custom SweetAlert styling */
+        .swal2-popup {
+            border-radius: 8px !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+            font-family: Arial, sans-serif !important; 
+            padding: 2em !important;
         }
-
+    
         .swal2-title {
-            color: #2c3e50; /* Match your site's heading color */
-            font-size: 18px;
-            font-weight: 500;
+            color: #2c3e50 !important;
+            font-size: 18px !important;
+            font-weight: 500 !important;
         }
-
+    
         .swal2-html-container {
-            color: #5a6a7a; /* Match your site's text color */
-            font-size: 14px;
+            color: #5a6a7a !important;
+            font-size: 14px !important;
         }
-
+    
         /* Override SweetAlert icon colors to match your theme */
         .swal2-icon.swal2-error {
             border-color: #e74c3c !important;
             color: #e74c3c !important;
         }
-
+    
         .swal2-icon.swal2-success {
             border-color: #27ae60 !important;
             color: #27ae60 !important;
+        }
+        
+        /* Make sure the button uses your styles */
+        .swal2-actions .login-btn {
+            width: auto !important;
+            background-color: #6C7D93 !important;
+            color: white !important;
+            padding: 10px !important;
+            border: none !important;
+            border-radius: 4px !important;
+            cursor: pointer !important;
+            font-size: 1rem !important;
+            margin: 10px auto !important;
+            min-width: 120px !important;
+        }
+        
+        .swal2-actions .login-btn:hover {
+            background-color: #556070 !important;
+        }
+        
+        /* Override SweetAlert positioning to prevent jumping */
+        .swal2-container {
+            position: fixed !important;
+            z-index: 1060 !important;
         }
     </style>
 </head>
@@ -72,17 +98,21 @@
     </div>
 
     <script>
+        // Configure SweetAlert2 defaults
         const swalConfig = Swal.mixin({
             buttonsStyling: false,
             customClass: {
                 confirmButton: 'login-btn', 
-                popup: 'swal-modal'
+                popup: 'swal2-popup', // Changed from 'swal-modal' to 'swal2-popup'
+                htmlContainer: 'swal2-html-container', // Added this
+                title: 'swal2-title' // Added this
             },
             heightAuto: false,  
-            allowOutsideClick: false
+            allowOutsideClick: false,
+            width: 'auto', // Control width to avoid content shift
+            backdrop: true // Keep backdrop to prevent interaction with background
         });
-
-
+    
         document.getElementById('signupForm').addEventListener('submit', function (event) {
             event.preventDefault();
     
@@ -95,7 +125,7 @@
             .then(response => {
                 if (response.ok) {
                     // Show success message and THEN redirect to login
-                    Swal.fire({
+                    swalConfig.fire({ // Use swalConfig here instead of Swal
                         icon: 'success',
                         title: 'Success!',
                         text: 'Sign up successful! Please log in.',
@@ -107,22 +137,22 @@
                 } else {
                     // Show error message on failure
                     response.json().then(data => {
-                        Swal.fire({
+                        swalConfig.fire({ // Use swalConfig here instead of Swal
                             icon: 'error',
                             title: 'Signup Failed',
                             text: data.message,
-                            showConfirmButton: true
+                            confirmButtonText: 'OK'
                         });
                     });
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                Swal.fire({
+                swalConfig.fire({ // Use swalConfig here instead of Swal
                     icon: 'error',
                     title: 'Error',
                     text: 'Something went wrong. Please try again.',
-                    showConfirmButton: true
+                    confirmButtonText: 'OK'
                 });
             });
         });
