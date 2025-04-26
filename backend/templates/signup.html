@@ -7,6 +7,35 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .swal-modal {
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            font-family: Arial, sans-serif; /* Match your site's font */
+        }
+
+        .swal2-title {
+            color: #2c3e50; /* Match your site's heading color */
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .swal2-html-container {
+            color: #5a6a7a; /* Match your site's text color */
+            font-size: 14px;
+        }
+
+        /* Override SweetAlert icon colors to match your theme */
+        .swal2-icon.swal2-error {
+            border-color: #e74c3c !important;
+            color: #e74c3c !important;
+        }
+
+        .swal2-icon.swal2-success {
+            border-color: #27ae60 !important;
+            color: #27ae60 !important;
+        }
+    </style>
 </head>
 <body class="login-page">
     <div class="login-container">
@@ -43,6 +72,17 @@
     </div>
 
     <script>
+        const swalConfig = Swal.mixin({
+            buttonsStyling: false,
+            customClass: {
+                confirmButton: 'login-btn', 
+                popup: 'swal-modal'
+            },
+            heightAuto: false,  
+            allowOutsideClick: false
+        });
+
+
         document.getElementById('signupForm').addEventListener('submit', function (event) {
             event.preventDefault();
     
