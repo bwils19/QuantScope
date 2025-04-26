@@ -2773,6 +2773,60 @@ body.risk-analysis-page {
     padding-bottom: 30px; 
   } */
 
+
+  .portfolio-watchlist-container .watchlist-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  
+  .portfolio-watchlist-container .watchlist-table th,
+  .portfolio-watchlist-container .watchlist-table td {
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: middle;
+    border-bottom: 1px solid #ddd;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  /* Column width adjustments */
+  .portfolio-watchlist-container .watchlist-table th:first-child,
+  .portfolio-watchlist-container .watchlist-table td:first-child {
+    width: 15%;
+  }
+  
+  .portfolio-watchlist-container .watchlist-table th:nth-child(2),
+  .portfolio-watchlist-container .watchlist-table td:nth-child(2) {
+    width: 35%;
+  }
+  
+  .portfolio-watchlist-container .watchlist-table th:nth-child(3),
+  .portfolio-watchlist-container .watchlist-table td:nth-child(3) {
+    width: 15%;
+  }
+  
+  .portfolio-watchlist-container .watchlist-table th:nth-child(4),
+  .portfolio-watchlist-container .watchlist-table td:nth-child(4),
+  .portfolio-watchlist-container .watchlist-table th:nth-child(5),
+  .portfolio-watchlist-container .watchlist-table td:nth-child(5) {
+    width: 15%;
+    text-align: right;
+  }
+  
+  .portfolio-watchlist-container .watchlist-table th:last-child,
+  .portfolio-watchlist-container .watchlist-table td:last-child {
+    width: 10%;
+    text-align: center;
+  }
+
+
+
+
+
   .portfolio-watchlist-container {
     max-width: 1000px;
     margin: 0 auto 20px auto;
