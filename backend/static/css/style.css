@@ -2633,7 +2633,7 @@ body.risk-analysis-page {
 .remove-security-btn {
     padding: 0.5rem;
     border: none;
-    background: none;
+    background: #6C7D93;
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
