@@ -414,12 +414,13 @@ def get_name_similarity(column_name, reference_terms):
     max_similarity = 0
 
     # Direct match!
-    if column_name in [clean_column_name(term) for term in reference_terms]:
+    if column_name in [clean_column_name(term).lower() for term in reference_terms]:
         return 1.0
 
     # Word match
     column_words = set(column_name.split())
     for term in reference_terms:
+        term = term.lower()  # Ensure term is lowercase
         term_words = set(term.split())
         intersection = column_words.intersection(term_words)
         if intersection:
@@ -457,7 +458,8 @@ def smart_detect_columns(df):
 
         for target_col, reference_terms in column_mappings.items():
             # Combine name similarity and content analysis
-            name_score = get_name_similarity(col_lower, [term.lower() for term in reference_terms])
+            # name_score = get_name_similarity(col_lower, [term.lower() for term in reference_terms])
+            name_score = get_name_similarity(col_lower, reference_terms)
             content_score = content_scores.get(target_col, 0)
 
             # Weight the scores (adjust weights as needed)
