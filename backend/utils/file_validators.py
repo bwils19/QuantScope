@@ -27,31 +27,46 @@ ALLOWED_EXTENSIONS = {
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB in bytes
 
 # Potentially dangerous content patterns
+# DANGEROUS_PATTERNS = [
+#     # Shell command injection
+#     r'`.*`',                      # Backtick command execution
+#     r'\$\(.*\)',                  # Command substitution
+#     r';\s*rm\s',                  # Semicolon followed by rm command
+#     r';\s*wget\s',                # Semicolon followed by wget command
+#     r';\s*curl\s',                # Semicolon followed by curl command
+    
+#     # Script tags and other HTML/JavaScript
+#     r'<script.*>',                # Script tags
+#     r'javascript:',               # JavaScript protocol
+#     r'onerror=',                  # Event handlers
+#     r'onload=',
+    
+#     # SQL Injection
+#     r';\s*DROP\s+TABLE',          # DROP TABLE statements
+#     r';\s*DELETE\s+FROM',         # DELETE FROM statements
+#     r'UNION\s+SELECT',            # UNION SELECT statements
+    
+#     # File path traversal
+#     r'\.\./\.\.',                 # Path traversal
+    
+#     # Executable content
+#     r'PK\x03\x04',                # ZIP file header (could contain malicious files)
+#     r'MZ',                        # EXE file header
+# ]
+
 DANGEROUS_PATTERNS = [
-    # Shell command injection
-    r'`.*`',                      # Backtick command execution
-    r'\$\(.*\)',                  # Command substitution
-    r';\s*rm\s',                  # Semicolon followed by rm command
-    r';\s*wget\s',                # Semicolon followed by wget command
-    r';\s*curl\s',                # Semicolon followed by curl command
+    # Shell command execution - most dangerous
+    r'`.*rm\s',                  # Backtick with rm command
+    r'`.*wget\s',                # Backtick with wget
+    r'\$\(rm\s',                 # Command substitution with rm
+    r'\$\(wget\s',               # Command substitution with wget
     
-    # Script tags and other HTML/JavaScript
-    r'<script.*>',                # Script tags
-    r'javascript:',               # JavaScript protocol
-    r'onerror=',                  # Event handlers
-    r'onload=',
-    
-    # SQL Injection
-    r';\s*DROP\s+TABLE',          # DROP TABLE statements
-    r';\s*DELETE\s+FROM',         # DELETE FROM statements
-    r'UNION\s+SELECT',            # UNION SELECT statements
-    
-    # File path traversal
-    r'\.\./\.\.',                 # Path traversal
+    # Script tags - most dangerous
+    r'<script.*>.*</script>',    # Complete script tags
     
     # Executable content
-    r'PK\x03\x04',                # ZIP file header (could contain malicious files)
-    r'MZ',                        # EXE file header
+    r'^MZ',                      # EXE file header at start of file
+    r'^PK\x03\x04',              # ZIP file header at start of file
 ]
 
 def validate_file_extension(filename: str) -> Tuple[bool, str]:
@@ -131,10 +146,27 @@ def scan_for_dangerous_content(file: FileStorage) -> Tuple[bool, str]:
     else:
         content_str = content
     
-    # Check for dangerous patterns
-    for pattern in DANGEROUS_PATTERNS:
+    # Check for the most dangerous patterns - reduce this list to focus on executable threats
+    # and remove patterns that might appear in legitimate CSV data
+    reduced_patterns = [
+        # Shell command execution - keep these as they're highly dangerous
+        r'`.*rm\s',  # Backtick with rm command
+        r'`.*wget\s', # Backtick with wget
+        r'\$\(rm\s',  # Command substitution with rm
+        r'\$\(wget\s', # Command substitution with wget
+        
+        # Most dangerous HTML/JavaScript
+        r'<script.*>.*</script>', # Complete script tags
+        
+        # Executable content markers
+        r'^MZ',                   # EXE file header at start of file
+        r'^PK\x03\x04',           # ZIP file header at start of file
+    ]
+    
+    # Check for reduced dangerous patterns
+    for pattern in reduced_patterns:
         if re.search(pattern, content_str, re.IGNORECASE):
-            return False, "Potentially malicious content detected in file"
+            return False, "Potentially malicious executable content detected in file"
     
     return True, ""
 
