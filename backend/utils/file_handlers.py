@@ -432,6 +432,7 @@ def get_name_similarity(column_name, reference_terms):
 
 def smart_detect_columns(df):
     """Smart column detection combining multiple approaches"""
+    print("=======SMART DETECT COLUMN CALLED===================")
     column_mappings = {
         'ticker': ['ticker', 'symbol', 'stock', 'security', 'ticker symbol', 'stock symbol', 'securities', 'asset'],
         'amount': ['amount', 'amount_owned', 'shares', 'quantity', 'position', 'units', 'share quantity', 'holdings',
