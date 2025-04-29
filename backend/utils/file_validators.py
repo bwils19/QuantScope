@@ -12,6 +12,8 @@ import pandas as pd
 import openpyxl
 from werkzeug.datastructures import FileStorage
 
+from datetime import datetime
+
 # Configure logging
 logger = logging.getLogger('file_validators')
 
@@ -68,6 +70,14 @@ DANGEROUS_PATTERNS = [
     r'^MZ',                      # EXE file header at start of file
     r'^PK\x03\x04',              # ZIP file header at start of file
 ]
+
+def debug_log(message):
+    """Write debug messages to a known file location"""
+    with open('/var/log/quantscope_debug.log', 'a') as f:
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        f.write(f"[{timestamp}] {message}\n")
+        f.flush()  # Force write to disk
+
 
 def validate_file_extension(filename: str) -> Tuple[bool, str]:
     """
@@ -171,34 +181,50 @@ def scan_for_dangerous_content(file: FileStorage) -> Tuple[bool, str]:
     return True, ""
 
 def validate_csv_content(file: FileStorage) -> Tuple[bool, str, Optional[pd.DataFrame]]:
-    """
-    Validate that the CSV file contains valid data.
-    Args: file: The CSV file to validate
-    Returns: Tuple of (is_valid, message, dataframe)
-    """
+    """Validate that the CSV file contains valid data."""
+    debug_log("Starting validate_csv_content")
     try:
         # Try to read the CSV file
         df = pd.read_csv(file, encoding='utf-8')
         file.seek(0)  # Reset file pointer
         
+        debug_log(f"CSV columns: {df.columns.tolist()}")
+        
         # Check if the dataframe is empty
         if df.empty:
+            debug_log("CSV file is empty")
             return False, "CSV file is empty", None
         
-        # Basic validation of required columns for portfolio data
+        # Handle amount_owned specifically before validation
+        if 'amount_owned' in df.columns and 'amount' not in df.columns:
+            debug_log("Found 'amount_owned' but not 'amount', renaming")
+            df = df.rename(columns={'amount_owned': 'amount'})
+        
+        # Look for common amount column names if 'amount' isn't present
+        amount_columns = [col for col in df.columns if col.lower() in 
+                        ['amount', 'shares', 'quantity', 'position', 'units']]
+        
+        debug_log(f"Amount-like columns: {amount_columns}")
+        
+        # Basic validation of required columns
         required_columns = ['ticker', 'amount']
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
+            debug_log(f"Missing columns: {missing_columns}")
             return False, f"Missing required columns: {', '.join(missing_columns)}", None
         
+        debug_log("CSV content validation successful")
         return True, "", df
     
     except pd.errors.EmptyDataError:
+        debug_log("CSV file is empty (pandas error)")
         return False, "CSV file is empty", None
     except pd.errors.ParserError:
+        debug_log("CSV file is not properly formatted")
         return False, "CSV file is not properly formatted", None
     except Exception as e:
+        debug_log(f"Error reading CSV file: {str(e)}")
         return False, f"Error reading CSV file: {str(e)}", None
 
 def validate_excel_content(file: FileStorage) -> Tuple[bool, str, Optional[pd.DataFrame]]:
