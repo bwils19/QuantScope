@@ -1714,6 +1714,8 @@ def create_portfolio_from_file(file_id):
                     portfolio.day_change = day_change
                     portfolio.day_change_pct = (day_change / (portfolio.total_value - day_change)) * 100 if portfolio.total_value > day_change else 0
                     db.session.commit()
+                    portfolio = Portfolio.query.get(portfolio.id)
+
                     
                     print(f"Direct calculation complete. Day change: ${day_change:.2f}")
             except Exception as metrics_error:
