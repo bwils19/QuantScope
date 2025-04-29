@@ -48,6 +48,8 @@ def parse_portfolio_file(file_obj, file_ext: str = None) -> Tuple[pd.DataFrame, 
         file_obj: Either a file path string or a file-like object
         file_ext: Optional file extension (required if file_obj is a file-like object)
     """
+    print("\n=== PARSE_PORTFOLIO_FILE EXECUTION TRACE ===")
+    print(f"File object type: {type(file_obj)}")
     try:
         # Determine if we're dealing with a file path or a file object
         if isinstance(file_obj, str):
@@ -496,6 +498,11 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     column standardization with debug output
     """
+
+    print("\n=== STANDARDIZE_COLUMNS EXECUTION TRACE ===")
+    print(f"Input df shape: {df.shape}")
+    print(f"Input columns: {df.columns.tolist()}")
+    
     # First, standardize the column names
     df.columns = [clean_column_name(col) for col in df.columns]
 

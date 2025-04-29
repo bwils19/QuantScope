@@ -1312,6 +1312,7 @@ def preview_portfolio_file():
         try:
             # Process file in memory using our updated utility function
             from backend.utils.file_handlers import parse_portfolio_file
+            print("parse portfolio file called======")
             df, validation_summary = parse_portfolio_file(file, file_ext)
             # Validation is now handled by parse_portfolio_file function
             
