@@ -1262,210 +1262,177 @@ def download_portfolio_template():
 @jwt_required(locations=["cookies"])
 def preview_portfolio_file():
     """Preview and validate uploaded portfolio file"""
-    # Create a debug log file we can check
-    with open('/tmp/portfolio_debug.log', 'a') as debug_file:
-        debug_file.write(f"\n\n=== NEW UPLOAD ATTEMPT: {datetime.now()} ===\n")
-        
+    try:
+        if 'file' not in request.files:
+            return jsonify({"message": "No file uploaded"}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"message": "No file selected"}), 400
+
+        current_user_email = get_jwt_identity()
+        user = User.query.filter_by(email=current_user_email).first()
+
+        # First, try to read CSV directly to check columns
         try:
-            if 'file' not in request.files:
-                debug_file.write("No file in request\n")
-                return jsonify({"message": "No file uploaded"}), 400
-
-            file = request.files['file']
-            if file.filename == '':
-                debug_file.write("Empty filename\n")
-                return jsonify({"message": "No file selected"}), 400
-
-            # Save file content sample for debugging
-            file_content = file.read(1000)
-            debug_file.write(f"File content sample: {file_content}\n")
+            import pandas as pd
+            file.seek(0)
+            df_direct = pd.read_csv(file)
+            print(f"DIRECT CSV READ - Columns: {df_direct.columns.tolist()}")
             file.seek(0)  # Reset file pointer
-            
-            current_user_email = get_jwt_identity()
-            user = User.query.filter_by(email=current_user_email).first()
-            debug_file.write(f"User: {current_user_email}\n")
+        except Exception as e:
+            print(f"Error in direct CSV read: {str(e)}")
 
-            # Try direct CSV reading
-            try:
-                import pandas as pd
-                file.seek(0)
-                df_test = pd.read_csv(file)
-                debug_file.write(f"CSV columns directly: {df_test.columns.tolist()}\n")
-                if 'amount_owned' in df_test.columns:
-                    debug_file.write("Found 'amount_owned' column!\n")
-                file.seek(0)
-            except Exception as e:
-                debug_file.write(f"Error in direct CSV read: {str(e)}\n")
+        # Import file validation utilities
+        from backend.utils.file_validators import validate_uploaded_file, safe_read_file
+        from backend.models import UploadedFile
+        
+        # Perform comprehensive security validation
+        validation_result = validate_uploaded_file(file)
+        
+        if not validation_result['is_valid']:
+            error_message = "; ".join(validation_result['messages'])
+            print(f"File validation failed: {error_message}")
+            return jsonify({"message": error_message}), 400
+            
+        # Get file metadata
+        metadata = validation_result['metadata']
+        print(f"File validated successfully: {metadata['filename']}, {metadata['size']} bytes, {metadata['mime_type']}")
+        
+        # Sanitize filename
+        filename = secure_filename(file.filename)
+        file_ext = os.path.splitext(filename)[1].lower()
+        
+        # Create a record of the uploaded file with security metadata
+        try:
+            uploaded_file = UploadedFile.create_from_upload(
+                user_id=user.id,
+                file_obj=file,
+                metadata=metadata
+            )
+            print(f"Created uploaded file record: ID {uploaded_file.id}")
+        except Exception as e:
+            print(f"Warning: Could not create UploadedFile record: {str(e)}")
+            # Continue anyway, this is just for tracking
+        
+        # Get file size for database record
+        file_size = metadata['size']
+        file.seek(0)  # Reset file pointer to beginning
 
-            # Import file validation utilities
-            from backend.utils.file_validators import validate_uploaded_file, safe_read_file
-            from backend.models import UploadedFile
+        try:
+            # Process file in memory using our updated utility function
+            from backend.utils.file_handlers import parse_portfolio_file
+            print("parse portfolio file called======")
             
-            debug_file.write("Performing validation...\n")
-            # Perform comprehensive security validation
-            validation_result = validate_uploaded_file(file)
-            debug_file.write(f"Validation result: {validation_result['is_valid']}\n")
-            
-            if not validation_result['is_valid']:
-                error_message = "; ".join(validation_result['messages'])
-                debug_file.write(f"File validation failed: {error_message}\n")
-                print(f"File validation failed: {error_message}")
-                return jsonify({"message": error_message}), 400
+            # PATCH: If validation result contains data, use it directly
+            if 'data' in validation_result and validation_result['data'] is not None:
+                print("Using data from validation")
+                df = validation_result['data']
                 
-            # Get file metadata
-            metadata = validation_result['metadata']
-            debug_file.write(f"Metadata: {metadata}\n")
-            print(f"File validated successfully: {metadata['filename']}, {metadata['size']} bytes, {metadata['mime_type']}")
-            
-            # Sanitize filename
-            filename = secure_filename(file.filename)
-            file_ext = os.path.splitext(filename)[1].lower()
-            debug_file.write(f"File extension: {file_ext}\n")
-            
-            # Create a record of the uploaded file with security metadata
-            try:
-                uploaded_file = UploadedFile.create_from_upload(
-                    user_id=user.id,
-                    file_obj=file,
-                    metadata=metadata
-                )
-                debug_file.write(f"Created UploadedFile record: ID {uploaded_file.id}\n")
-                print(f"Created uploaded file record: ID {uploaded_file.id}")
-            except Exception as e:
-                debug_file.write(f"Warning: Could not create UploadedFile record: {str(e)}\n")
-                print(f"Warning: Could not create UploadedFile record: {str(e)}")
-                # Continue anyway, this is just for tracking
-            
-            # Get file size for database record
-            file_size = metadata['size']
-            file.seek(0)  # Reset file pointer to beginning
-
-            try:
-                # Try direct CSV reading again before parse_portfolio_file
-                try:
-                    import pandas as pd
-                    file.seek(0)
-                    df_pre = pd.read_csv(file)
-                    debug_file.write(f"CSV columns before parse: {df_pre.columns.tolist()}\n")
-                    file.seek(0)
-                except Exception as e:
-                    debug_file.write(f"Error in CSV read before parse: {str(e)}\n")
-                
-                # Process file in memory using our updated utility function
-                from backend.utils.file_handlers import parse_portfolio_file
-                debug_file.write("Calling parse_portfolio_file...\n")
-                print("parse portfolio file called======")
-                df, validation_summary = parse_portfolio_file(file, file_ext)
-                debug_file.write(f"parse_portfolio_file completed\n")
-                debug_file.write(f"Resulting columns: {df.columns.tolist()}\n")
-                debug_file.write(f"Validation summary: {validation_summary}\n")
-                
-                # Manual column mapping for debugging - only if needed
+                # Direct fix for the column name issue
                 if 'amount' not in df.columns and 'amount_owned' in df.columns:
-                    debug_file.write("Manually renaming 'amount_owned' to 'amount'\n")
+                    print("FIXING: Renaming 'amount_owned' to 'amount'")
                     df = df.rename(columns={'amount_owned': 'amount'})
                 
-                # Check the df again after potential manual rename
-                debug_file.write(f"Columns after potential rename: {df.columns.tolist()}\n")
+                # Create basic validation summary if it doesn't exist
+                validation_summary = {
+                    'total_rows': len(df),
+                    'valid_rows': len(df),  # Assume all valid initially
+                    'invalid_rows': 0,
+                    'total_amount': float(df['amount'].sum()) if 'amount' in df.columns else 0,
+                    'unique_securities': len(df['ticker'].unique()) if 'ticker' in df.columns else 0
+                }
+            else:
+                # Original code path
+                df, validation_summary = parse_portfolio_file(file, file_ext)
                 
-                # Validation is now handled by parse_portfolio_file function
-                debug_file.write("Calling format_preview_data\n")
-                preview_data = format_preview_data(df)
-                debug_file.write(f"Preview data created: {len(preview_data)} rows\n")
+                # Check if we still need the column fix
+                if 'amount' not in df.columns and 'amount_owned' in df.columns:
+                    print("FIXING AFTER PARSE: Renaming 'amount_owned' to 'amount'")
+                    df = df.rename(columns={'amount_owned': 'amount'})
+            
+            # Validation is now handled by parse_portfolio_file function
+            print(f"After processing - Columns: {df.columns.tolist()}")
+            
+            preview_data = format_preview_data(df)
 
-                # Add ticker validation
-                from backend.services.validators import validate_ticker
-                debug_file.write("Starting ticker validation\n")
+            # Add ticker validation
+            from backend.services.validators import validate_ticker
 
-                # Validate each ticker in the preview data
-                for row in preview_data:
-                    # Only validate if not already validated
-                    if row['validation_status'] != 'invalid':
-                        ticker = row.get('ticker', '').strip().upper()
-                        is_valid, company_name = validate_ticker(ticker)
+            # Validate each ticker in the preview data
+            for row in preview_data:
+                # Only validate if not already validated
+                if row['validation_status'] != 'invalid':
+                    ticker = row.get('ticker', '').strip().upper()
+                    is_valid, company_name = validate_ticker(ticker)
 
-                        if is_valid:
-                            # If we have a company name and the row doesn't, use it
-                            if company_name and not row.get('name'):
-                                row['name'] = company_name
-                            row['validation_status'] = 'valid'
-                        else:
-                            row['validation_status'] = 'invalid'
-                            row['validation_message'] = 'Invalid ticker symbol'
+                    if is_valid:
+                        # If we have a company name and the row doesn't, use it
+                        if company_name and not row.get('name'):
+                            row['name'] = company_name
+                        row['validation_status'] = 'valid'
+                    else:
+                        row['validation_status'] = 'invalid'
+                        row['validation_message'] = 'Invalid ticker symbol'
 
-                debug_file.write("Ticker validation complete\n")
-                
-                # Update validation summary based on additional validation
-                valid_count = sum(1 for row in preview_data if row['validation_status'] == 'valid')
-                invalid_count = len(preview_data) - valid_count
-                validation_summary['valid_rows'] = valid_count
-                validation_summary['invalid_rows'] = invalid_count
-                debug_file.write(f"Updated validation summary: valid={valid_count}, invalid={invalid_count}\n")
+            # Update validation summary based on additional validation
+            valid_count = sum(1 for row in preview_data if row['validation_status'] == 'valid')
+            invalid_count = len(preview_data) - valid_count
+            validation_summary['valid_rows'] = valid_count
+            validation_summary['invalid_rows'] = invalid_count
 
-                # Create a record in PortfolioFiles
-                debug_file.write("Creating PortfolioFiles record\n")
-                # Check if the model has the new fields before using them
-                try:
-                    # Try to create with new fields
+            # Create a record in PortfolioFiles
+            # Check if the model has the new fields before using them
+            try:
+                # Try to create with new fields
+                portfolio_file = PortfolioFiles(
+                    user_id=user.id,
+                    filename=filename,
+                    uploaded_by=user.email,
+                    file_content_type=file.content_type,
+                    file_size=file_size,
+                    processed=False
+                )
+            except Exception as e:
+                if 'UndefinedColumn' in str(e) or 'does not exist' in str(e):
+                    # Fall back to original fields if new columns don't exist yet
+                    print("Warning: New columns not available in database. Using original schema.")
                     portfolio_file = PortfolioFiles(
                         user_id=user.id,
                         filename=filename,
-                        uploaded_by=user.email,
-                        file_content_type=file.content_type,
-                        file_size=file_size,
-                        processed=False
+                        uploaded_by=user.email
                     )
-                    debug_file.write("Created with new fields\n")
-                except Exception as e:
-                    debug_file.write(f"Error with new fields: {str(e)}\n")
-                    if 'UndefinedColumn' in str(e) or 'does not exist' in str(e):
-                        # Fall back to original fields if new columns don't exist yet
-                        debug_file.write("Falling back to original schema\n")
-                        print("Warning: New columns not available in database. Using original schema.")
-                        portfolio_file = PortfolioFiles(
-                            user_id=user.id,
-                            filename=filename,
-                            uploaded_by=user.email
-                        )
-                    else:
-                        raise
-                
-                db.session.add(portfolio_file)
-                db.session.commit()
-                debug_file.write(f"PortfolioFiles record created with ID: {portfolio_file.id}\n")
+                else:
+                    raise
+            db.session.add(portfolio_file)
+            db.session.commit()
 
-                # Store the preview data in the session for later use
-                from flask import session
-                session[f'preview_data_{portfolio_file.id}'] = preview_data
-                debug_file.write("Preview data stored in session\n")
-                
-                debug_file.write("Returning success response\n")
-                return jsonify({
-                    'preview_data': preview_data,
-                    'summary': validation_summary,
-                    'message': 'File processed successfully',
-                    'file_id': portfolio_file.id
-                })
-
-            except Exception as e:
-                debug_file.write(f"Error processing file: {str(e)}\n")
-                import traceback
-                debug_file.write(f"Traceback: {traceback.format_exc()}\n")
-                print(f"Error processing file: {str(e)}")
-                print(f"Traceback: {traceback.format_exc()}")
-                return jsonify({
-                    'message': f"Error processing file: {str(e)}"
-                }), 500
+            # Store the preview data in the session for later use
+            from flask import session
+            session[f'preview_data_{portfolio_file.id}'] = preview_data
+            
+            return jsonify({
+                'preview_data': preview_data,
+                'summary': validation_summary,
+                'message': 'File processed successfully',
+                'file_id': portfolio_file.id
+            })
 
         except Exception as e:
-            debug_file.write(f"Error in preview: {str(e)}\n")
+            print(f"Error processing file: {str(e)}")
             import traceback
-            debug_file.write(f"Traceback: {traceback.format_exc()}\n")
-            print(f"Error in preview: {str(e)}")
             print(f"Traceback: {traceback.format_exc()}")
             return jsonify({
                 'message': f"Error processing file: {str(e)}"
             }), 500
+
+    except Exception as e:
+        print(f"Error in preview: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'message': f"Error processing file: {str(e)}"
+        }), 500
 
 
 @auth_blueprint.route('/create-portfolio-from-file/<int:file_id>', methods=['POST'])
