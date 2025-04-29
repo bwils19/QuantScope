@@ -26,7 +26,7 @@ from backend.services.stock_service import is_market_open
 class PriceUpdateService:
     """Service for updating security prices efficiently with Alpha Vantage API."""
 
-    def __init__(self, api_key=None, rate_limit=75, batch_size=50):
+    def __init__(self, api_key=None, rate_limit=75, batch_size=50, db_session=None):
         """Initialize the price update service.
 
         Args:
@@ -44,6 +44,7 @@ class PriceUpdateService:
         self.lock = threading.Lock()
 
         # Session with retry configuration
+        self.db = db_session
         self.session = self._create_request_session()
         self.logger.info(f"PriceUpdateService initialized with rate_limit={rate_limit}, batch_size={batch_size}")
 
@@ -201,23 +202,25 @@ class PriceUpdateService:
         try:
             self.logger.info(f"Updating prices for portfolio {portfolio_id}")
             
-            # Check if we're already in a transaction
-            in_transaction = False
-            try:
-                # This will raise an exception if we're already in a transaction
-                db.session.begin_nested()
-                db.session.rollback()  # Roll back the nested transaction we just started
-            except Exception:
-                in_transaction = True
-                self.logger.info("Using existing transaction")
+            # # Check if we're already in a transaction
+            # in_transaction = False
+            # try:
+            #     # This will raise an exception if we're already in a transaction
+            #     db.session.begin_nested()
+            #     db.session.rollback()  # Roll back the nested transaction we just started
+            # except Exception:
+            #     in_transaction = True
+            #     self.logger.info("Using existing transaction")
             
-            # Use the existing session if we're in a transaction, otherwise create a new one
-            if in_transaction:
-                session = db.session
-            else:
-                # Create a new transaction
-                session = db.session()
-                session.begin()
+            # # Use the existing session if we're in a transaction, otherwise create a new one
+            # if in_transaction:
+            #     session = db.session
+            # else:
+            #     # Create a new transaction
+            #     session = db.session()
+            #     session.begin()
+
+            session = self.db
                 
             try:
                 # Get the portfolio
@@ -1164,22 +1167,24 @@ class PriceUpdateService:
         self.logger.info(f"Updating comprehensive metrics for portfolio {portfolio_id}")
         
         # Check if we're already in a transaction
-        in_transaction = False
-        try:
-            # This will raise an exception if we're already in a transaction
-            db.session.begin_nested()
-            db.session.rollback()  # Roll back the nested transaction we just started
-        except Exception:
-            in_transaction = True
-            self.logger.info("Using existing transaction for update_portfolio_metrics")
+        # in_transaction = False
+        # try:
+        #     # This will raise an exception if we're already in a transaction
+        #     db.session.begin_nested()
+        #     db.session.rollback()  # Roll back the nested transaction we just started
+        # except Exception:
+        #     in_transaction = True
+        #     self.logger.info("Using existing transaction for update_portfolio_metrics")
         
-        # Use the existing session if we're in a transaction, otherwise create a new one
-        if in_transaction:
-            session = db.session
-        else:
-            # Create a new transaction
-            session = db.session()
-            session.begin()
+        # # Use the existing session if we're in a transaction, otherwise create a new one
+        # if in_transaction:
+        #     session = db.session
+        # else:
+        #     # Create a new transaction
+        #     session = db.session()
+        #     session.begin()
+
+        session = self.db
             
         try:
             # Get the portfolio

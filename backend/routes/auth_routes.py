@@ -1723,6 +1723,16 @@ def create_portfolio_from_file(file_id):
                 import traceback
                 traceback.print_exc()
 
+            try:
+                svc = PriceUpdateService(session=db.session)
+                svc.update_prices_for_portfolio(portfolio.id)
+                svc.update_portfolio_metrics(portfolio.id)
+            except Exception as price_exc:
+                current_app.logger.error(
+                    f"Sync price‐update failed (but portfolio is created): {price_exc}",
+                    exc_info=True
+                )
+
             return jsonify({
                 "message": f"Portfolio created successfully with {len(valid_rows)} securities.",
                 "stats": {
