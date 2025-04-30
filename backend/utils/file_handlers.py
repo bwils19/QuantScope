@@ -123,6 +123,10 @@ def parse_portfolio_file(file_obj, file_ext: str = None) -> Tuple[pd.DataFrame, 
                     df.loc[invalid_prices, 'validation_status'] = 'invalid'
                     df.loc[invalid_prices, 'validation_message'] += f'Invalid {col}; '
 
+        # added this, not sure if this will work, need to verify....
+        df['validation_status'] = df['validation_status'].astype(str)
+        df['validation_message'] = df['validation_message'].astype(str)
+
         # validation summary
         validation_summary = {
             'total_rows': len(df),
@@ -154,7 +158,7 @@ def format_preview_data(df):
         required_columns = {
             'ticker': str,
             'amount': float,
-            'purchase_date': str
+            'purchase_date': str  # this should get changed to purchase
         }
         # i can implement an api call later to grab this information if it isn't provided in the file.
         optional_columns = {
@@ -167,9 +171,15 @@ def format_preview_data(df):
         }
 
         for _, row in df.iterrows():
+
+            validation_status = row.get('validation_status', 'valid')
+            validation_message = str(row.get('validation_message', ''))
+
             preview_row = {
-                'validation_status': row.get('validation_status', 'valid'),  # Default to valid
-                'validation_message': row.get('validation_message', '').strip('; ')
+                # 'validation_status': row.get('validation_status', 'valid'),  # Default to valid
+                # 'validation_message': row.get('validation_message', '').strip('; ')
+                'validation_status': validation_status,
+                'validation_message': validation_message
             }
 
             # Handle required columns
@@ -177,7 +187,9 @@ def format_preview_data(df):
                 if col not in row:
                     preview_row[col] = 'Missing'
                     preview_row['validation_status'] = 'invalid'
-                    preview_row['validation_message'] += f'Missing required column: {col}; '
+                    # preview_row['validation_message'] += f'Missing required column: {col}; '
+                    preview_row['validation_message'] = preview_row['validation_message'] + f'Missing required column: {col}; '
+
                 else:
                     try:
                         if col == 'purchase_date':
