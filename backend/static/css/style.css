@@ -3063,8 +3063,8 @@ body.risk-analysis-page {
 .loading-spinner:before {
     content: '';
     display: block;
-    width: 30px;
-    height: 30px;
+    width: 40px;
+    height: 40px;
     margin: 0 auto 10px;
     border-radius: 50%;
     border: 3px solid #f3f3f3;
