@@ -464,81 +464,67 @@ function renderBetaChart(betaData) {
     gradient.addColorStop(0, 'rgba(52, 152, 219, 0.1)');
     gradient.addColorStop(1, 'rgba(52, 152, 219, 0.02)');
 
-    new Chart(ctx, {
+    betaChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: Array(betaData.rolling_betas.length).fill('').map((_, i) =>
-                `Day ${i + 1}`
-            ),
-            datasets: [{
-                label: 'Rolling Beta',
-                data: betaData.rolling_betas,
-                borderColor: chartPalette.primary.navy,
-                borderWidth: 2,
-                fill: false,
-                tension: 0.4
-            }, {
-                label: 'Confidence Interval',
-                data: Array(betaData.rolling_betas.length).fill(betaData.confidence.high),
-                borderColor: 'rgba(52, 152, 219, 0.3)',
-                borderWidth: 1,
-                fill: '+1',
-                tension: 0.4
-            }, {
-                label: 'Confidence Interval',
-                data: Array(betaData.rolling_betas.length).fill(betaData.confidence.low),
-                borderColor: 'rgba(52, 152, 219, 0.3)',
-                borderWidth: 1,
-                fill: false,
-                tension: 0.4,
-                backgroundColor: gradient
-            }]
+          // 1) real dates
+          labels: betaData.dates.map(d => new Date(d).toLocaleDateString()),
+          datasets: [
+            {
+              label: 'Rolling Beta',
+              data: betaData.rolling_betas,
+              borderColor: chartPalette.primary.navy,
+              borderWidth: 2,
+              fill: false,
+              tension: 0.4
+            },
+            {
+              label: 'Upper CI',
+              data: Array(betaData.rolling_betas.length).fill(betaData.confidence.high),
+              borderColor: 'rgba(52, 152, 219, 0.3)',
+              borderWidth: 1,
+              fill: '+1',
+              tension: 0.4
+            },
+            {
+              label: 'Lower CI',
+              data: Array(betaData.rolling_betas.length).fill(betaData.confidence.low),
+              borderColor: 'rgba(52, 152, 219, 0.3)',
+              borderWidth: 1,
+              fill: false,
+              tension: 0.4
+            }
+          ]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    backgroundColor: chartPalette.background.card,
-                    titleColor: chartPalette.primary.navy,
-                    bodyColor: chartPalette.primary.navy,
-                    borderColor: chartPalette.primary.lightGrey,
-                    borderWidth: 1,
-                    padding: 10,
-                    callbacks: {
-                        label: (context) => `Beta: ${context.raw.toFixed(2)}`
-                    }
-                }
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: {
+                display: true,
+                autoSkip: true,
+                maxRotation: 45,
+                minRotation: 45
+              }
             },
-            scales: {
-                y: {
-                    beginAtZero: false,
-                    grid: {
-                        drawBorder: false,
-                        color: '#e2e8f0'
-                    },
-                    ticks: {
-                        callback: value => value.toFixed(2),
-                        font: {
-                            family: 'Arial',
-                            size: 12
-                        }
-                    }
-                },
-                x: {
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        display: false
-                    }
-                }
+            y: {
+              beginAtZero: false,
+              ticks: { callback: v => v.toFixed(2) }
             }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => `Beta: ${ctx.raw.toFixed(2)}`
+              }
+            }
+          }
         }
-    });
+      });
+    
 
     // Update beta metrics card
             document.getElementById('portfolioBeta').textContent = betaData.beta.toFixed(2);
